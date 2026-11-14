@@ -135,6 +135,7 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
                 break;
             case 2:
                 view = new DividerCell(mContext);
+                ((DividerCell) view).setMurkaHideInMD3(true); // MurkaGram: MD3
                 break;
             case 3:
                 view = new DrawerActionCell(mContext);

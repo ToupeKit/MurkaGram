@@ -9474,6 +9474,16 @@ public class Theme {
             return null;
         }
         Drawable drawable = context.getResources().getDrawable(resId).mutate();
+        // MurkaGram: MD3 — вместо теней между секциями пустой промежуток (с теми же отступами, что у 9-patch)
+        if (org.telegram.ui.Components.MurkaMD3.enabled() && (resId == R.drawable.greydivider || resId == R.drawable.greydivider_top || resId == R.drawable.greydivider_bottom)) {
+            try {
+                android.graphics.Rect padding = new android.graphics.Rect();
+                drawable.getPadding(padding);
+                return new android.graphics.drawable.InsetDrawable(new ColorDrawable(0), padding.left, padding.top, padding.right, padding.bottom);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
         drawable.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
         return drawable;
     }

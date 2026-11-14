@@ -26,6 +26,8 @@
     <string name="MurkaFontError">Не вдалося завантажити файл шрифту</string>
     <string name="MurkaFontRestart">Перезапустіть застосунок, щоб застосувати шрифт.</string>
     <string name="MurkaRestart">Перезапустити</string>
+    <string name="MurkaMD3Design">MD3 дизайн</string>
+    <string name="MurkaMD3Restart">Перезапустіть застосунок, щоб застосувати MD3 дизайн.</string>
     <string name="MurkaAccountId">ID акаунта</string>
     <string name="MurkaIdCopied">ID скопійовано до буфера обміну.</string>
     <!-- MurkaGram: настройки бокового меню -->
@@ -313,4 +315,5 @@
     <string name="RemindTodayAt">\'Нагадати сьогодні,\' HH:mm</string>
     <string name="RemindDayAt">\'Нагадати\' d MMM\',\' HH:mm</string>
     <string name="RemindDayYearAt">\'Нагадати\' d MMM yyyy\',\' HH:mm</string>
+    <string name="AppIconMurkaGramFlat">MurkaGram без градієнта</string>
 </resources>

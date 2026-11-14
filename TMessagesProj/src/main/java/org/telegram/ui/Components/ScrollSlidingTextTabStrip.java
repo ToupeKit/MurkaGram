@@ -388,6 +388,32 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView {
         useSameWidth = value;
     }
 
+    // MurkaGram: MD3 — индикатор вкладки в виде «пилюли» за текстом (только при MurkaConfig.md3Design).
+    private boolean murkaPill;
+
+    public void setMurkaPill(boolean value) {
+        value = value && MurkaMD3.enabled();
+        if (murkaPill == value) {
+            return;
+        }
+        murkaPill = value;
+        if (murkaPill) {
+            selectorDrawable.setCornerRadius(dp(18));
+        } else {
+            float rad = AndroidUtilities.dpf2(3);
+            selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, 0, 0, 0, 0});
+        }
+        selectorDrawable.setColor(murkaPillColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider))));
+        invalidate();
+    }
+
+    private int murkaPillColor(int color) {
+        if (!murkaPill) {
+            return color;
+        }
+        return androidx.core.graphics.ColorUtils.setAlphaComponent(color, (int) (0x30 * (Color.alpha(color) / 255f)));
+    }
+
     public Drawable getSelectorDrawable() {
         return selectorDrawable;
     }
@@ -584,7 +610,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView {
         activeTextColorKey = active;
         unactiveTextColorKey = unactive;
         selectorColorKey = selector;
-        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
+        selectorDrawable.setColor(murkaPillColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)))); // MurkaGram: MD3
     }
 
     public void updateColors() {
@@ -594,7 +620,7 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView {
             tab.setTextColor(processColor(Theme.getColor(currentPosition == a ? activeTextColorKey : unactiveTextColorKey, resourcesProvider)));
             tab.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f), 3));
         }
-        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
+        selectorDrawable.setColor(murkaPillColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)))); // MurkaGram: MD3
         invalidate();
     }
 
@@ -626,6 +652,20 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView {
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        if (murkaPill && child == tabsContainer) { // MurkaGram: MD3 — «пилюля» рисуется за текстом
+            final int height = getMeasuredHeight();
+            float l = indicatorX + indicatorXAnimationDx;
+            float r = l + indicatorWidth + indicatorWidthAnimationDx;
+            final View current = tabsContainer.getChildAt(currentPosition);
+            if (reordering && current != null) {
+                l += current.getTranslationX();
+                r += current.getTranslationX();
+            }
+            selectorDrawable.setAlpha((int) (0xFF * tabsContainer.getAlpha()));
+            selectorDrawable.setBounds((int) l - dp(12), dp(6), (int) r + dp(12), height - dp(6));
+            selectorDrawable.draw(canvas);
+            return super.drawChild(canvas, child, drawingTime);
+        }
         boolean result = super.drawChild(canvas, child, drawingTime);
         if (child == tabsContainer) {
             final int height = getMeasuredHeight();

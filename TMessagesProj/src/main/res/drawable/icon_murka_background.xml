@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MurkaGram: app icon background -->
+<!-- MurkaGram: app icon background (gradient) -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#6E07DD" />
+    <gradient android:angle="270" android:startColor="#C406F2" android:endColor="#6401AF" android:type="linear" />
 </shape>

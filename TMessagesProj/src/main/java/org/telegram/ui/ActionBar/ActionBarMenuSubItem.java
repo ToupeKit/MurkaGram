@@ -9,6 +9,7 @@ import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.InsetDrawable; // MurkaGram
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -27,6 +28,7 @@ import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.MurkaMD3; // MurkaGram
 import org.telegram.ui.Components.RLottieImageView;
 
 public class ActionBarMenuSubItem extends FrameLayout {
@@ -392,6 +394,10 @@ public class ActionBarMenuSubItem extends FrameLayout {
     }
 
     public void updateBackground() {
+        if (MurkaMD3.enabled()) { // MurkaGram: MD3 — подсветка пункта со скруглением 12dp и отступами от краёв меню
+            setBackground(new InsetDrawable(Theme.createRadSelectorDrawable(selectorColor, 12, 12), dp(6), dp(2), dp(6), dp(2)));
+            return;
+        }
         setBackground(Theme.createRadSelectorDrawable(selectorColor, top ? selectorRad : 0, bottom ? selectorRad : 0));
     }
 

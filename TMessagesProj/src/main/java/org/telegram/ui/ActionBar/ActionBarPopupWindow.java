@@ -45,6 +45,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.ui.Components.MurkaMD3; // MurkaGram
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.PopupSwipeBackLayout;
 
@@ -157,6 +158,10 @@ public class ActionBarPopupWindow extends PopupWindow {
             this.resourcesProvider = resourcesProvider;
             if (resId != 0) {
                 backgroundDrawable = getResources().getDrawable(resId).mutate();
+                // MurkaGram: MD3 — скруглённый фон меню 20dp (отступы как у исходного 9-patch)
+                if (MurkaMD3.enabled() && (resId == R.drawable.popup_fixed_alert || resId == R.drawable.popup_fixed_alert2 || resId == R.drawable.popup_fixed_alert3)) {
+                    backgroundDrawable = new MurkaMD3.PopupBackground(backgroundDrawable);
+                }
                 setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
             }
             if (backgroundDrawable != null) {
@@ -286,7 +291,9 @@ public class ActionBarPopupWindow extends PopupWindow {
         }
 
         public void setBackgroundColor(int color) {
-            if (backgroundColor != color && backgroundDrawable != null) {
+            if (backgroundColor != color && backgroundDrawable instanceof MurkaMD3.PopupBackground) { // MurkaGram: MD3
+                ((MurkaMD3.PopupBackground) backgroundDrawable).setColor(backgroundColor = color);
+            } else if (backgroundColor != color && backgroundDrawable != null) {
                 backgroundDrawable.setColorFilter(new PorterDuffColorFilter(backgroundColor = color, PorterDuff.Mode.MULTIPLY));
             }
         }
@@ -540,7 +547,8 @@ public class ActionBarPopupWindow extends PopupWindow {
                         } else {
                             path.rewind();
                         }
-                        path.addRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(8), AndroidUtilities.dp(8), Path.Direction.CW);
+                        final int murkaRad = backgroundDrawable instanceof MurkaMD3.PopupBackground ? AndroidUtilities.dp(MurkaMD3.POPUP_RADIUS) : AndroidUtilities.dp(8); // MurkaGram: MD3
+                        path.addRoundRect(AndroidUtilities.rectTmp, murkaRad, murkaRad, Path.Direction.CW);
                         canvas.clipPath(path);
                         for (int i = 0; i < linearLayout.getChildCount(); i++) {
                             if (linearLayout.getChildAt(i) instanceof GapView && linearLayout.getChildAt(i).getVisibility() == View.VISIBLE) {

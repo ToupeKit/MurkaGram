@@ -26,6 +26,8 @@
     <string name="MurkaFontError">Could not load this font file</string>
     <string name="MurkaFontRestart">Restart the app to apply the font.</string>
     <string name="MurkaRestart">Restart</string>
+    <string name="MurkaMD3Design">MD3 design</string>
+    <string name="MurkaMD3Restart">Restart the app to apply the MD3 design.</string>
     <string name="MurkaAccountId">Account ID</string>
     <string name="MurkaIdCopied">ID copied to clipboard.</string>
     <!-- MurkaGram: настройки бокового меню -->
@@ -10231,4 +10233,5 @@
     <string name="GiftAuctionWearInfo2Text">Your profile page will get the color and the symbol of this item.</string>
     <string name="GiftAuctionWearInfo3Header">Proof of Ownership</string>
     <string name="GiftAuctionWearInfo3Text">Tapping the icon of this item next to your name will show its info and owner.</string>
+    <string name="AppIconMurkaGramFlat">MurkaGram Flat</string>
 </resources>

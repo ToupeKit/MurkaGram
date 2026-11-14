@@ -213,6 +213,7 @@ import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.UserCell;
 import org.telegram.ui.Components.AlertsCreator;
+import org.telegram.ui.Components.MurkaMD3; // MurkaGram
 import org.telegram.ui.Components.AnimatedColor;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
@@ -3222,7 +3223,27 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             @Override
             protected void dispatchDraw(Canvas canvas) {
                 whitePaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
-                if (listView.getVisibility() == VISIBLE) {
+                if (listView.getVisibility() == VISIBLE && listView.murkaMD3 != null && MurkaMD3.enabled()) {
+                    // MurkaGram: MD3 — вся область списка серая, белые карточки рисует MurkaMD3.Decoration
+                    grayPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
+                    grayPaint.setAlpha(transitionAnimationInProress ? (int) (255 * listView.getAlpha()) : 255);
+                    float top = listView.getY();
+                    if (!openAnimationInProgress) {
+                        boolean found = false;
+                        float minY = 0;
+                        for (int i = 0; i < listView.getChildCount(); i++) {
+                            View child = listView.getChildAt(i);
+                            if (listView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION && (!found || child.getY() < minY)) {
+                                minY = child.getY();
+                                found = true;
+                            }
+                        }
+                        if (found) {
+                            top += minY;
+                        }
+                    }
+                    canvas.drawRect(listView.getX(), top, listView.getX() + listView.getMeasuredWidth(), listView.getBottom(), grayPaint);
+                } else if (listView.getVisibility() == VISIBLE) {
                     grayPaint.setColor(getThemedColor(Theme.key_windowBackgroundGray));
                     if (transitionAnimationInProress) {
                         whitePaint.setAlpha((int) (255 * listView.getAlpha()));
@@ -4085,7 +4106,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             public boolean drawChild(Canvas canvas, View child, long drawingTime) {
-                if (getItemAnimator().isRunning() && child.getBackground() == null && child.getTranslationY() != 0) {
+                if (murkaMD3 == null && getItemAnimator().isRunning() && child.getBackground() == null && child.getTranslationY() != 0) { // MurkaGram: MD3 — фон рисуют карточки
                     boolean useAlpha = listView.getChildAdapterPosition(child) == sharedMediaRow && child.getAlpha() != 1f;
                     if (useAlpha) {
                         whitePaint.setAlpha((int) (255 * listView.getAlpha() * child.getAlpha()));
@@ -4100,7 +4121,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
-                if (bizHoursRow >= 0 && infoStartRow >= 0 && infoEndRow >= 0) {
+                if (murkaMD3 == null && bizHoursRow >= 0 && infoStartRow >= 0 && infoEndRow >= 0) { // MurkaGram: MD3 — фон рисуют карточки
                     drawSectionBackground(canvas, infoStartRow, infoEndRow, getThemedColor(Theme.key_windowBackgroundWhite));
                 }
                 super.dispatchDraw(canvas);
@@ -4203,6 +4224,27 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         listView.setLayoutManager(layoutManager);
         listView.setGlowColor(0);
         listView.setAdapter(listAdapter);
+        // MurkaGram: MD3 — информационные строки и пункты настроек в виде карточек
+        MurkaMD3.Decoration murkaMD3 = MurkaMD3.apply(listView);
+        if (murkaMD3 != null) {
+            murkaMD3.kindOverride = position -> {
+                if (listAdapter == null || position < 0 || position >= listAdapter.getItemCount()) {
+                    return MurkaMD3.KIND_SEPARATOR;
+                }
+                final int viewType = listAdapter.getItemViewType(position);
+                if (viewType == ListAdapter.VIEW_TYPE_SHARED_MEDIA || viewType == ListAdapter.VIEW_TYPE_BOTTOM_PADDING || viewType == ListAdapter.VIEW_TYPE_MUSIC) {
+                    return MurkaMD3.KIND_SKIP;
+                }
+                // MurkaGram: явный список, чтобы углы были верными и для ещё не показанных соседей
+                if (viewType == ListAdapter.VIEW_TYPE_EMPTY || viewType == ListAdapter.VIEW_TYPE_HEADER_EMPTY
+                        || viewType == ListAdapter.VIEW_TYPE_HEADER || viewType == ListAdapter.VIEW_TYPE_SHADOW
+                        || viewType == ListAdapter.VIEW_TYPE_SHADOW_TEXT || viewType == ListAdapter.VIEW_TYPE_DIVIDER
+                        || viewType == ListAdapter.VIEW_TYPE_ADDTOGROUP_INFO || viewType == ListAdapter.VIEW_TYPE_VERSION) {
+                    return MurkaMD3.KIND_SEPARATOR;
+                }
+                return -1;
+            };
+        }
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
         listView.setOnItemClickListener((view, position, x, y) -> {
             if (getParentActivity() == null) {
@@ -13150,6 +13192,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 case VIEW_TYPE_DIVIDER: {
                     view = new DividerCell(mContext, resourcesProvider);
                     view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                    ((DividerCell) view).setMurkaHideInMD3(true); // MurkaGram: MD3
                     view.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(4), 0, 0);
                     break;
                 }

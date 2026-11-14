@@ -279,6 +279,7 @@ public class PrivacySettingsActivity extends BaseFragment implements Notificatio
         listView.setItemAnimator(null);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         listView.setAdapter(listAdapter);
+        org.telegram.ui.Components.MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         listView.setOnItemClickListener((view, position) -> {
             if (!view.isEnabled()) {
                 return;

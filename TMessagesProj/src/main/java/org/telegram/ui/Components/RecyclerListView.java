@@ -2561,6 +2561,51 @@ public class RecyclerListView extends RecyclerView {
         translateSelector = position <= 0 ? -1 : position;
     }
 
+    // MurkaGram: MD3 — карточки секций (см. MurkaMD3). null — стандартное поведение.
+    public MurkaMD3.Decoration murkaMD3;
+    private Path murkaClip;
+
+    // MurkaGram: MD3 — обрезаем ячейку по форме карточки (на 1px короче снизу, чтобы скрыть разделитель).
+    @Override
+    public boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        if (murkaMD3 != null && MurkaMD3.enabled()) {
+            if (murkaClip == null) {
+                murkaClip = new Path();
+            }
+            boolean clip = false;
+            try {
+                clip = murkaMD3.buildPath(this, child, murkaClip, 1);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            if (clip) {
+                int sc = canvas.save();
+                canvas.clipPath(murkaClip);
+                boolean r = super.drawChild(canvas, child, drawingTime);
+                canvas.restoreToCount(sc);
+                return r;
+            }
+        }
+        return super.drawChild(canvas, child, drawingTime);
+    }
+
+    // MurkaGram: MD3 — обрезка подсветки списка по форме карточки.
+    private void murkaClipSelector(Canvas canvas) {
+        if (murkaMD3 == null || !MurkaMD3.enabled() || selectorView == null) {
+            return;
+        }
+        if (murkaClip == null) {
+            murkaClip = new Path();
+        }
+        try {
+            if (murkaMD3.buildPath(this, selectorView, murkaClip, 0)) {
+                canvas.clipPath(murkaClip);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     @Override
     protected void dispatchDraw(Canvas canvas) {
         if (itemsEnterAnimator != null) {
@@ -2580,6 +2625,7 @@ public class RecyclerListView extends RecyclerView {
                 selectorDrawable.setBounds(selectorRect);
             }
             canvas.save();
+            murkaClipSelector(canvas); // MurkaGram: MD3 — скругление подсветки по форме карточки
             if ((translateSelector == -2 || translateSelector == selectorPosition) && selectorTransformer != null) {
                 selectorTransformer.accept(canvas);
             }
@@ -2604,6 +2650,7 @@ public class RecyclerListView extends RecyclerView {
                 selectorDrawable.setBounds(selectorRect);
             }
             canvas.save();
+            murkaClipSelector(canvas); // MurkaGram: MD3 — скругление подсветки по форме карточки
             if ((translateSelector == -2 || translateSelector == selectorPosition) && selectorTransformer != null) {
                 selectorTransformer.accept(canvas);
             }

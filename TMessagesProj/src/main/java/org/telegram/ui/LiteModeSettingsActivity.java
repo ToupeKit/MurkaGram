@@ -102,6 +102,7 @@ public class LiteModeSettingsActivity extends BaseFragment {
         listView = new RecyclerListView(context);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context));
         listView.setAdapter(adapter = new Adapter());
+        org.telegram.ui.Components.MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
         itemAnimator.setDurations(350);
         itemAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);

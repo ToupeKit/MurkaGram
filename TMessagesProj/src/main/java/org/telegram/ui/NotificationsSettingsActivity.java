@@ -455,6 +455,7 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
         listView.setVerticalScrollBarEnabled(false);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         listView.setAdapter(adapter = new ListAdapter(context));
+        org.telegram.ui.Components.MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         listView.setOnItemClickListener((view, position, x, y) -> {
             boolean enabled = false;
             if (getParentActivity() == null) {

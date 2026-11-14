@@ -290,6 +290,7 @@ public class DataSettingsActivity extends BaseFragment {
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
         listView.setAdapter(listAdapter);
+        org.telegram.ui.Components.MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         listView.setOnItemClickListener((view, position, x, y) -> {
             if (position == saveToGalleryGroupsRow || position == saveToGalleryChannelsRow || position == saveToGalleryPeerRow) {
                 int flag;

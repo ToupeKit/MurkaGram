@@ -4090,6 +4090,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
         }
         scrollSlidingTextTabStrip.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         scrollSlidingTextTabStrip.setColors(Theme.key_profile_tabSelectedLine, Theme.key_profile_tabSelectedText, Theme.key_profile_tabText, Theme.key_profile_tabSelector);
+        scrollSlidingTextTabStrip.setMurkaPill(true); // MurkaGram: MD3 — индикатор-«пилюля» (только при MD3)
         scrollSlidingTextTabStrip.setDelegate(new ScrollSlidingTextTabStrip.ScrollSlidingTabStripDelegate() {
             @Override
             public void onPageSelected(int id, boolean forward) {

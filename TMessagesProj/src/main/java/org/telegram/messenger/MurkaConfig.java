@@ -32,6 +32,7 @@ public class MurkaConfig {
     public static boolean noNumberRounding;
     public static boolean timeWithSeconds;
     public static boolean springAnimation; // MurkaGram: spring-анимация переходов
+    public static boolean md3Design; // MurkaGram: «MD3 дизайн» (скруглённые карточки, меню, кнопки)
     public static int fontMode;
     public static String customFontPath;
 
@@ -65,6 +66,7 @@ public class MurkaConfig {
             noNumberRounding = preferences.getBoolean("noNumberRounding", false);
             timeWithSeconds = preferences.getBoolean("timeWithSeconds", false);
             springAnimation = preferences.getBoolean("springAnimation", false);
+            md3Design = preferences.getBoolean("md3Design", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
@@ -151,6 +153,12 @@ public class MurkaConfig {
     public static void toggleSpringAnimation() {
         springAnimation = !springAnimation;
         getPreferences().edit().putBoolean("springAnimation", springAnimation).apply();
+    }
+
+    // MurkaGram: «MD3 дизайн». commit(), т.к. сразу после переключения приложение может быть перезапущено.
+    public static void toggleMd3Design() {
+        md3Design = !md3Design;
+        getPreferences().edit().putBoolean("md3Design", md3Design).commit();
     }
 
     public static void setFontMode(int mode, String path) {

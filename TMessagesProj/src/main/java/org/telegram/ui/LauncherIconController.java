@@ -36,6 +36,7 @@ public class LauncherIconController {
     public enum LauncherIcon {
         // MurkaGram: own icon is default (alias DefaultIcon), official Telegram icon moved to alias TelegramIcon
         MURKAGRAM("DefaultIcon", R.drawable.icon_murka_background_sa, R.mipmap.icon_murka_foreground_sa, R.string.AppIconMurkaGram),
+        MURKAGRAM_FLAT("MurkaFlatIcon", R.drawable.icon_murka_flat_background_sa, R.mipmap.icon_murka_flat_foreground_sa, R.string.AppIconMurkaGramFlat), // MurkaGram
         TELEGRAM("TelegramIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconTelegram),
         VINTAGE("VintageIcon", R.drawable.icon_6_background_sa, R.mipmap.icon_6_foreground_sa, R.string.AppIconVintage),
         AQUA("AquaIcon", R.drawable.icon_4_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconAqua),

@@ -55,7 +55,7 @@ import org.telegram.ui.Stories.recorder.StoryPrivacyBottomSheet;
 
 import java.util.ArrayList;
 
-public class UniversalAdapter extends AdapterWithDiffUtils {
+public class UniversalAdapter extends AdapterWithDiffUtils implements MurkaMD3.SectionProvider { // MurkaGram: MD3
 
     public static final int VIEW_TYPE_FULLSCREEN_CUSTOM = -3;
     public static final int VIEW_TYPE_FULLY_CUSTOM = -2;
@@ -259,6 +259,9 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
     }
 
     public void drawWhiteSections(Canvas canvas, RecyclerListView listView) {
+        if (listView != null && listView.murkaMD3 != null && MurkaMD3.enabled()) {
+            return; // MurkaGram: MD3 — секции рисуются карточками
+        }
         for (int i = 0; i < whiteSections.size(); ++i) {
             Section section = whiteSections.get(i);
             if (section.end < 0) continue;
@@ -308,6 +311,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
 
     public boolean shouldApplyBackground(int viewType) {
         if (!applyBackground) return false;
+        if (murkaMD3Header(viewType)) return false; // MurkaGram: MD3 — заголовки на сером фоне, вне карточек
         if (viewType >= UItem.factoryViewTypeStartsWith) {
             return true;
         }
@@ -353,6 +357,22 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 return true;
         }
         return false;
+    }
+
+    // MurkaGram: MD3 — заголовки секций лежат вне карточек (только в списках с подключёнными карточками).
+    private boolean murkaMD3Header(int viewType) {
+        return (viewType == VIEW_TYPE_HEADER || viewType == VIEW_TYPE_ANIMATED_HEADER || viewType == VIEW_TYPE_BLACK_HEADER || viewType == VIEW_TYPE_LARGE_HEADER)
+            && listView != null && listView.murkaMD3 != null && MurkaMD3.enabled();
+    }
+
+    // MurkaGram: MD3 — тип строки для карточек: белые строки — карточки, заголовки и тени — промежутки.
+    @Override
+    public int md3RowKind(int position) {
+        UItem item = getItem(position);
+        if (item == null) return MurkaMD3.KIND_SEPARATOR;
+        final int viewType = item.viewType;
+        if (isShadow(viewType) || murkaMD3Header(viewType)) return MurkaMD3.KIND_SEPARATOR;
+        return shouldApplyBackground(viewType) ? MurkaMD3.KIND_CARD : MurkaMD3.KIND_SEPARATOR;
     }
 
     @NonNull

@@ -428,7 +428,7 @@ public class PopupSwipeBackLayout extends FrameLayout {
 
         int s = canvas.save();
         mPath.rewind();
-        int rad = AndroidUtilities.dp(6);
+        int rad = AndroidUtilities.dp(MurkaMD3.enabled() ? MurkaMD3.POPUP_RADIUS : 6); // MurkaGram: MD3
         if (stickToRight) {
             mRect.set(getWidth() - w, y, getWidth(), y + h);
         } else {

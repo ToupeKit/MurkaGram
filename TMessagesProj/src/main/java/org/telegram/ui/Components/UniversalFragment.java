@@ -67,6 +67,7 @@ public abstract class UniversalFragment extends BaseFragment {
                 savedScrollPosition = -1;
             }
         };
+        MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         return fragmentView = contentView;
