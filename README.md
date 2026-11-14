@@ -1,4 +1,5 @@
-![MurkaGram](MurkaGram icon.png)
+<img width="624" height="624" alt="MurkaGram icon" src="https://github.com/user-attachments/assets/a4fed0b9-6db0-4c2c-8832-53e7c262813b" />
+
 ## Telegram messenger for Android
 
 [Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
