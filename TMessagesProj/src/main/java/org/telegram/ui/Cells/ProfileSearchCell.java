@@ -32,6 +32,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.NonNull;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ContactsController;
@@ -647,7 +648,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                     if (isOnline[0]) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                     }
-                    if (user != null && (user.id == UserConfig.getInstance(currentAccount).getClientUserId() || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
+                    if (user != null && (MurkaConfig.forceSelfOnline(currentAccount, user.id) /* MurkaGram: режим призрака */ || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                         statusString = getString(R.string.Online);
                     }

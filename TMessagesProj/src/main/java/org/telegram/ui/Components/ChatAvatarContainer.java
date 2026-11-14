@@ -34,6 +34,7 @@ import android.widget.ImageView;
 
 import androidx.core.content.ContextCompat;
 
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BotForumHelper;
@@ -1399,7 +1400,7 @@ public class ChatAvatarContainer extends FrameLayout implements NotificationCent
             for (int a = 0; a < info.participants.participants.size(); a++) {
                 TLRPC.ChatParticipant participant = info.participants.participants.get(a);
                 TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(participant.user_id);
-                if (user != null && user.status != null && (user.status.expires > currentTime || user.id == UserConfig.getInstance(currentAccount).getClientUserId()) && user.status.expires > 10000) {
+                if (user != null && user.status != null && (user.status.expires > currentTime || MurkaConfig.forceSelfOnline(currentAccount, user.id)) && user.status.expires > 10000) { // MurkaGram: режим призрака
                     onlineCount++;
                 }
             }

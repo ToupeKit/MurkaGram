@@ -45,6 +45,17 @@ public class MurkaMD3 {
     public static final int R_SMALL = 5;
     public static final int POPUP_RADIUS = 20;
 
+    /** InsetDrawable без padding: View.setBackground() не перезаписывает отступы вида (иначе пункты меню «съезжают»). */
+    public static Drawable insetNoPadding(Drawable d, int l, int t, int r, int b) {
+        return new android.graphics.drawable.InsetDrawable(d, l, t, r, b) {
+            @Override
+            public boolean getPadding(@NonNull Rect padding) {
+                padding.set(0, 0, 0, 0);
+                return false;
+            }
+        };
+    }
+
     public static final int KIND_CARD = 0;
     public static final int KIND_SEPARATOR = 1;
     public static final int KIND_SKIP = 2;

@@ -2688,17 +2688,22 @@ public class AlertsCreator {
 
         final int account = fragment.getCurrentAccount();
         final Context context = fragment.getParentActivity();
+        // MurkaGram: разметка вынесена в murkaCreateCallConfirmDialog (используется и в VoIPHelper.startCall)
+        AlertDialog dialog = murkaCreateCallConfirmDialog(context, account, user, videoCall, () -> {
+            final TLRPC.UserFull userFull = fragment.getMessagesController().getUserFull(user.id);
+            VoIPHelper.murkaMarkCallConfirmed(user.id); // MurkaGram: не спрашивать второй раз в startCall
+            VoIPHelper.startCall(user, videoCall, userFull != null && userFull.video_calls_available, fragment.getParentActivity(), userFull, fragment.getAccountInstance());
+        });
+        fragment.showDialog(dialog);
+    }
+
+    // MurkaGram: диалог подтверждения звонка (аватар слева, заголовок рядом, текст, «Позвонить»/«Отмена»)
+    public static AlertDialog murkaCreateCallConfirmDialog(Context context, int account, TLRPC.User user, boolean videoCall, Runnable onConfirm) {
         final FrameLayout frameLayout = new FrameLayout(context);
 
-        final String title;
-        final String message;
-        if (videoCall) {
-            title = LocaleController.getString(R.string.VideoCallAlertTitle);
-            message = LocaleController.formatString("VideoCallAlert", R.string.VideoCallAlert, UserObject.getUserName(user));
-        } else {
-            title = LocaleController.getString(R.string.CallAlertTitle);
-            message = LocaleController.formatString("CallAlert", R.string.CallAlert, UserObject.getUserName(user));
-        }
+        // MurkaGram: собственные строки «Голосовой звонок / Видеозвонок / Вы точно хотите позвонить …?»
+        final String title = LocaleController.getString(videoCall ? R.string.MurkaCallConfirmVideoTitle : R.string.MurkaCallConfirmVoiceTitle);
+        final String message = LocaleController.formatString(R.string.MurkaCallConfirmText, UserObject.getUserName(user));
 
         TextView messageTextView = new TextView(context) {
             @Override
@@ -2716,7 +2721,7 @@ public class AlertsCreator {
         AvatarDrawable avatarDrawable = new AvatarDrawable();
         avatarDrawable.setTextSize(dp(12));
         avatarDrawable.setScaleSize(1f);
-        avatarDrawable.setInfo(fragment.getCurrentAccount(), user);
+        avatarDrawable.setInfo(account, user);
 
         BackupImageView imageView = new BackupImageView(context);
         imageView.setRoundRadius(dp(20));
@@ -2736,14 +2741,10 @@ public class AlertsCreator {
         frameLayout.addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, (LocaleController.isRTL ? 21 : 76), 11, (LocaleController.isRTL ? 76 : 21), 0));
         frameLayout.addView(messageTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, 24, 57, 24, 9));
 
-        AlertDialog dialog = new AlertDialog.Builder(context).setView(frameLayout)
-                .setPositiveButton(LocaleController.getString(R.string.Call), (dialogInterface, i) -> {
-                    final TLRPC.UserFull userFull = fragment.getMessagesController().getUserFull(user.id);
-                    VoIPHelper.startCall(user, videoCall, userFull != null && userFull.video_calls_available, fragment.getParentActivity(), userFull, fragment.getAccountInstance());
-                })
+        return new AlertDialog.Builder(context).setView(frameLayout)
+                .setPositiveButton(LocaleController.getString(R.string.MurkaCallConfirmButton), (dialogInterface, i) -> onConfirm.run())
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create();
-        fragment.showDialog(dialog);
     }
 
     public static void createChangeBioAlert(String currentBio, long peerId, Context context, int currentAccount) {

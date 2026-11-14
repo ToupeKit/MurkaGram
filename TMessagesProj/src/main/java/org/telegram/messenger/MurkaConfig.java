@@ -23,6 +23,11 @@ public class MurkaConfig {
         return (100 - deletedMessageTransparency) / 100f;
     }
 
+    // Показывать ли себя принудительно «в сети» (в режиме призрака — нет, показываем реальный статус).
+    public static boolean forceSelfOnline(int account, long userId) {
+        return !ghostMode && userId == UserConfig.getInstance(account).getClientUserId();
+    }
+
     // Раздел «Дизайн».
     public static final int FONT_DEFAULT = 0;
     public static final int FONT_SYSTEM = 1;
@@ -32,6 +37,7 @@ public class MurkaConfig {
     public static boolean noNumberRounding;
     public static boolean timeWithSeconds;
     public static boolean springAnimation; // MurkaGram: spring-анимация переходов
+    public static boolean noBubbleTail; // MurkaGram: «Убрать хвост сообщений»
     public static boolean md3Design; // MurkaGram: «MD3 дизайн» (скруглённые карточки, меню, кнопки)
     public static int fontMode;
     public static String customFontPath;
@@ -66,6 +72,7 @@ public class MurkaConfig {
             noNumberRounding = preferences.getBoolean("noNumberRounding", false);
             timeWithSeconds = preferences.getBoolean("timeWithSeconds", false);
             springAnimation = preferences.getBoolean("springAnimation", false);
+            noBubbleTail = preferences.getBoolean("noBubbleTail", false);
             md3Design = preferences.getBoolean("md3Design", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
@@ -153,6 +160,11 @@ public class MurkaConfig {
     public static void toggleSpringAnimation() {
         springAnimation = !springAnimation;
         getPreferences().edit().putBoolean("springAnimation", springAnimation).apply();
+    }
+
+    public static void toggleNoBubbleTail() {
+        noBubbleTail = !noBubbleTail;
+        getPreferences().edit().putBoolean("noBubbleTail", noBubbleTail).apply();
     }
 
     // MurkaGram: «MD3 дизайн». commit(), т.к. сразу после переключения приложение может быть перезапущено.

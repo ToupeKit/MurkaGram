@@ -47,6 +47,7 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_FONT = 4;
     private static final int ID_SPRING = 5; // MurkaGram
     private static final int ID_MD3 = 6; // MurkaGram: «MD3 дизайн»
+    private static final int ID_NO_BUBBLE_TAIL = 8; // MurkaGram: «Убрать хвост сообщений»
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
@@ -66,6 +67,10 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_MD3, LocaleController.getString(R.string.MurkaMD3Design)).setChecked(MurkaConfig.md3Design)); // MurkaGram
         items.add(UItem.asButton(ID_FONT, LocaleController.getString(R.string.MurkaFont), getFontModeName(MurkaConfig.fontMode)));
         items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings))); // MurkaGram
+        items.add(UItem.asShadow(null));
+        // MurkaGram: категория «Чаты»
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignChats)));
+        items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
         items.add(UItem.asShadow(null));
     }
 
@@ -109,6 +114,11 @@ public class MurkaDesignActivity extends UniversalFragment {
                 ((TextCheckCell) view).setChecked(MurkaConfig.md3Design);
             }
             showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
+        } else if (item.id == ID_NO_BUBBLE_TAIL) { // MurkaGram
+            MurkaConfig.toggleNoBubbleTail();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.noBubbleTail);
+            }
         } else if (item.id == ID_FONT) {
             showFontDialog();
         } else if (item.id == ID_DRAWER) { // MurkaGram

@@ -229,7 +229,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                                 continue;
                             } else if (tag instanceof Integer) {
                                 fixWidth = Math.max((Integer) tag, view.getMeasuredWidth());
-                                gapStartY = view.getMeasuredHeight();
+                                gapStartY = getPaddingTop() + view.getMeasuredHeight(); // MurkaGram: учитываем MD3-отступ списка (в стоке 0)
                                 gapEndY = gapStartY + AndroidUtilities.dp(6);
                             }
                             if (viewsToFix == null) {
@@ -255,6 +255,9 @@ public class ActionBarPopupWindow extends PopupWindow {
                 }
             };
             linearLayout.setOrientation(LinearLayout.VERTICAL);
+            if (backgroundDrawable instanceof MurkaMD3.PopupBackground) { // MurkaGram: MD3 — 4dp + 2dp инсет подсветки = 6dp, как по бокам
+                linearLayout.setPadding(0, AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4));
+            }
             if (scrollView != null) {
                 scrollView.addView(linearLayout, new ScrollView.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             } else if (swipeBackLayout != null) {

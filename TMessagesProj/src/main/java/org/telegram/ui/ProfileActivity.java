@@ -131,6 +131,7 @@ import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -10354,7 +10355,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             for (int a = 0; a < chatInfo.participants.participants.size(); a++) {
                 TLRPC.ChatParticipant participant = chatInfo.participants.participants.get(a);
                 TLRPC.User user = getMessagesController().getUser(participant.user_id);
-                if (user != null && user.status != null && (user.status.expires > currentTime || user.id == getUserConfig().getClientUserId()) && user.status.expires > 10000) {
+                if (user != null && user.status != null && (user.status.expires > currentTime || MurkaConfig.forceSelfOnline(currentAccount, user.id)) && user.status.expires > 10000) { // MurkaGram: режим призрака
                     onlineCount++;
                 }
                 sortedUsers.add(a);
@@ -11437,6 +11438,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                         newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT);
+                    } else if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — реальный статус с сервера
+                        isOnline[0] = false;
+                        newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline);
+                        if (onlineTextView[1] != null && !mediaHeaderVisible) {
+                            int key = isOnline[0] && peerColor == null ? Theme.key_profile_status : Theme.key_avatar_subtitleInProfileBlue;
+                            onlineTextView[1].setTag(key);
+                            if (!isPulledDown) {
+                                onlineTextView[1].setTextColor(applyPeerColor(getThemedColor(key), true, isOnline[0]));
+                            }
+                        }
                     } else {
                         newString2 = LocaleController.getString(R.string.Online);
                     }
@@ -11643,6 +11654,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 onlineTextView[2].setText(LocaleController.getString(R.string.FallbackTooltip));
                 if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                     onlineTextView[3].setText(newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT));
+                } else if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — реальный статус с сервера
+                    onlineTextView[3].setText(LocaleController.formatUserStatus(currentAccount, user, null));
                 } else {
                     onlineTextView[3].setText(LocaleController.getString(R.string.Online));
                 }

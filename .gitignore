@@ -20,3 +20,6 @@ TMessagesProj_AppHuawei/afat/
 # MurkaGram: own signing key (never commit, keep a backup!)
 /murkagram.keystore
 /keystore.properties
+
+# MurkaGram: personal reference screenshots (never publish)
+/MD3 примеры/

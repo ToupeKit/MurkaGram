@@ -726,6 +726,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     presentFragment(new MediaActivity(args, null));
                 } else if (id == DrawerLayoutAdapter.ID_MURKA_GHOST) { // MurkaGram: «Включить/Выключить режим призрака»
                     MurkaConfig.toggleGhostModeAndApply(); // постит murkaDrawerItemsChanged → подпись в меню обновится
+                    // MurkaGram: закрываем меню и показываем уведомление о новом состоянии
+                    drawerLayoutContainer.closeDrawer(false);
+                    android.graphics.drawable.Drawable ghostIcon = androidx.core.content.ContextCompat.getDrawable(LaunchActivity.this, R.drawable.msg_murka_ghost);
+                    BulletinFactory.global().createSimpleBulletin(ghostIcon != null ? ghostIcon.mutate() : null,
+                            LocaleController.getString(MurkaConfig.ghostMode ? R.string.MurkaGhostEnabledToast : R.string.MurkaGhostDisabledToast)).show();
                 }
             }
         });

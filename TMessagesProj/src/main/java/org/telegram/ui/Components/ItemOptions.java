@@ -194,6 +194,9 @@ public class ItemOptions {
         this.context = parentLayout.getContext();
         this.linearLayout = new LinearLayout(context);
         this.linearLayout.setOrientation(LinearLayout.VERTICAL);
+        if (MurkaMD3.enabled()) { // MurkaGram: MD3 — те же вертикальные отступы, что и у основной страницы меню
+            this.linearLayout.setPadding(0, dp(4), 0, dp(4));
+        }
         this.resourcesProvider = resourcesProvider;
     }
 

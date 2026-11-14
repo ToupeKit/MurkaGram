@@ -9905,9 +9905,32 @@ public class MessagesController extends BaseController implements NotificationCe
         statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error == null) {
                 offlineSent = true;
+                AndroidUtilities.runOnUIThread(this::murkaApplySelfOffline); // MurkaGram: локально показываем себя офлайн
             }
             statusRequest = 0;
         });
+    }
+
+    // MurkaGram: режим призрака — после offline=true локально показываем себя так, как нас видят другие. UI-поток.
+    private void murkaApplySelfOffline() {
+        if (!MurkaConfig.ghostMode) {
+            return;
+        }
+        TLRPC.User self = getUser(getUserConfig().getClientUserId());
+        int now = getConnectionsManager().getCurrentTime();
+        if (self == null || self.status == null || self.status.expires <= now) {
+            return; // уже офлайн — оставляем серверное время последнего визита
+        }
+        TLRPC.TL_userStatusOffline status = new TLRPC.TL_userStatusOffline();
+        status.expires = now;
+        self.status = status;
+        TLRPC.User toDbUser = new TLRPC.TL_user();
+        toDbUser.id = self.id;
+        toDbUser.status = status;
+        ArrayList<TLRPC.User> users = new ArrayList<>();
+        users.add(toDbUser);
+        getMessagesStorage().updateUsers(users, true, true, true);
+        getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_STATUS);
     }
 
     // MurkaGram: режим призрака включён/выключен — вызывается с UI-потока, поля статуса трогаем только на stageQueue.
@@ -9953,16 +9976,17 @@ public class MessagesController extends BaseController implements NotificationCe
 
     // MurkaGram: режим призрака — сервер сообщил, что мы «в сети» (например, после неявной активности). Вызывается с UI-потока.
     // Не чаще раза в 60 с и не внутри окна «кратко в сети после отправки» (там офлайн и так уже запланирован).
-    private void murkaOnSelfOnline() {
+    // Возвращает true, если «в сети» вызвано этим устройством (тогда это не «онлайн с другого устройства» для уведомлений).
+    private boolean murkaOnSelfOnline() {
         if (!MurkaConfig.ghostMode || !getUserConfig().isClientActivated()) {
-            return;
+            return false;
         }
         long now = System.currentTimeMillis();
         if (murkaGhostRunnable != null || Math.abs(now - murkaGhostScheduleTime) < 6000) {
-            return;
+            return true;
         }
         if (murkaLastReactiveOffline != 0 && Math.abs(now - murkaLastReactiveOffline) < 60000) {
-            return;
+            return false;
         }
         murkaLastReactiveOffline = now;
         Utilities.stageQueue.postRunnable(() -> {
@@ -9971,6 +9995,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 murkaSendOffline();
             }
         });
+        return true;
     }
 
     public void updateTimerProc() {
@@ -18836,9 +18861,11 @@ public class MessagesController extends BaseController implements NotificationCe
                         toDbUser.status = update.status;
                         dbUsersStatus.add(toDbUser);
                         if (update.user_id == getUserConfig().getClientUserId()) {
-                            getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
-                            if (MurkaConfig.ghostMode && update.status instanceof TLRPC.TL_userStatusOnline) { // MurkaGram: сервер сделал нас «в сети» — возвращаем офлайн (с ограничением частоты)
-                                murkaOnSelfOnline();
+                            // MurkaGram: режим призрака — сервер сделал нас «в сети» — возвращаем офлайн (с ограничением частоты);
+                            // если это вызвано нашим устройством, не считаем это «онлайн с другого устройства»
+                            boolean murkaOwnOnline = MurkaConfig.ghostMode && update.status instanceof TLRPC.TL_userStatusOnline && murkaOnSelfOnline();
+                            if (!murkaOwnOnline) {
+                                getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
                             }
                         }
                     } else if (baseUpdate instanceof TLRPC.TL_updateMonoForumNoPaidException) {
