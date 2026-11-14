@@ -158,6 +158,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaRegDate; // MurkaGram
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -211,6 +212,7 @@ import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailCell;
+import org.telegram.ui.Cells.UserInfoCell; // MurkaGram
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.UserCell;
 import org.telegram.ui.Components.AlertsCreator;
@@ -604,6 +606,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int setAvatarRow;
     private int setAvatarSectionRow;
     private int channelRow;
+    private int murkaChannelTopRow; // MurkaGram: MD3 — отступ над карточкой канала
     private int channelDividerRow;
     private int numberSectionRow;
     private int numberRow;
@@ -7272,6 +7275,24 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // MurkaGram: дата регистрации — точная из PeerSettings, иначе оценка по ID
+    private void murkaShowRegDate() {
+        if (userId == 0) {
+            return;
+        }
+        try {
+            final TLRPC.PeerSettings settings = getMessagesController().getPeerSettings(userId);
+            if (settings != null && !TextUtils.isEmpty(settings.registration_month)) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.MurkaRegDate), UserInfoCell.displayDate(settings.registration_month)).show();
+                return;
+            }
+            final long date = MurkaRegDate.estimate(userId);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.formatString(R.string.MurkaRegDateApprox, LocaleController.formatYearMont(date, true)), getString(R.string.MurkaRegDateNote)).show();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
@@ -10532,6 +10553,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         setUsernameRow = -1;
         bioRow = -1;
         channelRow = -1;
+        murkaChannelTopRow = -1; // MurkaGram: MD3 — отступ над карточкой канала
         channelDividerRow = -1;
         phoneSuggestionSectionRow = -1;
         phoneSuggestionRow = -1;
@@ -10762,6 +10784,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (userInfo != null && (userInfo.flags2 & 64) != 0 && (profileChannelMessageFetcher == null || !profileChannelMessageFetcher.loaded || profileChannelMessageFetcher.messageObject != null)) {
                     final TLRPC.Chat channel = getMessagesController().getChat(userInfo.personal_channel_id);
                     if (channel != null && (ChatObject.isPublic(channel) || !ChatObject.isNotInChat(channel))) {
+                        if (MurkaMD3.enabled()) {
+                            murkaChannelTopRow = rowCount++; // MurkaGram: MD3 — отступ над карточкой канала
+                        }
                         channelRow = rowCount++;
                         channelDividerRow = rowCount++;
                     }
@@ -13459,6 +13484,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
+                    boolean containsMurkaCalendar = false; // MurkaGram: календарь — дата регистрации
                     if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
@@ -13583,6 +13609,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         final boolean murkaDivider = position + 1 == bioRow || infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0;
                         detailCell.setTextAndValue(String.valueOf(getMurkaId()), getString(R.string.MurkaAccountId), murkaDivider);
                         detailCell.setContentDescriptionValueFirst(false);
+                        containsMurkaCalendar = userId != 0; // MurkaGram: календарь — дата регистрации
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -13645,6 +13672,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         Drawable drawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.header_qr_24);
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
+                        detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
+                    } else if (containsMurkaCalendar) { // MurkaGram: календарь — дата регистрации
+                        Drawable drawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2).mutate();
+                        drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+                        detailCell.setImage(drawable, getString(R.string.MurkaRegDate));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
                     } else {
                         detailCell.setImage(null);
@@ -14351,7 +14383,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return VIEW_TYPE_SHADOW_TEXT;
             } else if (position == affiliateRow) {
                 return VIEW_TYPE_COLORFUL_TEXT;
-            } else if (position == infoHeaderRowEmpty || position == infoEndRowEmpty) {
+            } else if (position == infoHeaderRowEmpty || position == infoEndRowEmpty
+                    || position == murkaChannelTopRow) { // MurkaGram: MD3 — отступ над карточкой канала
                 return VIEW_TYPE_HEADER_EMPTY;
             } else if (position == musicRow) {
                 return VIEW_TYPE_MUSIC;
@@ -15451,6 +15484,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return;
             }
             showDialog(new GiftSheet(getContext(), currentAccount, userId, null, null));
+        } else if (parent.getTag() != null && ((int) parent.getTag()) == murkaIdRow) { // MurkaGram: дата регистрации
+            murkaShowRegDate();
         }
     }
 
@@ -15672,6 +15707,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, bizHoursRow, sparseIntArray);
             put(++pointer, bizLocationRow, sparseIntArray);
             put(++pointer, birthdayRow, sparseIntArray);
+            put(++pointer, murkaChannelTopRow, sparseIntArray); // MurkaGram: MD3 — отступ над карточкой канала
             put(++pointer, channelRow, sparseIntArray);
             put(++pointer, botStarsBalanceRow, sparseIntArray);
             put(++pointer, botTonBalanceRow, sparseIntArray);

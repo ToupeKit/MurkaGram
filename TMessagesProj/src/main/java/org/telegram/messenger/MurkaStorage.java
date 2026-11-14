@@ -62,6 +62,13 @@ public class MurkaStorage {
             if (ids == null || ids.isEmpty()) {
                 continue;
             }
+            if (key != 0 && MurkaConfig.isMonitorExcluded(currentAccount, key)) { // MurkaGram: «Исключения» — канал/супергруппа удаляется по-настоящему
+                if (realDelete == null) {
+                    realDelete = new LongSparseArray<>();
+                }
+                realDelete.put(key, new ArrayList<>(ids));
+                continue;
+            }
             if (key == 0 && localDeleted != null && !localDeleted.isEmpty()) {
                 ArrayList<Integer> save = new ArrayList<>();
                 ArrayList<Integer> real = new ArrayList<>();
@@ -139,6 +146,9 @@ public class MurkaStorage {
                         } catch (Exception e) {
                             FileLog.e(e);
                         }
+                        if (!expired && MurkaConfig.isMonitorExcluded(currentAccount, uid)) { // MurkaGram: «Исключения» — удаляем по-настоящему
+                            expired = true;
+                        }
                         if (expired) {
                             data.reuse();
                             if (ttlExpired == null) {
@@ -177,12 +187,13 @@ public class MurkaStorage {
                     }
                 }
                 if (ttlExpired != null) {
-                    // Автоудаление по таймеру — удаляем по-настоящему, как это сделал бы Telegram.
+                    // Автоудаление по таймеру и чаты из «Исключений» — удаляем по-настоящему, как это сделал бы Telegram.
                     final ArrayList<Integer> expiredFinal = ttlExpired;
                     final long channelId = -key;
+                    final long keyFinal = key;
                     ArrayList<Long> dialogIds = storage.markMessagesAsDeleted(key, expiredFinal, false, true, 0, 0);
                     storage.updateDialogsWithDeletedMessages(key, channelId, expiredFinal, dialogIds, false);
-                    AndroidUtilities.runOnUIThread(() -> NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.messagesDeleted, expiredFinal, channelId, false));
+                    AndroidUtilities.runOnUIThread(() -> MessagesController.getInstance(currentAccount).murkaOnRealDeleted(keyFinal, expiredFinal)); // MurkaGram
                 }
             }
             if (savedByUid.size() > 0) {
@@ -276,7 +287,7 @@ public class MurkaStorage {
                         continue;
                     }
                     long uid = MessageObject.getDialogId(message);
-                    if (DialogObject.isEncryptedDialog(uid)) {
+                    if (DialogObject.isEncryptedDialog(uid) || MurkaConfig.isMonitorExcluded(currentAccount, uid)) { // MurkaGram: «Исключения»
                         continue;
                     }
                     TLRPC.Message oldMessage = null;

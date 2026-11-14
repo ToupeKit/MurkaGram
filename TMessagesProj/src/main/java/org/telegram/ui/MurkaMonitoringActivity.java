@@ -40,6 +40,8 @@ public class MurkaMonitoringActivity extends UniversalFragment {
     private static final int ID_SAVE_EDITS = 3;
     private static final int ID_SAVE_READ_DATES = 4;
     private static final int ID_DELETED_TRANSPARENCY = 5;
+    private static final int ID_EXCEPTIONS = 6; // MurkaGram: «Исключения»
+    private static final int ID_GHOST_WARNING = 7; // MurkaGram: «Предупреждение призрака»
 
     @Override
     protected CharSequence getTitle() {
@@ -53,8 +55,13 @@ public class MurkaMonitoringActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_SAVE_DELETED, LocaleController.getString(R.string.MurkaSaveDeleted)).setChecked(MurkaConfig.saveDeletedMessages));
         items.add(UItem.asCheck(ID_SAVE_EDITS, LocaleController.getString(R.string.MurkaSaveEdits)).setChecked(MurkaConfig.saveEditHistory));
         items.add(UItem.asCheck(ID_SAVE_READ_DATES, LocaleController.getString(R.string.MurkaSaveReadDates)).setChecked(MurkaConfig.saveReadDates));
+        int exceptionsCount = MurkaConfig.getMonitorExceptions(currentAccount).size(); // MurkaGram: «Исключения»
+        items.add(UItem.asButton(ID_EXCEPTIONS, LocaleController.getString(R.string.MurkaExceptions), exceptionsCount > 0 ? String.valueOf(exceptionsCount) : ""));
         items.add(UItem.asButton(ID_DELETED_TRANSPARENCY, LocaleController.getString(R.string.MurkaDeletedTransparency), MurkaConfig.deletedMessageTransparency + "%"));
         items.add(UItem.asShadow(null));
+        // MurkaGram: «Предупреждение призрака» — отдельный блок с пояснением
+        items.add(UItem.asCheck(ID_GHOST_WARNING, LocaleController.getString(R.string.MurkaGhostWarning)).setChecked(MurkaConfig.ghostWarning));
+        items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaGhostWarningInfo)));
     }
 
     @Override
@@ -81,7 +88,20 @@ public class MurkaMonitoringActivity extends UniversalFragment {
             }
         } else if (item.id == ID_DELETED_TRANSPARENCY) {
             showTransparencyDialog();
+        } else if (item.id == ID_EXCEPTIONS) { // MurkaGram
+            presentFragment(new MurkaExceptionsActivity());
+        } else if (item.id == ID_GHOST_WARNING) { // MurkaGram
+            MurkaConfig.toggleGhostWarning();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.ghostWarning);
+            }
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateList(); // MurkaGram: обновить счётчик «Исключений» после возврата
     }
 
     @Override

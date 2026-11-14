@@ -130,7 +130,13 @@ public class ProfileChannelCell extends FrameLayout {
         dialogCell.isForChannelSubscriberCell = true;
         dialogCell.avatarStart = 15;
         dialogCell.messagePaddingStart = 83;
-        addView(dialogCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL | Gravity.TOP, 0, 4, 0, 0));
+        // MurkaGram: MD3 — внутренние отступы карточки канала +2dp
+        final boolean murkaMD3 = org.telegram.ui.Components.MurkaMD3.enabled();
+        if (murkaMD3) {
+            dialogCell.avatarStart = 17;
+            dialogCell.messagePaddingStart = 85;
+        }
+        addView(dialogCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL | Gravity.TOP, 0, murkaMD3 ? 6 : 4, 0, 0));
 
         updateColors();
 
@@ -286,7 +292,7 @@ public class ProfileChannelCell extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(86f), MeasureSpec.EXACTLY));
+        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(org.telegram.ui.Components.MurkaMD3.enabled() ? 90f : 86f), MeasureSpec.EXACTLY)); // MurkaGram: MD3 — высота 90dp
     }
 
 

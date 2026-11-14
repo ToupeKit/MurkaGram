@@ -38,6 +38,7 @@ public class MurkaConfig {
     public static boolean timeWithSeconds;
     public static boolean springAnimation; // MurkaGram: spring-анимация переходов
     public static boolean noBubbleTail; // MurkaGram: «Убрать хвост сообщений»
+    public static boolean messageMenuIconBar; // MurkaGram: «Быстрые действия иконками»
     public static boolean md3Design; // MurkaGram: «MD3 дизайн» (скруглённые карточки, меню, кнопки)
     public static int fontMode;
     public static String customFontPath;
@@ -45,6 +46,12 @@ public class MurkaConfig {
     // MurkaGram: «Настройки бокового меню» — порядок пунктов (ключи через запятую, "div" — разделитель).
     public static final String DRAWER_ITEMS_DEFAULT = "profile,div,newgroup,contacts,calls,saved,settings,div,invite,features";
     public static String drawerItems;
+
+    // MurkaGram: «Предупреждение призрака» перед просмотром одноразовых/самоуничтожающихся медиа.
+    public static boolean ghostWarning;
+
+    // MurkaGram: «Исключения» мониторинга — по аккаунту; неизменяемые наборы (copy-on-write), читаются с разных потоков.
+    private static final java.util.concurrent.atomic.AtomicReferenceArray<java.util.Set<Long>> monitorExceptions = new java.util.concurrent.atomic.AtomicReferenceArray<>(UserConfig.MAX_ACCOUNT_COUNT);
 
     private static final Object sync = new Object();
     private static boolean configLoaded;
@@ -73,10 +80,12 @@ public class MurkaConfig {
             timeWithSeconds = preferences.getBoolean("timeWithSeconds", false);
             springAnimation = preferences.getBoolean("springAnimation", false);
             noBubbleTail = preferences.getBoolean("noBubbleTail", false);
+            messageMenuIconBar = preferences.getBoolean("messageMenuIconBar", false); // MurkaGram
             md3Design = preferences.getBoolean("md3Design", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
+            ghostWarning = preferences.getBoolean("ghostWarning", true); // MurkaGram
             configLoaded = true;
         }
     }
@@ -132,6 +141,79 @@ public class MurkaConfig {
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.murkaDrawerItemsChanged);
     }
 
+    // MurkaGram: «Предупреждение призрака»
+    public static void toggleGhostWarning() {
+        ghostWarning = !ghostWarning;
+        getPreferences().edit().putBoolean("ghostWarning", ghostWarning).apply();
+    }
+
+    // MurkaGram: «Исключения» мониторинга — в этих чатах удалённые сообщения и изменения не сохраняются.
+    private static java.util.Set<Long> getMonitorExceptionsSet(int account) {
+        if (account < 0 || account >= monitorExceptions.length()) {
+            return java.util.Collections.emptySet();
+        }
+        java.util.Set<Long> set = monitorExceptions.get(account);
+        if (set != null) {
+            return set;
+        }
+        synchronized (sync) {
+            set = monitorExceptions.get(account);
+            if (set == null) {
+                java.util.HashSet<Long> loaded = new java.util.HashSet<>();
+                String value = getPreferences().getString("monitorExceptions" + account, "");
+                if (value != null) {
+                    for (String s : value.split(",")) {
+                        s = s.trim();
+                        if (!s.isEmpty()) {
+                            try {
+                                loaded.add(Long.parseLong(s));
+                            } catch (Exception e) {
+                                FileLog.e(e);
+                            }
+                        }
+                    }
+                }
+                set = java.util.Collections.unmodifiableSet(loaded);
+                monitorExceptions.set(account, set);
+            }
+            return set;
+        }
+    }
+
+    public static boolean isMonitorExcluded(int account, long dialogId) {
+        return dialogId != 0 && getMonitorExceptionsSet(account).contains(dialogId);
+    }
+
+    public static java.util.ArrayList<Long> getMonitorExceptions(int account) {
+        return new java.util.ArrayList<>(getMonitorExceptionsSet(account));
+    }
+
+    public static void addMonitorException(int account, long dialogId) {
+        if (dialogId == 0) {
+            return;
+        }
+        synchronized (sync) {
+            java.util.HashSet<Long> set = new java.util.HashSet<>(getMonitorExceptionsSet(account));
+            if (set.add(dialogId)) {
+                saveMonitorExceptions(account, set);
+            }
+        }
+    }
+
+    public static void removeMonitorException(int account, long dialogId) {
+        synchronized (sync) {
+            java.util.HashSet<Long> set = new java.util.HashSet<>(getMonitorExceptionsSet(account));
+            if (set.remove(dialogId)) {
+                saveMonitorExceptions(account, set);
+            }
+        }
+    }
+
+    private static void saveMonitorExceptions(int account, java.util.HashSet<Long> set) {
+        monitorExceptions.set(account, java.util.Collections.unmodifiableSet(set));
+        getPreferences().edit().putString("monitorExceptions" + account, android.text.TextUtils.join(",", set)).apply();
+    }
+
     public static void toggleSaveReadDates() {
         saveReadDates = !saveReadDates;
         getPreferences().edit().putBoolean("saveReadDates", saveReadDates).apply();
@@ -165,6 +247,12 @@ public class MurkaConfig {
     public static void toggleNoBubbleTail() {
         noBubbleTail = !noBubbleTail;
         getPreferences().edit().putBoolean("noBubbleTail", noBubbleTail).apply();
+    }
+
+    // MurkaGram: «Быстрые действия иконками»
+    public static void toggleMessageMenuIconBar() {
+        messageMenuIconBar = !messageMenuIconBar;
+        getPreferences().edit().putBoolean("messageMenuIconBar", messageMenuIconBar).apply();
     }
 
     // MurkaGram: «MD3 дизайн». commit(), т.к. сразу после переключения приложение может быть перезапущено.

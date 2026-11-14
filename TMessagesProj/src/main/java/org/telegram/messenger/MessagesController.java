@@ -9933,6 +9933,36 @@ public class MessagesController extends BaseController implements NotificationCe
         getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_STATUS);
     }
 
+    // MurkaGram: сообщения удалены по-настоящему из MurkaStorage (истёкший ttl_period, «Исключения»). UI-поток.
+    // Повторяет UI-часть штатного удаления в processUpdateArray: key — 0 или -channel_id.
+    public void murkaOnRealDeleted(long key, ArrayList<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, -key, false);
+        if (key == 0) {
+            for (int b = 0, size = ids.size(); b < size; b++) {
+                MessageObject obj = dialogMessagesByIds.get(ids.get(b));
+                if (obj != null) {
+                    obj.deleted = true;
+                }
+            }
+        } else {
+            ArrayList<MessageObject> objs = dialogMessage.get(key);
+            if (objs != null) {
+                for (int i = 0; i < objs.size(); ++i) {
+                    MessageObject obj = objs.get(i);
+                    if (obj != null && ids.contains(obj.getId())) {
+                        obj.deleted = true;
+                    }
+                }
+            }
+        }
+        LongSparseArray<ArrayList<Integer>> deleted = new LongSparseArray<>();
+        deleted.put(key, ids);
+        getNotificationsController().removeDeletedMessagesFromNotifications(deleted, false);
+    }
+
     // MurkaGram: режим призрака включён/выключен — вызывается с UI-потока, поля статуса трогаем только на stageQueue.
     public void murkaOnGhostModeChanged() {
         Utilities.stageQueue.postRunnable(() -> {
@@ -16691,7 +16721,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
-        if (MurkaConfig.saveDeletedMessages && !DialogObject.isEncryptedDialog(dialogId)) { // MurkaGram: «Мониторинг» — сохраняем вместо удаления
+        if (MurkaConfig.saveDeletedMessages && !DialogObject.isEncryptedDialog(dialogId) && !MurkaConfig.isMonitorExcluded(currentAccount, dialogId)) { // MurkaGram: «Мониторинг» — сохраняем вместо удаления (кроме «Исключений»)
             LongSparseArray<ArrayList<Integer>> murkaDeleted = new LongSparseArray<>();
             murkaDeleted.put(channelId != 0 ? -channelId : 0, ids); // MurkaGram: ключи как в processUpdateArray (0 — без канала, -channel_id — канал)
             MurkaStorage.markMessagesDeleted(currentAccount, murkaDeleted);
@@ -18778,7 +18808,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 for (int a = 0, size2 = messageObjects.size(); a < size2; a++) {
                     messagesRes.messages.add(messageObjects.get(a).messageOwner);
                 }
-                if (MurkaConfig.saveEditHistory) { // MurkaGram: сохраняем предыдущую версию до перезаписи (та же storageQueue)
+                if (MurkaConfig.saveEditHistory && !MurkaConfig.isMonitorExcluded(currentAccount, editingMessages.keyAt(b))) { // MurkaGram: сохраняем предыдущую версию до перезаписи (та же storageQueue), кроме «Исключений»
                     MurkaStorage.saveEditHistory(currentAccount, new ArrayList<>(messagesRes.messages));
                 }
                 getMessagesStorage().putMessages(messagesRes, editingMessages.keyAt(b), -2, 0, false, 0, 0);

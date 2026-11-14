@@ -10,6 +10,16 @@
     <string name="MurkaSaveReadDates">Save read time</string>
     <string name="MurkaDeletedTransparency">Deleted messages transparency</string>
     <string name="MurkaDeletedTransparencyHint">Enter transparency from 10 to 100%.</string>
+    <string name="MurkaExceptions">Exceptions</string>
+    <string name="MurkaExceptionsAdd">Add</string>
+    <string name="MurkaExceptionsInfo">Deleted messages and edits are not saved in these chats.</string>
+    <string name="MurkaExceptionsRemove">Remove from exceptions?</string>
+    <string name="MurkaGhostWarning">Ghost mode warning</string>
+    <string name="MurkaGhostWarningInfo">Ask whether to enable ghost mode before opening a self-destructing photo or video. In ghost mode such media can be viewed as many times as you like: it won\'t disappear and the other person won\'t know you viewed it.</string>
+    <string name="MurkaGhostWarningTitle">Ghost mode</string>
+    <string name="MurkaGhostWarningText">Enable ghost mode before viewing?</string>
+    <string name="MurkaGhostWarningEnable">Enable</string>
+    <string name="MurkaGhostWarningView">View</string>
     <string name="MurkaEditHistory">Edits</string>
     <string name="MurkaEditHistoryCurrent">Current version</string>
     <string name="MurkaEditHistoryNoText">(no text)</string>
@@ -30,6 +40,9 @@
     <string name="MurkaMD3Restart">Restart the app to apply the MD3 design.</string>
     <string name="MurkaAccountId">Account ID</string>
     <string name="MurkaIdCopied">ID copied to clipboard.</string>
+    <string name="MurkaRegDate">Registration date</string>
+    <string name="MurkaRegDateApprox">≈ %1$s</string>
+    <string name="MurkaRegDateNote">Estimated from account ID</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Side menu settings</string>
     <string name="MurkaDrawerTitle">Side menu</string>
@@ -54,6 +67,7 @@
     <string name="MurkaDesignChats">Chats</string>
     <string name="MurkaGeneral">General</string>
     <string name="MurkaNoBubbleTail">Remove message tail</string>
+    <string name="MurkaMessageMenuIconBar">Quick actions as icons</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>

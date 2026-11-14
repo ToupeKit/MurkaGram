@@ -15053,6 +15053,9 @@ public class ChatActivity extends BaseFragment implements
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.destroyTime != 0 || messageObject.messageOwner.ttl <= 0) {
             return null;
         }
+        if (MurkaConfig.ghostMode && currentEncryptedChat == null) { // MurkaGram: режим призрака — не запускаем таймер и не сообщаем серверу о просмотре (только облачные чаты)
+            return null;
+        }
         if (readNow) {
             final boolean delete = messageObject.messageOwner.ttl != 0x7FFFFFFF;
             final int ttl = messageObject.messageOwner.ttl == 0x7FFFFFFF ? 0 : messageObject.messageOwner.ttl;
@@ -15082,6 +15085,9 @@ public class ChatActivity extends BaseFragment implements
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.ttl != 0x7FFFFFFF) {
             return null;
         }
+        if (MurkaConfig.ghostMode && currentEncryptedChat == null) { // MurkaGram: режим призрака — одноразовое медиа не удаляется после просмотра (только облачные чаты)
+            return null;
+        }
         final long taskId = getMessagesController().createDeleteShowOnceTask(dialog_id, messageObject.getId());
         messageObject.forceExpired = true;
         if (messageObject.isOutOwner() || !messageObject.isRoundOnce() && !messageObject.isVoiceOnce()) {
@@ -15090,6 +15096,30 @@ public class ChatActivity extends BaseFragment implements
             updateMessages(msgs, true);
         }
         return () -> getMessagesController().doDeleteShowOnceTask(taskId, dialog_id, messageObject.getId());
+    }
+
+    // MurkaGram: «Предупреждение призрака» перед просмотром одноразового/самоуничтожающегося медиа в облачном чате.
+    // Условия повторяют ранний выход sendSecretMessageRead: диалог только когда открытие реально запустит таймер.
+    private void murkaCheckGhostWarning(MessageObject message, Runnable open) {
+        if (MurkaConfig.ghostMode || !MurkaConfig.ghostWarning || currentEncryptedChat != null || message == null || message.isOut()
+                || !message.isSecretMedia() || message.hasExtendedMediaPreview()
+                || message.messageOwner.destroyTime != 0 || message.messageOwner.ttl <= 0
+                || getParentActivity() == null) {
+            open.run();
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+        builder.setTitle(LocaleController.getString(R.string.MurkaGhostWarningTitle));
+        builder.setMessage(LocaleController.getString(R.string.MurkaGhostWarningText));
+        builder.setPositiveButton(LocaleController.getString(R.string.MurkaGhostWarningEnable), (dialog, which) -> {
+            if (!MurkaConfig.ghostMode) {
+                MurkaConfig.toggleGhostModeAndApply();
+            }
+            open.run();
+        });
+        builder.setNeutralButton(LocaleController.getString(R.string.MurkaGhostWarningView), (dialog, which) -> open.run());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     private void clearChatData(boolean full) {
@@ -30243,6 +30273,11 @@ public class ChatActivity extends BaseFragment implements
 
             boolean addGap = false;
 
+            // MurkaGram: «Быстрые действия иконками» — Reply/Delete/Copy/Edit уходят в нижний ряд иконок
+            final ArrayList<Integer> murkaBarOptions = new ArrayList<>();
+            final ArrayList<Integer> murkaBarIcons = new ArrayList<>();
+            final ArrayList<CharSequence> murkaBarLabels = new ArrayList<>();
+
             if (optionsView == null) {
                 if (isReactionsViewAvailable) {
                     ReactedHeaderView reactedView = new ReactedHeaderView(contentView.getContext(), currentAccount, primaryMessage, dialog_id);
@@ -30900,6 +30935,25 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                 }
+                // MurkaGram: «Быстрые действия иконками» — убираем опции из списка до цикла (лямбды ниже берут options по индексу)
+                if (MurkaConfig.messageMenuIconBar && !suggestEdit && selectedObject != null && items.size() == options.size() && icons.size() == options.size()) {
+                    final int[] murkaBarOrder = {OPTION_REPLY, OPTION_DELETE, OPTION_COPY, OPTION_EDIT};
+                    for (int murkaOpt : murkaBarOrder) {
+                        int idx = options.indexOf(murkaOpt);
+                        if (idx < 0) {
+                            continue;
+                        }
+                        if (murkaOpt == OPTION_DELETE && selectedObject.messageOwner != null && (selectedObject.messageOwner.ttl_period != 0 || selectedObject.isPaidSuggestedPostProtected())) {
+                            continue; // у «Удалить» есть подпись — оставляем в списке
+                        }
+                        murkaBarOptions.add(murkaOpt);
+                        murkaBarIcons.add(icons.get(idx));
+                        murkaBarLabels.add(items.get(idx));
+                        options.remove(idx);
+                        items.remove(idx);
+                        icons.remove(idx);
+                    }
+                }
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 for (int a = 0, N = items.size(); a < N; a++) {
                     ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(), a == 0, a == N - 1, themeDelegate);
@@ -31309,6 +31363,40 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 }
+            }
+
+            // MurkaGram: «Быстрые действия иконками» — ряд иконок в самом низу меню
+            if (optionsView == null && !murkaBarOptions.isEmpty()) {
+                int murkaCnt = popupLayout.getItemsCount();
+                boolean murkaPrevIsGap = murkaCnt > 0 && popupLayout.getItemAt(murkaCnt - 1) instanceof ActionBarPopupWindow.GapView;
+                if (murkaCnt > 0 && !murkaPrevIsGap) {
+                    popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                }
+                LinearLayout murkaBar = new LinearLayout(getParentActivity());
+                murkaBar.setOrientation(LinearLayout.HORIZONTAL);
+                murkaBar.setPadding(dp(4), 0, dp(4), 0);
+                final int murkaIconColor = getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon);
+                final int murkaSelColor = getThemedColor(Theme.key_dialogButtonSelector);
+                for (int k = 0; k < murkaBarOptions.size(); k++) {
+                    final int murkaOpt = murkaBarOptions.get(k);
+                    ImageView btn = new ImageView(getParentActivity());
+                    btn.setScaleType(ImageView.ScaleType.CENTER);
+                    btn.setImageResource(murkaBarIcons.get(k));
+                    btn.setColorFilter(new PorterDuffColorFilter(murkaIconColor, PorterDuff.Mode.MULTIPLY));
+                    btn.setBackground(Theme.createSelectorDrawable(murkaSelColor, Theme.RIPPLE_MASK_CIRCLE_20DP));
+                    btn.setContentDescription(murkaBarLabels.get(k));
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        btn.setTooltipText(murkaBarLabels.get(k));
+                    }
+                    btn.setOnClickListener(v1 -> {
+                        if (selectedObject == null) {
+                            return;
+                        }
+                        processSelectedOption(murkaOpt);
+                    });
+                    murkaBar.addView(btn, LayoutHelper.createLinear(0, 48, 1f));
+                }
+                popupLayout.addView(murkaBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
             }
 
             ReactionsContainerLayout finalReactionsLayout1 = reactionsLayout;
@@ -37859,13 +37947,16 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 } catch (Exception ignore) {}
-                secretVoicePlayer = new SecretVoicePlayer(getContext());
-                secretVoicePlayer.setCell(
-                    cell,
-                    !messageObject.isOutOwner() ? sendSecretMessageRead(messageObject, true) : null,
-                    !messageObject.isOutOwner() ? sendSecretMediaDelete(messageObject) : null
-                );
-                showDialog(secretVoicePlayer);
+                murkaCheckGhostWarning(messageObject, () -> { // MurkaGram: «Предупреждение призрака»
+                    if (secretVoicePlayer != null && secretVoicePlayer.isShown()) return;
+                    secretVoicePlayer = new SecretVoicePlayer(getContext());
+                    secretVoicePlayer.setCell(
+                        cell,
+                        !messageObject.isOutOwner() ? sendSecretMessageRead(messageObject, true) : null,
+                        !messageObject.isOutOwner() ? sendSecretMediaDelete(messageObject) : null
+                    );
+                    showDialog(secretVoicePlayer);
+                });
                 return false;
             } else if (messageObject.isVoice() || messageObject.isRoundVideo()) {
                 boolean result = MediaController.getInstance().playMessage(messageObject, muted);
@@ -39571,11 +39662,14 @@ public class ChatActivity extends BaseFragment implements
                 emojiAnimationsOverlay.onTapItem(cell, ChatActivity.this, true);
                 chatListView.cancelClickRunnables(false);
             } else if (message.needDrawBluredPreview()) {
-                Runnable openAction = sendSecretMessageRead(message, false);
-                Runnable closeAction = sendSecretMediaDelete(message);
-                cell.invalidate();
-                SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
-                SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
+                murkaCheckGhostWarning(message, () -> { // MurkaGram: «Предупреждение призрака»; действия вычисляются после возможного включения призрака
+                    if (getParentActivity() == null) return;
+                    Runnable openAction = sendSecretMessageRead(message, false);
+                    Runnable closeAction = sendSecretMediaDelete(message);
+                    cell.invalidate();
+                    SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
+                    SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
+                });
             } else if (MessageObject.isAnimatedEmoji(message.getDocument()) && MessageObject.getInputStickerSet(message.getDocument()) != null) {
                 final ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
                 inputSets.add(MessageObject.getInputStickerSet(message.getDocument()));

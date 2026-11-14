@@ -10,6 +10,16 @@
     <string name="MurkaSaveReadDates">Сохранять дату прочтения</string>
     <string name="MurkaDeletedTransparency">Прозрачность удалённых сообщений</string>
     <string name="MurkaDeletedTransparencyHint">Введите прозрачность от 10 до 100%.</string>
+    <string name="MurkaExceptions">Исключения</string>
+    <string name="MurkaExceptionsAdd">Добавить</string>
+    <string name="MurkaExceptionsInfo">В этих чатах удалённые сообщения и изменения не сохраняются.</string>
+    <string name="MurkaExceptionsRemove">Удалить из исключений?</string>
+    <string name="MurkaGhostWarning">Предупреждение призрака</string>
+    <string name="MurkaGhostWarningInfo">Перед открытием самоуничтожающегося фото или видео спрашивать, включить ли режим призрака. В режиме призрака такие медиа можно смотреть сколько угодно, они не исчезнут и собеседник не узнает о просмотре.</string>
+    <string name="MurkaGhostWarningTitle">Режим призрака</string>
+    <string name="MurkaGhostWarningText">Включить режим призрака перед просмотром?</string>
+    <string name="MurkaGhostWarningEnable">Включить</string>
+    <string name="MurkaGhostWarningView">Просмотреть</string>
     <string name="MurkaEditHistory">Изменения</string>
     <string name="MurkaEditHistoryCurrent">Текущая версия</string>
     <string name="MurkaEditHistoryNoText">(без текста)</string>
@@ -30,6 +40,9 @@
     <string name="MurkaMD3Restart">Перезапустите приложение, чтобы применить MD3 дизайн.</string>
     <string name="MurkaAccountId">ID аккаунта</string>
     <string name="MurkaIdCopied">ID скопирован в буфер обмена.</string>
+    <string name="MurkaRegDate">Дата регистрации</string>
+    <string name="MurkaRegDateApprox">≈ %1$s</string>
+    <string name="MurkaRegDateNote">Примерная дата по ID аккаунта</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Настройки бокового меню</string>
     <string name="MurkaDrawerTitle">Боковое меню</string>
@@ -54,6 +67,7 @@
     <string name="MurkaDesignChats">Чаты</string>
     <string name="MurkaGeneral">Общие</string>
     <string name="MurkaNoBubbleTail">Убрать хвост сообщений</string>
+    <string name="MurkaMessageMenuIconBar">Быстрые действия иконками</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>
