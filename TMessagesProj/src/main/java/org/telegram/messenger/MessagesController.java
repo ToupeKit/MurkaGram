@@ -393,6 +393,8 @@ public class MessagesController extends BaseController implements NotificationCe
     private boolean offlineSent;
     private long murkaLastOfflineAttempt; // MurkaGram: режим призрака — время последней попытки уйти в офлайн (защита от спама запросами)
     private Runnable murkaGhostRunnable; // MurkaGram: режим призрака — отложенный уход в офлайн после отправки
+    private long murkaGhostScheduleTime; // MurkaGram: режим призрака — когда последний раз запланирован уход в офлайн после отправки (UI-поток)
+    private long murkaLastReactiveOffline; // MurkaGram: режим призрака — последняя реакция на собственный статус «в сети» (UI-поток)
     private String uploadingAvatar;
 
     private HashMap<String, Object> uploadingThemes = new HashMap<>();
@@ -9930,6 +9932,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (murkaGhostRunnable != null) {
             AndroidUtilities.cancelRunOnUIThread(murkaGhostRunnable);
         }
+        murkaGhostScheduleTime = System.currentTimeMillis(); // MurkaGram
         murkaGhostRunnable = () -> {
             murkaGhostRunnable = null;
             Utilities.stageQueue.postRunnable(() -> {
@@ -9946,6 +9949,28 @@ public class MessagesController extends BaseController implements NotificationCe
             }, 4000);
         };
         AndroidUtilities.runOnUIThread(murkaGhostRunnable, 1000);
+    }
+
+    // MurkaGram: режим призрака — сервер сообщил, что мы «в сети» (например, после неявной активности). Вызывается с UI-потока.
+    // Не чаще раза в 60 с и не внутри окна «кратко в сети после отправки» (там офлайн и так уже запланирован).
+    private void murkaOnSelfOnline() {
+        if (!MurkaConfig.ghostMode || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (murkaGhostRunnable != null || Math.abs(now - murkaGhostScheduleTime) < 6000) {
+            return;
+        }
+        if (murkaLastReactiveOffline != 0 && Math.abs(now - murkaLastReactiveOffline) < 60000) {
+            return;
+        }
+        murkaLastReactiveOffline = now;
+        Utilities.stageQueue.postRunnable(() -> {
+            if (MurkaConfig.ghostMode) {
+                offlineSent = false;
+                murkaSendOffline();
+            }
+        });
     }
 
     public void updateTimerProc() {
@@ -10817,6 +10842,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+        if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — не отправляем «печатает…»
+            return false;
+        }
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
@@ -13739,6 +13767,9 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — «прослушано/просмотрено» только локально, на сервер не отправляем
+            return;
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -13891,6 +13922,14 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        completeReadTask(task, false);
+    }
+
+    // MurkaGram: murkaForce=true — отправить прочтение даже в режиме призрака (пункт «Прочитать»)
+    private void completeReadTask(ReadTask task, boolean murkaForce) {
+        if (MurkaConfig.ghostMode && !murkaForce) { // MurkaGram: режим призрака — прочтение только локально, на сервер не отправляем
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -13930,7 +13969,7 @@ public class MessagesController extends BaseController implements NotificationCe
             });
         } else {
             TLRPC.EncryptedChat chat = getEncryptedChat(DialogObject.getEncryptedChatId(task.dialogId));
-            if (chat.auth_key != null && chat.auth_key.length > 1 && chat instanceof TLRPC.TL_encryptedChat) {
+            if (chat != null && chat.auth_key != null && chat.auth_key.length > 1 && chat instanceof TLRPC.TL_encryptedChat) { // MurkaGram: chat != null — защита для принудительного прочтения
                 TLRPC.TL_messages_readEncryptedHistory req = new TLRPC.TL_messages_readEncryptedHistory();
                 req.peer = new TLRPC.TL_inputEncryptedChat();
                 req.peer.chat_id = chat.id;
@@ -13990,6 +14029,34 @@ public class MessagesController extends BaseController implements NotificationCe
                 readTasksMap.remove(dialogId);
             }
         });
+    }
+
+    // MurkaGram: режим призрака — явно отправить прочтение диалога до сообщения (пункт «Прочитать»)
+    public void murkaForceReadHistory(long dialogId, int maxId, int maxDate, long threadId) {
+        final long monoForumPeerId = getMessagesStorage().isMonoForum(dialogId) ? threadId : 0;
+        Utilities.stageQueue.postRunnable(() -> {
+            ReadTask task = new ReadTask();
+            task.dialogId = dialogId;
+            task.replyId = threadId;
+            task.monoForumPeerId = monoForumPeerId;
+            task.maxId = maxId;
+            task.maxDate = maxDate;
+            completeReadTask(task, true);
+            // отложенная (подавленная) задача для этого диалога больше не нужна
+            if (threadId != 0) {
+                ReadTask t = threadsReadTasksMap.remove(dialogId + "_" + threadId);
+                if (t != null) {
+                    repliesReadTasks.remove(t);
+                }
+            } else {
+                ReadTask t = readTasksMap.get(dialogId); // MurkaGram: LongSparseArray.remove() возвращает void
+                readTasksMap.remove(dialogId);
+                if (t != null) {
+                    readTasks.remove(t);
+                }
+            }
+        });
+        AndroidUtilities.runOnUIThread(this::murkaScheduleGhostOffline, 300); // MurkaGram: readHistory может сделать нас «в сети»
     }
 
     public void markMentionsAsRead(long dialogId, long topicId) {
@@ -18770,6 +18837,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         dbUsersStatus.add(toDbUser);
                         if (update.user_id == getUserConfig().getClientUserId()) {
                             getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
+                            if (MurkaConfig.ghostMode && update.status instanceof TLRPC.TL_userStatusOnline) { // MurkaGram: сервер сделал нас «в сети» — возвращаем офлайн (с ограничением частоты)
+                                murkaOnSelfOnline();
+                            }
                         }
                     } else if (baseUpdate instanceof TLRPC.TL_updateMonoForumNoPaidException) {
                         TLRPC.TL_updateMonoForumNoPaidException update = (TLRPC.TL_updateMonoForumNoPaidException) baseUpdate;

@@ -13,10 +13,12 @@
     <string name="MurkaEditHistory">Edits</string>
     <string name="MurkaEditHistoryCurrent">Current version</string>
     <string name="MurkaEditHistoryNoText">(no text)</string>
+    <string name="MurkaGhostRead">Read</string>
     <string name="MurkaDesign">Design</string>
     <string name="MurkaCenterTitle">Center title</string>
     <string name="MurkaNoRounding">Disable number rounding</string>
     <string name="MurkaTimeSeconds">Time with seconds</string>
+    <string name="MurkaSpringAnimation">Spring animation</string>
     <string name="MurkaFont">Font</string>
     <string name="MurkaFontDefault">Default</string>
     <string name="MurkaFontSystem">System</string>
@@ -26,6 +28,17 @@
     <string name="MurkaRestart">Restart</string>
     <string name="MurkaAccountId">Account ID</string>
     <string name="MurkaIdCopied">ID copied to clipboard.</string>
+    <!-- MurkaGram: настройки бокового меню -->
+    <string name="MurkaDrawerSettings">Side menu settings</string>
+    <string name="MurkaDrawerTitle">Side menu</string>
+    <string name="MurkaDrawerItems">Menu items</string>
+    <string name="MurkaDrawerAdd">Add item</string>
+    <string name="MurkaDrawerReset">Reset</string>
+    <string name="MurkaDrawerRemoveConfirm">Remove this item from the side menu?</string>
+    <string name="MurkaDrawerDivider">Divider</string>
+    <string name="MurkaDrawerGhost">Ghost mode</string>
+    <string name="MurkaDrawerGhostOn">Enable ghost mode</string>
+    <string name="MurkaDrawerGhostOff">Disable ghost mode</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>

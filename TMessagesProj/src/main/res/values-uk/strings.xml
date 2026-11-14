@@ -13,10 +13,12 @@
     <string name="MurkaEditHistory">Зміни</string>
     <string name="MurkaEditHistoryCurrent">Поточна версія</string>
     <string name="MurkaEditHistoryNoText">(без тексту)</string>
+    <string name="MurkaGhostRead">Прочитати</string>
     <string name="MurkaDesign">Дизайн</string>
     <string name="MurkaCenterTitle">Центрувати назву</string>
     <string name="MurkaNoRounding">Вимкнути округлення чисел</string>
     <string name="MurkaTimeSeconds">Час із секундами</string>
+    <string name="MurkaSpringAnimation">Spring анімація</string>
     <string name="MurkaFont">Шрифт</string>
     <string name="MurkaFontDefault">Стандартний</string>
     <string name="MurkaFontSystem">Системний</string>
@@ -26,6 +28,17 @@
     <string name="MurkaRestart">Перезапустити</string>
     <string name="MurkaAccountId">ID акаунта</string>
     <string name="MurkaIdCopied">ID скопійовано до буфера обміну.</string>
+    <!-- MurkaGram: настройки бокового меню -->
+    <string name="MurkaDrawerSettings">Налаштування бічного меню</string>
+    <string name="MurkaDrawerTitle">Бічне меню</string>
+    <string name="MurkaDrawerItems">Пункти меню</string>
+    <string name="MurkaDrawerAdd">Додати пункт</string>
+    <string name="MurkaDrawerReset">Скинути</string>
+    <string name="MurkaDrawerRemoveConfirm">Прибрати цей пункт з бічного меню?</string>
+    <string name="MurkaDrawerDivider">Роздільник</string>
+    <string name="MurkaDrawerGhost">Режим привида</string>
+    <string name="MurkaDrawerGhostOn">Увімкнути режим привида</string>
+    <string name="MurkaDrawerGhostOff">Вимкнути режим привида</string>
     <string name="LanguageName">Українська</string>
     <string name="English">Англійська</string>
     <string name="LanguageNameInEnglish">Ukrainian</string>

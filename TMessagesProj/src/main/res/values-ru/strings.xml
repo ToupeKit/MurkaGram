@@ -13,10 +13,12 @@
     <string name="MurkaEditHistory">Изменения</string>
     <string name="MurkaEditHistoryCurrent">Текущая версия</string>
     <string name="MurkaEditHistoryNoText">(без текста)</string>
+    <string name="MurkaGhostRead">Прочитать</string>
     <string name="MurkaDesign">Дизайн</string>
     <string name="MurkaCenterTitle">Центрировать название</string>
     <string name="MurkaNoRounding">Отключить округление чисел</string>
     <string name="MurkaTimeSeconds">Время с секундами</string>
+    <string name="MurkaSpringAnimation">Spring анимация</string>
     <string name="MurkaFont">Шрифт</string>
     <string name="MurkaFontDefault">Стандартный</string>
     <string name="MurkaFontSystem">Системный</string>
@@ -26,6 +28,17 @@
     <string name="MurkaRestart">Перезапустить</string>
     <string name="MurkaAccountId">ID аккаунта</string>
     <string name="MurkaIdCopied">ID скопирован в буфер обмена.</string>
+    <!-- MurkaGram: настройки бокового меню -->
+    <string name="MurkaDrawerSettings">Настройки бокового меню</string>
+    <string name="MurkaDrawerTitle">Боковое меню</string>
+    <string name="MurkaDrawerItems">Пункты меню</string>
+    <string name="MurkaDrawerAdd">Добавить пункт</string>
+    <string name="MurkaDrawerReset">Сбросить</string>
+    <string name="MurkaDrawerRemoveConfirm">Убрать этот пункт из бокового меню?</string>
+    <string name="MurkaDrawerDivider">Разделитель</string>
+    <string name="MurkaDrawerGhost">Режим призрака</string>
+    <string name="MurkaDrawerGhostOn">Включить режим призрака</string>
+    <string name="MurkaDrawerGhostOff">Выключить режим призрака</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>

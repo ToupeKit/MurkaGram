@@ -59,14 +59,9 @@ public class MurkaMonitoringActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         if (item.id == ID_GHOST_MODE) {
-            MurkaConfig.toggleGhostMode();
+            MurkaConfig.toggleGhostModeAndApply(); // MurkaGram: заодно обновляет подпись в боковом меню
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.ghostMode);
-            }
-            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                if (UserConfig.getInstance(a).isClientActivated()) {
-                    MessagesController.getInstance(a).murkaOnGhostModeChanged();
-                }
             }
         } else if (item.id == ID_SAVE_DELETED) {
             MurkaConfig.toggleSaveDeletedMessages();

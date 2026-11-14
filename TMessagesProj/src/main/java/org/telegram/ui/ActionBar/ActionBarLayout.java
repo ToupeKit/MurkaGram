@@ -59,6 +59,9 @@ import androidx.core.graphics.Insets;
 import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.dynamicanimation.animation.DynamicAnimation; // MurkaGram
+import androidx.dynamicanimation.animation.SpringAnimation; // MurkaGram
+import androidx.dynamicanimation.animation.SpringForce; // MurkaGram
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
@@ -66,6 +69,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
@@ -532,6 +536,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private View backgroundView;
     private boolean removeActionBarExtraHeight;
     private Runnable animationRunnable;
+    // MurkaGram: spring-анимация открытия/закрытия фрагментов
+    private SpringAnimation murkaSpring;
+    private boolean murkaSpringClosing; // true -> движущийся (передний) слой = containerViewBack
+    private BaseFragment murkaSpringTop, murkaSpringBottom;
 
     private float animationProgress;
     private long lastFrameTime;
@@ -937,10 +945,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         int clipLeft = getPaddingLeft();
         int clipRight = width + getPaddingLeft();
         int backOffset = 0;
+        // MurkaGram: при spring-закрытии уезжающий фрагмент лежит в containerViewBack
+        final View murkaFront = murkaSpringClosing ? containerViewBack : containerView;
+        final View murkaBack = murkaSpringClosing ? containerView : containerViewBack;
 
-        if (child == containerViewBack) {
+        if (child == murkaBack) { // MurkaGram
             clipRight = translationX + dp(1);
-        } else if (child == containerView) {
+        } else if (child == murkaFront) { // MurkaGram
             clipLeft = translationX;
         }
 
@@ -950,7 +961,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             withShadow = false;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !isSheet && (translationX != 0 || overrideWidthOffset != -1)) {
-            if (child == containerView) {
+            if (child == murkaFront) { // MurkaGram
                 final WindowInsets insets = getRootWindowInsets();
                 if (insets != null) {
                     AndroidUtilities.rectTmp.set(translationX, 0, translationX + child.getWidth(), getHeight());
@@ -981,7 +992,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     clipPath.addRoundRect(AndroidUtilities.rectTmp, radii, Path.Direction.CW);
                     canvas.clipPath(clipPath);
                 }
-            } else if (child == containerViewBack) {
+            } else if (child == murkaBack) { // MurkaGram
                 final WindowInsets insets = getRootWindowInsets();
                 if (insets != null) {
                     final RoundedCorner topLeft = insets.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_LEFT);
@@ -1082,7 +1093,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
         if (translationX != 0 || overrideWidthOffset != -1) {
             int widthOffset = overrideWidthOffset != -1 ? overrideWidthOffset : width - translationX;
-            if (child == containerView) {
+            if (child == murkaFront) { // MurkaGram
                 final int alpha = MathUtils.clamp(255 * widthOffset / dp(20), 0, 255);
                 if (alpha > 0) {
                     final int tabsHeight = getBottomTabsHeight(false);
@@ -1104,7 +1115,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         layerShadowDrawable.draw(canvas);
                     }
                 }
-            } else if (child == containerViewBack) {
+            } else if (child == murkaBack) { // MurkaGram
                 float opacity = MathUtils.clamp(widthOffset / (float) width, 0, 0.8f);
                 scrimPaint.setColor(Color.argb((int) (120 * opacity), 0x00, 0x00, 0x00));
                 if (overrideWidthOffset != -1) {
@@ -1541,6 +1552,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     private void onAnimationEndCheck(boolean byCheck) {
+        // MurkaGram: остановить spring и снять slide-режим ДО удаления фрагмента из стека
+        final boolean murkaWasSpring = murkaStopSpring();
         onCloseAnimationEnd();
         onOpenAnimationEnd();
         if (waitingForKeyboardCloseRunnable != null) {
@@ -1564,6 +1577,10 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         containerViewBack.setAlpha(1.0f);
         containerViewBack.setScaleX(1.0f);
         containerViewBack.setScaleY(1.0f);
+        // MurkaGram: в конце (стек уже изменён, как в onSlideAnimationEnd)
+        if (murkaWasSpring) {
+            murkaFinishSpring();
+        }
     }
 
     public BaseFragment getLastFragment() {
@@ -1639,6 +1656,11 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     private void startLayoutAnimation(final boolean open, final boolean first, final boolean preview) {
+        // MurkaGram: spring-анимация вместо покадровой 150мс
+        if (first && murkaCanUseSpring(preview)) {
+            startMurkaSpring(open);
+            return;
+        }
         if (first) {
             animationProgress = 0.0f;
             lastFrameTime = System.nanoTime() / 1000000;
@@ -1672,30 +1694,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 if (oldFragment != null) {
                     oldFragment.onTransitionAnimationProgress(false, animationProgress);
                 }
-                Integer oldNavigationBarColor = oldFragment != null ? oldFragment.getNavigationBarColor() : null;
-                Integer newNavigationBarColor = newFragment != null ? newFragment.getNavigationBarColor() : null;
-                if (oldFragment != null && oldFragment.isSupportEdgeToEdge() && newNavigationBarColor != null) {
-                    oldNavigationBarColor = newNavigationBarColor;
-                }
-                if (newFragment != null && newFragment.isSupportEdgeToEdge() && oldNavigationBarColor != null) {
-                    newNavigationBarColor = oldNavigationBarColor;
-                }
-
-                if (newFragment != null && oldNavigationBarColor != null && newNavigationBarColor != null) {
-                    float ratio = MathUtils.clamp(4f * animationProgress, 0f, 1f);
-                    int color = ColorUtils.blendARGB(oldNavigationBarColor, newNavigationBarColor, ratio);
-                    if (sheetFragment != null) {
-                        if (sheetFragment.sheetsStack != null) {
-                            for (int i = 0; i < sheetFragment.sheetsStack.size(); ++i) {
-                                BaseFragment.AttachedSheet sheet = sheetFragment.sheetsStack.get(i);
-                                if (sheet.attachedToParent()) {
-                                    color = sheet.getNavigationBarColor(color);
-                                }
-                            }
-                        }
-                    }
-                    newFragment.setNavigationBarColor(color);
-                }
+                murkaUpdateTransitionNavBarColor(animationProgress); // MurkaGram: вынесено в метод
                 float interpolated;
                 if (preview) {
                     if (open) {
@@ -1748,6 +1747,117 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 }
             }
         });
+    }
+
+    // MurkaGram: смешивание цвета навбара при переходе (вынесено из startLayoutAnimation)
+    private void murkaUpdateTransitionNavBarColor(float progress) {
+        Integer oldNavigationBarColor = oldFragment != null ? oldFragment.getNavigationBarColor() : null;
+        Integer newNavigationBarColor = newFragment != null ? newFragment.getNavigationBarColor() : null;
+        if (oldFragment != null && oldFragment.isSupportEdgeToEdge() && newNavigationBarColor != null) {
+            oldNavigationBarColor = newNavigationBarColor;
+        }
+        if (newFragment != null && newFragment.isSupportEdgeToEdge() && oldNavigationBarColor != null) {
+            newNavigationBarColor = oldNavigationBarColor;
+        }
+
+        if (newFragment != null && oldNavigationBarColor != null && newNavigationBarColor != null) {
+            float ratio = MathUtils.clamp(4f * progress, 0f, 1f);
+            int color = ColorUtils.blendARGB(oldNavigationBarColor, newNavigationBarColor, ratio);
+            if (sheetFragment != null) {
+                if (sheetFragment.sheetsStack != null) {
+                    for (int i = 0; i < sheetFragment.sheetsStack.size(); ++i) {
+                        BaseFragment.AttachedSheet sheet = sheetFragment.sheetsStack.get(i);
+                        if (sheet.attachedToParent()) {
+                            color = sheet.getNavigationBarColor(color);
+                        }
+                    }
+                }
+            }
+            newFragment.setNavigationBarColor(color);
+        }
+    }
+
+    // MurkaGram
+    private boolean murkaCanUseSpring(boolean preview) {
+        return MurkaConfig.springAnimation && !preview && !inPreviewMode && !transitionAnimationPreviewMode
+                && !isSheet && newFragment != null && oldFragment != null
+                && fragmentsStack.size() >= 2 && getMeasuredWidth() > 0 && containerView.getMeasuredWidth() > 0;
+    }
+
+    // MurkaGram: открытие — новый фрагмент (containerView) въезжает справа; закрытие — закрываемый (containerViewBack) уезжает вправо
+    private void startMurkaSpring(final boolean open) {
+        final float width = containerView.getMeasuredWidth();
+        murkaSpringClosing = !open;
+        final View front = open ? containerView : containerViewBack;
+        murkaSpringTop = open ? newFragment : oldFragment;
+        murkaSpringBottom = open ? oldFragment : newFragment;
+        murkaSpringTop.prepareFragmentToSlide(true, true);
+        murkaSpringBottom.prepareFragmentToSlide(false, true);
+
+        containerView.setAlpha(1f);
+        containerView.setScaleX(1f);
+        containerView.setScaleY(1f);
+        containerViewBack.setAlpha(1f);
+        containerViewBack.setScaleX(1f);
+        containerViewBack.setScaleY(1f);
+        containerView.setTranslationX(0);
+        containerViewBack.setTranslationX(0);
+        front.setTranslationX(open ? width : 0);
+        setInnerTranslationX(open ? width : 0);
+        transitionAnimationStartTime = System.currentTimeMillis();
+
+        final SpringAnimation spring = new SpringAnimation(front, DynamicAnimation.TRANSLATION_X, open ? 0 : width);
+        spring.getSpring()
+                .setStiffness(1000f)
+                .setDampingRatio(SpringForce.DAMPING_RATIO_NO_BOUNCY);
+        spring.addUpdateListener((anim, value, velocity) -> {
+            if (murkaSpring != anim || fragmentsStack.size() < 2) {
+                return;
+            }
+            setInnerTranslationX(value);
+            final float p = MathUtils.clamp(open ? 1f - value / width : value / width, 0f, 1f);
+            if (newFragment != null) {
+                newFragment.onTransitionAnimationProgress(true, p);
+            }
+            if (oldFragment != null) {
+                oldFragment.onTransitionAnimationProgress(false, p);
+            }
+            murkaUpdateTransitionNavBarColor(p);
+        });
+        spring.addEndListener((anim, canceled, value, velocity) -> {
+            if (murkaSpring != anim) {
+                return;
+            }
+            murkaSpring = null;
+            onAnimationEndCheck(false);
+        });
+        murkaSpring = spring;
+        spring.start();
+    }
+
+    // MurkaGram: остановить spring и выключить slide-режим; true, если spring-переход был активен
+    private boolean murkaStopSpring() {
+        final boolean wasSpring = murkaSpring != null || murkaSpringTop != null || murkaSpringBottom != null;
+        if (murkaSpring != null) {
+            final SpringAnimation s = murkaSpring;
+            murkaSpring = null; // до cancel(): cancel() синхронно вызывает end listener
+            s.cancel();
+        }
+        if (murkaSpringTop != null) {
+            murkaSpringTop.prepareFragmentToSlide(true, false);
+            murkaSpringTop = null;
+        }
+        if (murkaSpringBottom != null) {
+            murkaSpringBottom.prepareFragmentToSlide(false, false);
+            murkaSpringBottom = null;
+        }
+        return wasSpring;
+    }
+
+    // MurkaGram: вызывать после изменения стека
+    private void murkaFinishSpring() {
+        murkaSpringClosing = false;
+        setInnerTranslationX(0);
     }
 
     @Override
@@ -2605,8 +2715,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     @Override
     public void removeFragmentFromStack(BaseFragment fragment, boolean immediate) {
         if (((fragmentsStack.size() > 0 && fragmentsStack.get(fragmentsStack.size() - 1) == fragment) || (fragmentsStack.size() > 1 && fragmentsStack.get(fragmentsStack.size() - 2) == fragment))) {
+            // MurkaGram: при досрочном завершении spring-закрытия снять роль «передний = containerViewBack», иначе предыдущий фрагмент обрезается до конца пружины
+            final boolean murkaWasSpring = murkaSpringClosing && murkaStopSpring();
             onOpenAnimationEnd();
             onCloseAnimationEnd();
+            if (murkaWasSpring) {
+                murkaFinishSpring();
+            }
         }
         checkBlackScreen("removeFragmentFromStack " + immediate);
         if (useAlphaAnimations && fragmentsStack.size() == 1 && AndroidUtilities.isTablet()) {
@@ -2994,6 +3109,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             return;
         }
         if (transitionAnimationInProgress) {
+            final boolean murkaWasSpring = murkaStopSpring(); // MurkaGram
             if (currentAnimation != null) {
                 currentAnimation.cancel();
                 currentAnimation = null;
@@ -3002,6 +3118,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 onCloseAnimationEnd();
             } else if (onOpenAnimationEndRunnable != null) {
                 onOpenAnimationEnd();
+            }
+            if (murkaWasSpring) { // MurkaGram
+                murkaFinishSpring();
             }
             containerView.invalidate();
         }

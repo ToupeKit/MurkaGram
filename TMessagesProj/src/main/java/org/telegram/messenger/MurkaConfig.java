@@ -31,8 +31,13 @@ public class MurkaConfig {
     public static boolean centerTitle;
     public static boolean noNumberRounding;
     public static boolean timeWithSeconds;
+    public static boolean springAnimation; // MurkaGram: spring-анимация переходов
     public static int fontMode;
     public static String customFontPath;
+
+    // MurkaGram: «Настройки бокового меню» — порядок пунктов (ключи через запятую, "div" — разделитель).
+    public static final String DRAWER_ITEMS_DEFAULT = "profile,div,newgroup,contacts,calls,saved,settings,div,invite,features";
+    public static String drawerItems;
 
     private static final Object sync = new Object();
     private static boolean configLoaded;
@@ -59,8 +64,10 @@ public class MurkaConfig {
             centerTitle = preferences.getBoolean("centerTitle", false);
             noNumberRounding = preferences.getBoolean("noNumberRounding", false);
             timeWithSeconds = preferences.getBoolean("timeWithSeconds", false);
+            springAnimation = preferences.getBoolean("springAnimation", false);
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
+            drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
             configLoaded = true;
         }
     }
@@ -78,6 +85,42 @@ public class MurkaConfig {
     public static void toggleGhostMode() {
         ghostMode = !ghostMode;
         getPreferences().edit().putBoolean("ghostMode", ghostMode).apply();
+    }
+
+    // MurkaGram: переключить режим призрака и сообщить всем аккаунтам (общее для «Мониторинга» и бокового меню). Вызывать с UI-потока.
+    public static void toggleGhostModeAndApply() {
+        toggleGhostMode();
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).isClientActivated()) {
+                MessagesController.getInstance(a).murkaOnGhostModeChanged();
+            }
+        }
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.murkaDrawerItemsChanged);
+    }
+
+    // MurkaGram: «Настройки бокового меню».
+    public static java.util.ArrayList<String> getDrawerItems() {
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        String value = drawerItems == null ? DRAWER_ITEMS_DEFAULT : drawerItems;
+        for (String s : value.split(",")) {
+            s = s.trim();
+            if (!s.isEmpty()) {
+                list.add(s);
+            }
+        }
+        return list;
+    }
+
+    public static void setDrawerItems(java.util.List<String> keys) {
+        drawerItems = android.text.TextUtils.join(",", keys); // "" = пустое меню (не сброс)
+        getPreferences().edit().putString("drawerItems", drawerItems).apply();
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.murkaDrawerItemsChanged);
+    }
+
+    public static void resetDrawerItems() {
+        drawerItems = DRAWER_ITEMS_DEFAULT;
+        getPreferences().edit().remove("drawerItems").apply();
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.murkaDrawerItemsChanged);
     }
 
     public static void toggleSaveReadDates() {
@@ -103,6 +146,11 @@ public class MurkaConfig {
     public static void toggleTimeWithSeconds() {
         timeWithSeconds = !timeWithSeconds;
         getPreferences().edit().putBoolean("timeWithSeconds", timeWithSeconds).apply();
+    }
+
+    public static void toggleSpringAnimation() {
+        springAnimation = !springAnimation;
+        getPreferences().edit().putBoolean("springAnimation", springAnimation).apply();
     }
 
     public static void setFontMode(int mode, String path) {

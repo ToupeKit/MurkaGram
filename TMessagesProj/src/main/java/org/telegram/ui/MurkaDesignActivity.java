@@ -45,6 +45,8 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_NO_ROUNDING = 2;
     private static final int ID_TIME_SECONDS = 3;
     private static final int ID_FONT = 4;
+    private static final int ID_SPRING = 5; // MurkaGram
+    private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
     private static final long MAX_FONT_FILE_SIZE = 64L * 1024 * 1024;
@@ -59,7 +61,9 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_CENTER_TITLE, LocaleController.getString(R.string.MurkaCenterTitle)).setChecked(MurkaConfig.centerTitle));
         items.add(UItem.asCheck(ID_NO_ROUNDING, LocaleController.getString(R.string.MurkaNoRounding)).setChecked(MurkaConfig.noNumberRounding));
         items.add(UItem.asCheck(ID_TIME_SECONDS, LocaleController.getString(R.string.MurkaTimeSeconds)).setChecked(MurkaConfig.timeWithSeconds));
+        items.add(UItem.asCheck(ID_SPRING, LocaleController.getString(R.string.MurkaSpringAnimation)).setChecked(MurkaConfig.springAnimation));
         items.add(UItem.asButton(ID_FONT, LocaleController.getString(R.string.MurkaFont), getFontModeName(MurkaConfig.fontMode)));
+        items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings))); // MurkaGram
         items.add(UItem.asShadow(null));
     }
 
@@ -92,8 +96,15 @@ public class MurkaDesignActivity extends UniversalFragment {
             }
             LocaleController.getInstance().recreateFormatters();
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
+        } else if (item.id == ID_SPRING) {
+            MurkaConfig.toggleSpringAnimation();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.springAnimation);
+            }
         } else if (item.id == ID_FONT) {
             showFontDialog();
+        } else if (item.id == ID_DRAWER) { // MurkaGram
+            presentFragment(new MurkaDrawerSettingsActivity());
         }
     }
 

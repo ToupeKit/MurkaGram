@@ -1177,6 +1177,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_SUGGESTION_ADD_OFFER = 114;
 
     public final static int OPTION_MURKA_EDIT_HISTORY = 1000; // MurkaGram: «Изменения»
+    public final static int OPTION_MURKA_READ = 1001; // MurkaGram: «Прочитать» (режим призрака)
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -32276,6 +32277,24 @@ public class ChatActivity extends BaseFragment implements
                 murkaShowEditHistory(murkaGetHistoryObject());
                 break;
             }
+            case OPTION_MURKA_READ: { // MurkaGram: режим призрака — отправить прочтение до этого сообщения
+                MessageObject target = selectedObject;
+                if (target == null) {
+                    break;
+                }
+                if (selectedObjectGroup != null && !selectedObjectGroup.messages.isEmpty()) {
+                    for (MessageObject m : selectedObjectGroup.messages) {
+                        if (m.getId() > target.getId()) {
+                            target = m;
+                        }
+                    }
+                }
+                final int maxId = target.getId();
+                final int maxDate = target.messageOwner != null ? target.messageOwner.date : 0;
+                getMessagesController().markDialogAsRead(dialog_id, maxId, maxId, maxDate, false, threadMessageId, 0, false, 0);
+                getMessagesController().murkaForceReadHistory(dialog_id, maxId, maxDate, threadMessageId);
+                break;
+            }
             case OPTION_RETRY: {
                 final MessageObject object = selectedObject;
                 final MessageObject.GroupedMessages group = selectedObjectGroup;
@@ -44093,6 +44112,16 @@ public class ChatActivity extends BaseFragment implements
             items.add(Math.min(index, items.size()), LocaleController.getString(R.string.MurkaEditHistory));
             options.add(index, OPTION_MURKA_EDIT_HISTORY);
             icons.add(Math.min(index, icons.size()), R.drawable.msg_edit);
+        }
+        // MurkaGram: режим призрака — «Прочитать»: отправить прочтение на сервер вручную (последний пункт)
+        if (MurkaConfig.ghostMode && chatMode != MODE_SCHEDULED && chatMode != MODE_QUICK_REPLIES
+                && !selectedObject.scheduled && !selectedObject.isMurkaDeleted()
+                && !UserObject.isUserSelf(currentUser)
+                && (selectedObject.getId() > 0 || currentEncryptedChat != null)
+                && !options.isEmpty() && items.size() == options.size() && icons.size() == options.size()) {
+            items.add(LocaleController.getString(R.string.MurkaGhostRead));
+            options.add(OPTION_MURKA_READ);
+            icons.add(R.drawable.msg_view_file);
         }
     }
 

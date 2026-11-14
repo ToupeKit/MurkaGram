@@ -124,6 +124,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.OpenAttachedMenuBotReceiver;
@@ -723,6 +724,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     args.putLong("dialog_id", UserConfig.getInstance(currentAccount).getClientUserId());
                     args.putInt("type", MediaActivity.TYPE_STORIES);
                     presentFragment(new MediaActivity(args, null));
+                } else if (id == DrawerLayoutAdapter.ID_MURKA_GHOST) { // MurkaGram: «Включить/Выключить режим призрака»
+                    MurkaConfig.toggleGhostModeAndApply(); // постит murkaDrawerItemsChanged → подпись в меню обновится
                 }
             }
         });
@@ -875,6 +878,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.requestPermissions);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.billingConfirmPurchaseError);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.tlSchemeParseException);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.murkaDrawerItemsChanged); // MurkaGram
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.currentUserPremiumStatusChanged);
         LiteMode.addOnPowerSaverAppliedListener(onPowerSaverCallback = this::onPowerSaver);
         if (actionBarLayout.getFragmentStack().isEmpty() && (layersActionBarLayout == null || layersActionBarLayout.getFragmentStack().isEmpty())) {
@@ -6779,6 +6783,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.requestPermissions);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.billingConfirmPurchaseError);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.tlSchemeParseException);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.murkaDrawerItemsChanged); // MurkaGram
 
         if (onPowerSaverCallback != null) {
             LiteMode.removeOnPowerSaverAppliedListener(onPowerSaverCallback);
@@ -7892,7 +7897,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             if (enabled) {
                 ForumUtilities.switchAllFragmentsInStackToForum(chatId, actionBarLayout);
             }
-        } else if (id == NotificationCenter.storiesEnabledUpdate) {
+        } else if (id == NotificationCenter.storiesEnabledUpdate || id == NotificationCenter.murkaDrawerItemsChanged) { // MurkaGram: + murkaDrawerItemsChanged
             if (drawerLayoutAdapter != null) {
                 drawerLayoutAdapter.notifyDataSetChanged();
             }

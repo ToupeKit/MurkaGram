@@ -21,6 +21,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
@@ -39,6 +40,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
+
+    public static final int ID_MURKA_GHOST = 1000; // MurkaGram: пункт «Включить/Выключить режим призрака»
 
     private Context mContext;
     private DrawerLayoutContainer mDrawerLayoutContainer;
@@ -300,49 +303,76 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
             helpIcon = R.drawable.msg_help;
         }
         UserConfig me = UserConfig.getInstance(UserConfig.selectedAccount);
-        boolean showDivider = false;
-        items.add(new Item(16, LocaleController.getString(R.string.MyProfile), R.drawable.left_status_profile));
+        // MurkaGram: «Настройки бокового меню» — пункты в порядке пользователя (MurkaConfig.drawerItems).
+        // Premium-статус, extendDrawer и боты, как в стоке, идут сразу после «Мой профиль».
+        ArrayList<Item> extra = new ArrayList<>();
         if (me != null && me.isPremium()) {
             if (me.getEmojiStatus() != null) {
-                items.add(new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.msg_status_edit));
+                extra.add(new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.msg_status_edit));
             } else {
-                items.add(new Item(15, LocaleController.getString(R.string.SetEmojiStatus), R.drawable.msg_status_set));
+                extra.add(new Item(15, LocaleController.getString(R.string.SetEmojiStatus), R.drawable.msg_status_set));
             }
-            showDivider = true;
         }
-//        if (MessagesController.getInstance(UserConfig.selectedAccount).storiesEnabled()) {
-//            items.add(new Item(17, LocaleController.getString(R.string.ProfileStories), R.drawable.msg_menu_stories));
-//            showDivider = true;
-//        }
-        showDivider = true;
         if (ApplicationLoader.applicationLoaderInstance != null) {
-            if (ApplicationLoader.applicationLoaderInstance.extendDrawer(items)) {
-                showDivider = true;
-            }
+            ApplicationLoader.applicationLoaderInstance.extendDrawer(extra);
         }
         TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
         if (menuBots != null && menuBots.bots != null) {
             for (int i = 0; i < menuBots.bots.size(); i++) {
                 TLRPC.TL_attachMenuBot bot = menuBots.bots.get(i);
                 if (bot.show_in_side_menu) {
-                    items.add(new Item(bot));
-                    showDivider = true;
+                    extra.add(new Item(bot));
                 }
             }
         }
-        if (showDivider) {
-            items.add(null); // divider
+        boolean extraAdded = false;
+        for (String key : MurkaConfig.getDrawerItems()) {
+            switch (key) {
+                case "div":
+                    items.add(null); // divider
+                    break;
+                case "profile":
+                    items.add(new Item(16, LocaleController.getString(R.string.MyProfile), R.drawable.left_status_profile));
+                    if (!extraAdded) {
+                        items.addAll(extra);
+                        extraAdded = true;
+                    }
+                    break;
+                case "newgroup":
+                    items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
+                    break;
+                case "secret":
+                    items.add(new Item(3, LocaleController.getString(R.string.NewSecretChat), R.drawable.msg_secret));
+                    break;
+                case "channel":
+                    items.add(new Item(4, LocaleController.getString(R.string.NewChannel), R.drawable.msg_channel));
+                    break;
+                case "contacts":
+                    items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
+                    break;
+                case "calls":
+                    items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
+                    break;
+                case "saved":
+                    items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
+                    break;
+                case "settings":
+                    items.add(new Item(8, LocaleController.getString(R.string.Settings), settingsIcon));
+                    break;
+                case "invite":
+                    items.add(new Item(7, LocaleController.getString(R.string.InviteFriends), inviteIcon));
+                    break;
+                case "features":
+                    items.add(new Item(13, LocaleController.getString(R.string.TelegramFeatures), helpIcon));
+                    break;
+                case "ghost":
+                    items.add(new Item(ID_MURKA_GHOST, LocaleController.getString(MurkaConfig.ghostMode ? R.string.MurkaDrawerGhostOff : R.string.MurkaDrawerGhostOn), R.drawable.msg_murka_ghost));
+                    break;
+            }
         }
-        items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
-        //items.add(new Item(3, LocaleController.getString(R.string.NewSecretChat), newSecretIcon));
-        //items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
-        items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
-        items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
-        items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
-        items.add(new Item(8, LocaleController.getString(R.string.Settings), settingsIcon));
-        items.add(null); // divider
-        items.add(new Item(7, LocaleController.getString(R.string.InviteFriends), inviteIcon));
-        items.add(new Item(13, LocaleController.getString(R.string.TelegramFeatures), helpIcon));
+        if (!extraAdded && !extra.isEmpty()) { // «Мой профиль» убран: статус и боты ставим в начало
+            items.addAll(0, extra);
+        }
     }
 
     public boolean click(View view, int position) {
