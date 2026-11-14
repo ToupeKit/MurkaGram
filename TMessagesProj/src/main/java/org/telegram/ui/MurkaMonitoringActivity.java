@@ -48,6 +48,7 @@ public class MurkaMonitoringActivity extends UniversalFragment {
 
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaGeneral))); // MurkaGram: заголовок «Общие»
         items.add(UItem.asCheck(ID_GHOST_MODE, LocaleController.getString(R.string.MurkaGhostMode)).setChecked(MurkaConfig.ghostMode));
         items.add(UItem.asCheck(ID_SAVE_DELETED, LocaleController.getString(R.string.MurkaSaveDeleted)).setChecked(MurkaConfig.saveDeletedMessages));
         items.add(UItem.asCheck(ID_SAVE_EDITS, LocaleController.getString(R.string.MurkaSaveEdits)).setChecked(MurkaConfig.saveEditHistory));

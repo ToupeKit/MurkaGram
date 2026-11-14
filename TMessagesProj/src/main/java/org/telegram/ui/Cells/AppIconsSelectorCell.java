@@ -81,6 +81,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
                 holderView.bind(icon);
                 holderView.iconView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(ICONS_ROUND_RADIUS), Color.TRANSPARENT, Theme.getColor(Theme.key_listSelector), Color.BLACK));
                 holderView.iconView.setForeground(icon.foreground);
+                holderView.iconView.murkaClipForeground = icon == LauncherIconController.LauncherIcon.MURKAGRAM || icon == LauncherIconController.LauncherIcon.MURKAGRAM_FLAT; // MurkaGram: opaque artwork must be clipped to the icon shape
             }
 
             @Override
@@ -295,6 +296,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
 
     public static class AdaptiveIconImageView extends ImageView {
         private Drawable foreground;
+        public boolean murkaClipForeground; // MurkaGram
         private Path path = new Path();
         private int outerPadding = AndroidUtilities.dp(5);
         private int backgroundOuterPadding = AndroidUtilities.dp(42);
@@ -335,8 +337,16 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             canvas.restore();
 
             if (foreground != null) {
+                // MurkaGram: clip MurkaGram foreground to the same circle as the background
+                if (murkaClipForeground) {
+                    canvas.save();
+                    canvas.clipPath(path);
+                }
                 foreground.setBounds(-outerPadding, -outerPadding, getWidth() + outerPadding, getHeight() + outerPadding);
                 foreground.draw(canvas);
+                if (murkaClipForeground) {
+                    canvas.restore();
+                }
             }
         }
 

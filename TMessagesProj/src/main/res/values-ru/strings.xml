@@ -52,6 +52,7 @@
     <string name="MurkaCallConfirmText">Вы точно хотите позвонить **%1$s**?</string>
     <string name="MurkaCallConfirmButton">Позвонить</string>
     <string name="MurkaDesignChats">Чаты</string>
+    <string name="MurkaGeneral">Общие</string>
     <string name="MurkaNoBubbleTail">Убрать хвост сообщений</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>

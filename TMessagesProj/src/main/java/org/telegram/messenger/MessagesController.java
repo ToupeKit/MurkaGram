@@ -13952,6 +13952,11 @@ public class MessagesController extends BaseController implements NotificationCe
 
     // MurkaGram: murkaForce=true — отправить прочтение даже в режиме призрака (пункт «Прочитать»)
     private void completeReadTask(ReadTask task, boolean murkaForce) {
+        completeReadTask(task, murkaForce, null);
+    }
+
+    // MurkaGram: murkaOnDone — вызывается на UI-потоке, когда сервер подтвердил прочтение
+    private void completeReadTask(ReadTask task, boolean murkaForce, Runnable murkaOnDone) {
         if (MurkaConfig.ghostMode && !murkaForce) { // MurkaGram: режим призрака — прочтение только локально, на сервер не отправляем
             return;
         }
@@ -13961,7 +13966,9 @@ public class MessagesController extends BaseController implements NotificationCe
             req.peer = getInputPeer(task.dialogId);
             req.read_max_id = task.maxId;
             getConnectionsManager().sendRequest(req, (response, error) -> {
-
+                if (error == null && murkaOnDone != null) { // MurkaGram
+                    AndroidUtilities.runOnUIThread(murkaOnDone);
+                }
             });
         } else if (!DialogObject.isEncryptedDialog(task.dialogId)) {
             TLRPC.InputPeer inputPeer = getInputPeer(task.dialogId);
@@ -13990,6 +13997,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         TLRPC.TL_messages_affectedMessages res = (TLRPC.TL_messages_affectedMessages) response;
                         processNewDifferenceParams(-1, res.pts, -1, res.pts_count);
                     }
+                    if (murkaOnDone != null) { // MurkaGram
+                        AndroidUtilities.runOnUIThread(murkaOnDone);
+                    }
                 }
             });
         } else {
@@ -14001,7 +14011,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 req.peer.access_hash = chat.access_hash;
                 req.max_date = task.maxDate;
                 getConnectionsManager().sendRequest(req, (response, error) -> {
-
+                    if (error == null && murkaOnDone != null) { // MurkaGram
+                        AndroidUtilities.runOnUIThread(murkaOnDone);
+                    }
                 });
             }
         }
@@ -14058,6 +14070,11 @@ public class MessagesController extends BaseController implements NotificationCe
 
     // MurkaGram: режим призрака — явно отправить прочтение диалога до сообщения (пункт «Прочитать»)
     public void murkaForceReadHistory(long dialogId, int maxId, int maxDate, long threadId) {
+        murkaForceReadHistory(dialogId, maxId, maxDate, threadId, null);
+    }
+
+    // MurkaGram: onDone — на UI-потоке после успешного ответа сервера
+    public void murkaForceReadHistory(long dialogId, int maxId, int maxDate, long threadId, Runnable onDone) {
         final long monoForumPeerId = getMessagesStorage().isMonoForum(dialogId) ? threadId : 0;
         Utilities.stageQueue.postRunnable(() -> {
             ReadTask task = new ReadTask();
@@ -14066,7 +14083,7 @@ public class MessagesController extends BaseController implements NotificationCe
             task.monoForumPeerId = monoForumPeerId;
             task.maxId = maxId;
             task.maxDate = maxDate;
-            completeReadTask(task, true);
+            completeReadTask(task, true, onDone);
             // отложенная (подавленная) задача для этого диалога больше не нужна
             if (threadId != 0) {
                 ReadTask t = threadsReadTasksMap.remove(dialogId + "_" + threadId);

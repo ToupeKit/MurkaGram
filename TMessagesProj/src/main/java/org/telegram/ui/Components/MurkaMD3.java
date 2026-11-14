@@ -45,6 +45,33 @@ public class MurkaMD3 {
     public static final int R_SMALL = 5;
     public static final int POPUP_RADIUS = 20;
 
+    // MD3-переключатель (dp): трек 52x32, круг 8dp (выкл) / 12dp (вкл)
+    public static final int SWITCH_W = 52;
+    public static final int SWITCH_H = 32;
+    public static final int SWITCH_MARGIN = 16;
+    /** На сколько dp нужно сдвинуть текст от края в MD3, чтобы он не налезал на большой переключатель. */
+    public static final int SWITCH_TEXT_EXTRA = 10;
+
+    /** Ширина вида Switch в ячейке (dp). */
+    public static int switchWidth() {
+        return enabled() ? SWITCH_W : 37;
+    }
+
+    /** Высота вида Switch в ячейке (dp). */
+    public static int switchHeight(int stock) {
+        return enabled() ? Math.max(stock, SWITCH_H) : stock;
+    }
+
+    /** Отступ Switch от края ячейки (dp). */
+    public static int switchMargin(int stock) {
+        return enabled() ? SWITCH_MARGIN : stock;
+    }
+
+    /** Отступ текста от края со стороны Switch (dp). */
+    public static int switchTextMargin(int stock) {
+        return enabled() ? stock + SWITCH_TEXT_EXTRA : stock;
+    }
+
     /** InsetDrawable без padding: View.setBackground() не перезаписывает отступы вида (иначе пункты меню «съезжают»). */
     public static Drawable insetNoPadding(Drawable d, int l, int t, int r, int b) {
         return new android.graphics.drawable.InsetDrawable(d, l, t, r, b) {

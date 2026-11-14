@@ -67,6 +67,7 @@ import org.telegram.ui.Cells.UserCell;
 import org.telegram.ui.Components.ArchiveHelp;
 import org.telegram.ui.Components.BlurredRecyclerView;
 import org.telegram.ui.Components.CombinedDrawable;
+import org.telegram.ui.Components.MurkaMD3;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
@@ -898,7 +899,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     cell.setChecked(selectedDialogs.contains(cell.getDialogId()), oldDialogId == cell.getDialogId());
                 } else {
                     DialogCell cell = (DialogCell) holder.itemView;
-                    cell.useSeparator = nextDialog != null;
+                    cell.useSeparator = nextDialog != null && !MurkaMD3.enabled(); // MurkaGram: MD3 — без разделителей между чатами (и под архивом)
                     cell.fullSeparator = dialog.pinned && nextDialog != null && !nextDialog.pinned;
                     if (dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT) {
                         if (AndroidUtilities.isTablet()) {

@@ -378,13 +378,15 @@ public class Switch extends View {
         float y = (getMeasuredHeight() - AndroidUtilities.dpf2(14)) / 2;
         int tx = x + AndroidUtilities.dp(7) + (int) (AndroidUtilities.dp(17) * progress);
         int ty = getMeasuredHeight() / 2;
-        // MurkaGram: MD3 — трек-«пилюля» 36x20dp с белым кругом внутри (отступ 3dp); влезает в стандартные 37dp
+        // MurkaGram: MD3 — трек-«пилюля» 52x32dp (ячейки расширяют Switch через MurkaMD3.switchWidth()),
+        // круг 8dp в выключенном состоянии и 12dp во включённом; в узких контейнерах трек сжимается
         final boolean md3 = MurkaMD3.enabled();
-        final float md3TrackW = Math.min(AndroidUtilities.dp(36), getMeasuredWidth());
-        final float md3TrackH = Math.min(AndroidUtilities.dp(20), getMeasuredHeight());
+        final float md3TrackW = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_W), getMeasuredWidth());
+        final float md3TrackH = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_H), Math.min(getMeasuredHeight(), md3TrackW * 0.6f));
         final float md3Left = (getMeasuredWidth() - md3TrackW) / 2f;
         final float md3Top = (getMeasuredHeight() - md3TrackH) / 2f;
-        final float md3ThumbR = Math.max(1, md3TrackH / 2f - AndroidUtilities.dp(3));
+        final float md3ThumbROn = Math.max(1, md3TrackH / 2f - md3TrackH / 8f);
+        final float md3ThumbR = Math.max(1, md3ThumbROn * (0.667f + 0.333f * progress));
         if (md3) {
             tx = Math.round(md3Left + md3TrackH / 2f + (md3TrackW - md3TrackH) * progress);
         }

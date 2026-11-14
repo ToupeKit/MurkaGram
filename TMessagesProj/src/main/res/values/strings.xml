@@ -52,6 +52,7 @@
     <string name="MurkaCallConfirmText">Are you sure you want to call **%1$s**?</string>
     <string name="MurkaCallConfirmButton">Call</string>
     <string name="MurkaDesignChats">Chats</string>
+    <string name="MurkaGeneral">General</string>
     <string name="MurkaNoBubbleTail">Remove message tail</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>

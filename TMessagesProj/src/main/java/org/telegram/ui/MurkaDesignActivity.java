@@ -60,6 +60,7 @@ public class MurkaDesignActivity extends UniversalFragment {
 
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaGeneral))); // MurkaGram: заголовок «Общие»
         items.add(UItem.asCheck(ID_CENTER_TITLE, LocaleController.getString(R.string.MurkaCenterTitle)).setChecked(MurkaConfig.centerTitle));
         items.add(UItem.asCheck(ID_NO_ROUNDING, LocaleController.getString(R.string.MurkaNoRounding)).setChecked(MurkaConfig.noNumberRounding));
         items.add(UItem.asCheck(ID_TIME_SECONDS, LocaleController.getString(R.string.MurkaTimeSeconds)).setChecked(MurkaConfig.timeWithSeconds));

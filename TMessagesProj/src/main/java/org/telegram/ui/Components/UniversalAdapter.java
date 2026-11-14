@@ -34,6 +34,7 @@ import org.telegram.ui.Business.QuickRepliesController;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.CollapseTextCell;
 import org.telegram.ui.Cells.DialogCell;
+import org.telegram.ui.Cells.EditTextCell;
 import org.telegram.ui.Cells.DialogRadioCell;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HeaderCell;
@@ -372,7 +373,17 @@ public class UniversalAdapter extends AdapterWithDiffUtils implements MurkaMD3.S
         if (item == null) return MurkaMD3.KIND_SEPARATOR;
         final int viewType = item.viewType;
         if (isShadow(viewType) || murkaMD3Header(viewType)) return MurkaMD3.KIND_SEPARATOR;
+        if (viewType == VIEW_TYPE_CUSTOM && murkaMD3CustomCard(item.view)) return MurkaMD3.KIND_CARD; // MurkaGram: поля ввода и прочие «белые» вставки
         return shouldApplyBackground(viewType) ? MurkaMD3.KIND_CARD : MurkaMD3.KIND_SEPARATOR;
+    }
+
+    // MurkaGram: MD3 — произвольный вид (UItem.asCustom) считается карточкой, если это поле ввода
+    // или у него непрозрачный фон (например, белый у EditTextCell); форма карточки обрезается списком.
+    private static boolean murkaMD3CustomCard(View v) {
+        if (v == null) return false;
+        if (v instanceof EditTextCell) return true;
+        android.graphics.drawable.Drawable bg = v.getBackground();
+        return bg instanceof android.graphics.drawable.ColorDrawable && (((android.graphics.drawable.ColorDrawable) bg).getColor() >>> 24) == 0xFF;
     }
 
     @NonNull

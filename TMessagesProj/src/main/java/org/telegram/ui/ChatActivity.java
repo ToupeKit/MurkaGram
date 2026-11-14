@@ -32292,7 +32292,11 @@ public class ChatActivity extends BaseFragment implements
                 final int maxId = target.getId();
                 final int maxDate = target.messageOwner != null ? target.messageOwner.date : 0;
                 getMessagesController().markDialogAsRead(dialog_id, maxId, maxId, maxDate, false, threadMessageId, 0, false, 0);
-                getMessagesController().murkaForceReadHistory(dialog_id, maxId, maxDate, threadMessageId);
+                getMessagesController().murkaForceReadHistory(dialog_id, maxId, maxDate, threadMessageId, () -> {
+                    try { // MurkaGram: мягкая вибрация, когда сервер подтвердил прочтение
+                        BotWebViewVibrationEffect.IMPACT_LIGHT.vibrate();
+                    } catch (Throwable ignore) {}
+                });
                 break;
             }
             case OPTION_RETRY: {
