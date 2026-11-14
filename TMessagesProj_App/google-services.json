@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "380587134114",
+    "project_id": "murkagramtg",
+    "storage_bucket": "murkagramtg.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380587134114:android:b190404bfb0cfd65649bfb",
+        "android_client_info": {
+          "package_name": "org.murkagram.kbs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlurot-ResZPa7bMUCQlVeb6F9DqCYIHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380587134114:android:34c8ef7337a27b87649bfb",
+        "android_client_info": {
+          "package_name": "org.murkagram.kbs.beta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlurot-ResZPa7bMUCQlVeb6F9DqCYIHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
