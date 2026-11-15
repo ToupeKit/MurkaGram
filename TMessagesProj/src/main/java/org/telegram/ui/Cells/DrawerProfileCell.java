@@ -46,6 +46,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -720,6 +721,12 @@ public class DrawerProfileCell extends FrameLayout implements NotificationCenter
         }
         animatedStatus.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
         status.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
+        // MurkaGram: «Бейджики» (пустой статус SimpleTextView пропускает, без дырки)
+        MurkaBadges.BadgesDrawable murkaBadges = MurkaBadges.getDrawable(user.id, 18, nameTextView.getMurkaBadgesDrawable());
+        if (murkaBadges != null) {
+            murkaBadges.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
+        }
+        nameTextView.setMurkaBadgesDrawable(murkaBadges);
         phoneTextView.setText(org.telegram.messenger.MurkaConfig.formatPhone(user.phone)); // MurkaGram: «Скрыть номер телефона»
         AvatarDrawable avatarDrawable = new AvatarDrawable(user);
         avatarDrawable.setColor(Theme.getColor(Theme.key_avatar_backgroundInProfileBlue));
@@ -747,6 +754,9 @@ public class DrawerProfileCell extends FrameLayout implements NotificationCenter
         }
         if (status != null) {
             status.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
+        }
+        if (nameTextView != null && nameTextView.getMurkaBadgesDrawable() instanceof MurkaBadges.BadgesDrawable) { // MurkaGram
+            ((MurkaBadges.BadgesDrawable) nameTextView.getMurkaBadgesDrawable()).setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
         }
     }
 

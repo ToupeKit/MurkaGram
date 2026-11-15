@@ -73,6 +73,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -574,6 +575,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean drawVerified;
     private boolean drawBotVerified;
     private boolean drawPremium;
+    // MurkaGram: «Бейджики» у имени (экземпляр переиспользуется между пересборками)
+    private MurkaBadges.BadgesDrawable murkaBadges;
+    private boolean drawMurkaBadges;
+    private int murkaBadgesLeft;
+    private int murkaBadgesVersion;
     private final View emojiStatusView;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable emojiStatus;
     private final AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerification;
@@ -1122,6 +1128,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         drawVerified = false;
         drawBotVerified = false;
         drawPremium = false;
+        drawMurkaBadges = false; // MurkaGram
+        murkaBadgesVersion = MurkaBadges.version; // MurkaGram
         drawForwardIcon = false;
         drawGiftIcon = false;
         drawScam = 0;
@@ -1362,6 +1370,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                 emojiStatus.setParticles(false, false);
                             }
                         }
+                    }
+                    // MurkaGram: «Бейджики» (не у «Избранного» и не в топиках; каналы и группы — без форумов)
+                    if (chat == null && user != null && !isTopic && !isForumCell() && !UserObject.isUserSelf(user)) {
+                        murkaBadges = MurkaBadges.getDrawable(user.id, 18, murkaBadges);
+                        drawMurkaBadges = murkaBadges != null;
+                    } else if (chat != null && !isTopic && !isForumCell() && !ChatObject.isForum(chat)) {
+                        murkaBadges = MurkaBadges.getDrawable(-chat.id, 18, murkaBadges);
+                        drawMurkaBadges = murkaBadges != null;
                     }
                     if (dialogBotVerificationIcon != 0 && drawBotVerified) {
                         botVerification.set(dialogBotVerificationIcon, false);
@@ -2183,6 +2199,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameLeft += w;
             }
         }
+        if (drawMurkaBadges) { // MurkaGram: место под бейджики
+            int w = dp(4) + murkaBadges.getIntrinsicWidth();
+            nameWidth -= w;
+            nameAdditionalsForChannelSubscriber += w;
+            if (LocaleController.isRTL) {
+                nameLeft += w;
+            }
+        }
         if (drawBotVerified) {
             nameWidth -= dp(21);
         }
@@ -2589,6 +2613,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 } else {
                     nameMuteLeft = (int) (nameLeft + (nameWidth - widthpx) - dp(6) - Theme.dialogs_muteDrawable.getIntrinsicWidth());
                 }
+                if (drawMurkaBadges) { // MurkaGram: бейджики левее значка статуса (или левее имени)
+                    int iconWidth = getMurkaStatusIconWidth();
+                    if (iconWidth == 0) {
+                        murkaBadgesLeft = (int) (nameLeft + (nameWidth - widthpx)) - dp(4) - murkaBadges.getIntrinsicWidth();
+                    } else {
+                        murkaBadgesLeft = nameMuteLeft - dp(drawPremium ? 6 : 4) - murkaBadges.getIntrinsicWidth();
+                    }
+                }
                 if (left == 0) {
                     if (widthpx < nameWidth) {
                         nameLeft += (nameWidth - widthpx);
@@ -2674,6 +2706,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
                 if ((dialogMuted || true) || drawUnmute || drawVerified || drawPremium || drawScam != 0) {
                     nameMuteLeft = (int) (nameLeft + left + dp(6));
+                }
+                if (drawMurkaBadges) { // MurkaGram: бейджики правее значка статуса (или сразу после имени)
+                    int iconWidth = getMurkaStatusIconWidth();
+                    murkaBadgesLeft = iconWidth == 0 ? nameMuteLeft - dp(2) : nameMuteLeft + iconWidth + dp(4);
                 }
             }
             if (messageLayout != null) {
@@ -2973,6 +3009,20 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         return update(mask, true);
     }
 
+    // MurkaGram: ширина значка статуса, который рисуется у имени (та же цепочка, что в onDraw); 0 — значка нет
+    private int getMurkaStatusIconWidth() {
+        if (dialogsType != 2 && (drawUnmute || dialogMuted) && !drawVerified && drawScam == 0 && !drawPremium) {
+            return Theme.dialogs_muteDrawable.getIntrinsicWidth();
+        } else if (drawVerified) {
+            return Theme.dialogs_verifiedDrawable.getIntrinsicWidth();
+        } else if (drawPremium) {
+            return dp(20);
+        } else if (drawScam != 0) {
+            return (drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable).getIntrinsicWidth();
+        }
+        return 0;
+    }
+
     public boolean update(int mask, boolean animated) {
         boolean requestLayout = false;
         boolean rebuildLayout = false;
@@ -3084,6 +3134,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
 
             if (mask != 0) {
                 boolean continueUpdate = false;
+                if (murkaBadgesVersion != MurkaBadges.version) { // MurkaGram: бейджики изменились — пересобрать
+                    continueUpdate = true;
+                }
                 if (user != null && !MessagesController.isSupportUser(user) && !user.bot && (mask & MessagesController.UPDATE_MASK_STATUS) != 0) {
                     user = MessagesController.getInstance(currentAccount).getUser(user.id);
                     if (wasDrawnOnline != isOnline()) {
@@ -4164,6 +4217,17 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
                 setDrawableBounds((drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable), nameMuteLeft, y);
                 (drawScam == 1 ? Theme.dialogs_scamDrawable : Theme.dialogs_fakeDrawable).draw(canvas);
+            }
+            if (drawMurkaBadges && murkaBadges != null && nameLayout != null) { // MurkaGram: «Бейджики»
+                int centerY = dp(useForceThreeLines || SharedConfig.useThreeLinesLayout ? 19.5f : 22.5f);
+                if ((!(useForceThreeLines || SharedConfig.useThreeLinesLayout) || isForumCell()) && hasTags()) {
+                    centerY -= dp(9);
+                }
+                int w = murkaBadges.getIntrinsicWidth();
+                int h = murkaBadges.getIntrinsicHeight();
+                murkaBadges.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
+                murkaBadges.setBounds(murkaBadgesLeft, centerY - h / 2, murkaBadgesLeft + w, centerY - h / 2 + h);
+                murkaBadges.draw(canvas);
             }
 
             if (drawReorder || reorderIconProgress != 0) {

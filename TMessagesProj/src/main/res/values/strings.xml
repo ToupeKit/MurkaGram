@@ -43,6 +43,17 @@
     <string name="MurkaRegDate">Registration date</string>
     <string name="MurkaRegDateApprox">≈ %1$s</string>
     <string name="MurkaRegDateNote">Estimated from account ID</string>
+    <!-- MurkaGram: бейджики -->
+    <string name="MurkaBadges">Badges</string>
+    <string name="MurkaBadgesList">Your badges</string>
+    <string name="MurkaBadgesEmpty">This account has no badges yet</string>
+    <string name="MurkaBadgesInfo">Hold and drag to change the order. Hidden badges are not shown next to your name.</string>
+    <string name="MurkaBadgeCat">Cat with check</string>
+    <string name="MurkaBadgeCrown">Cat with crown</string>
+    <string name="MurkaBadgeDesigner">Cat designer</string>
+    <string name="MurkaBadgeCrownDesc">Creator of MurkaGram</string>
+    <string name="MurkaBadgeCatDesc">Official MurkaGram resource</string>
+    <string name="MurkaBadgeDesignerDesc">Drew for MurkaGram</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Side menu settings</string>
     <string name="MurkaDrawerTitle">Side menu</string>

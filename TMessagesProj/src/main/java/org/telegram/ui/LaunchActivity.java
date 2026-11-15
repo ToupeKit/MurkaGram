@@ -7144,6 +7144,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onResume();
         isResumed = true;
         pipActivityHandler.onResume();
+        org.telegram.messenger.MurkaBadges.fetchIfNeeded(); // MurkaGram: «Бейджики» — обновить конфиг, если давно не обновляли
         if (onResumeStaticCallback != null) {
             onResumeStaticCallback.run();
             onResumeStaticCallback = null;

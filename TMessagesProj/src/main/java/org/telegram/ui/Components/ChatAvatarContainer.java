@@ -34,6 +34,7 @@ import android.widget.ImageView;
 
 import androidx.core.content.ContextCompat;
 
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -257,6 +258,7 @@ public class ChatAvatarContainer extends FrameLayout implements NotificationCent
         }
 
         titleTextView = new SimpleTextConnectedView(context, titleTextLargerCopyView);
+        titleTextView.setMurkaBadgesOnClick((v, badges, index) -> MurkaBadges.showBadgeInfo(parentFragment, badges, index)); // MurkaGram: описание бейджика по нажатию
         titleTextView.setEllipsizeByGradient(true);
         titleTextView.setTextColor(getThemedColor(Theme.key_actionBarDefaultTitle));
         titleTextView.setTextSize(18);
@@ -663,6 +665,7 @@ public class ChatAvatarContainer extends FrameLayout implements NotificationCent
         titleTextLargerCopyView.setLeftDrawableTopPadding(-dp(1.3f));
         titleTextLargerCopyView.setRightDrawable(titleTextView.getRightDrawable());
         titleTextLargerCopyView.setRightDrawable2(titleTextView.getRightDrawable2());
+        titleTextLargerCopyView.setMurkaBadgesDrawable(titleTextView.getMurkaBadgesDrawable()); // MurkaGram
         titleTextLargerCopyView.setRightDrawableOutside(titleTextView.getRightDrawableOutside());
         titleTextLargerCopyView.setLeftDrawable(titleTextView.getLeftDrawable());
         titleTextLargerCopyView.setText(titleTextView.getText());
@@ -1565,7 +1568,19 @@ public class ChatAvatarContainer extends FrameLayout implements NotificationCent
         return Theme.getColor(key, resourcesProvider);
     }
 
+    // MurkaGram: «Бейджики» у имени в шапке чата (0 — без бейджиков)
+    public void setMurkaBadges(long dialogId) {
+        MurkaBadges.BadgesDrawable badges = dialogId == 0 ? null : MurkaBadges.getDrawable(dialogId, 20, titleTextView.getMurkaBadgesDrawable());
+        if (badges != null) {
+            badges.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        }
+        titleTextView.setMurkaBadgesDrawable(badges);
+    }
+
     public void updateColors() {
+        if (titleTextView != null && titleTextView.getMurkaBadgesDrawable() instanceof MurkaBadges.BadgesDrawable) { // MurkaGram
+            ((MurkaBadges.BadgesDrawable) titleTextView.getMurkaBadgesDrawable()).setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        }
         if (currentTypingDrawable != null) {
             currentTypingDrawable.setColor(getThemedColor(Theme.key_chat_status));
         }

@@ -43,6 +43,17 @@
     <string name="MurkaRegDate">Дата регистрации</string>
     <string name="MurkaRegDateApprox">≈ %1$s</string>
     <string name="MurkaRegDateNote">Примерная дата по ID аккаунта</string>
+    <!-- MurkaGram: бейджики -->
+    <string name="MurkaBadges">Бейджики</string>
+    <string name="MurkaBadgesList">Ваши бейджики</string>
+    <string name="MurkaBadgesEmpty">У этого аккаунта пока нет бейджиков</string>
+    <string name="MurkaBadgesInfo">Удерживайте и перетаскивайте, чтобы изменить порядок. Скрытые бейджики не показываются рядом с вашим именем.</string>
+    <string name="MurkaBadgeCat">Кот с галочкой</string>
+    <string name="MurkaBadgeCrown">Кот с короной</string>
+    <string name="MurkaBadgeDesigner">Кот-дизайнер</string>
+    <string name="MurkaBadgeCrownDesc">Создатель MurkaGram</string>
+    <string name="MurkaBadgeCatDesc">Официальный ресурс MurkaGram</string>
+    <string name="MurkaBadgeDesignerDesc">Нарисовал/а для MurkaGram</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Настройки бокового меню</string>
     <string name="MurkaDrawerTitle">Боковое меню</string>

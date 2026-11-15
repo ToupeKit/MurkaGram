@@ -43,6 +43,17 @@
     <string name="MurkaRegDate">Дата реєстрації</string>
     <string name="MurkaRegDateApprox">≈ %1$s</string>
     <string name="MurkaRegDateNote">Приблизна дата за ID акаунта</string>
+    <!-- MurkaGram: бейджики -->
+    <string name="MurkaBadges">Бейджики</string>
+    <string name="MurkaBadgesList">Ваші бейджики</string>
+    <string name="MurkaBadgesEmpty">У цього акаунта поки немає бейджиків</string>
+    <string name="MurkaBadgesInfo">Утримуйте й перетягуйте, щоб змінити порядок. Приховані бейджики не показуються поруч із вашим ім\'ям.</string>
+    <string name="MurkaBadgeCat">Кіт з галочкою</string>
+    <string name="MurkaBadgeCrown">Кіт з короною</string>
+    <string name="MurkaBadgeDesigner">Кіт-дизайнер</string>
+    <string name="MurkaBadgeCrownDesc">Творець MurkaGram</string>
+    <string name="MurkaBadgeCatDesc">Офіційний ресурс MurkaGram</string>
+    <string name="MurkaBadgeDesignerDesc">Намалював/ла для MurkaGram</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Налаштування бічного меню</string>
     <string name="MurkaDrawerTitle">Бічне меню</string>

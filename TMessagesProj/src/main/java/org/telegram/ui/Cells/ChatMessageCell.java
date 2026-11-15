@@ -121,6 +121,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -1567,6 +1568,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private TLRPC.FileLocation currentPhoto;
     private String currentNameString;
     private Object currentNameStatus;
+    // MurkaGram: «Бейджики» у имени отправителя
+    private MurkaBadges.BadgesDrawable murkaNameBadges;
+    private int murkaNameBadgesVersion;
     private long currentNameBotVerificationId;
     private String nameStatusSlug;
     public AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable currentNameStatusDrawable;
@@ -5437,6 +5441,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
 
         if (currentReplyPhoto == null && newReplyPhoto != null) {
+            return true;
+        }
+
+        if (murkaNameBadgesVersion != MurkaBadges.version) { // MurkaGram: бейджики изменились
             return true;
         }
 
@@ -17483,6 +17491,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 //        } else {
 //            drawTopic = false;
 //        }
+        // MurkaGram: сбрасываем и для ячеек без имени, иначе isUserDataChanged() всегда true после смены version, а бейджики остаются от прошлого сообщения
+        murkaNameBadgesVersion = MurkaBadges.version;
+        final MurkaBadges.BadgesDrawable murkaPrevBadges = murkaNameBadges;
+        murkaNameBadges = null;
         if (!hasPsaHint && (needAuthorName || viaBot)) {
             drawNameLayout = true;
             drawNameAvatar = !messageObject.isOutOwner() && (isForum || isMonoForum) && isSideMenuEnabled && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
@@ -17543,12 +17555,20 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 currentNameString = "";
             }
+            // MurkaGram: «Бейджики» — только простой случай (без via-бота и не в альбоме)
+            murkaNameBadgesVersion = MurkaBadges.version;
+            if (needAuthorName && messageObject.customName == null && currentUser != null && !viaBot && currentMessagesGroup == null && !currentMessageObject.isSponsored()) {
+                murkaNameBadges = MurkaBadges.getDrawable(currentUser.id, 16, murkaPrevBadges);
+            } else {
+                murkaNameBadges = null;
+            }
+            final int murkaBadgesWidth = murkaNameBadges != null ? murkaNameBadges.getIntrinsicWidth() + dp(4) : 0;
             int additionalWidth = dp(currentMessageObject.isSponsored() ? -24 : 0);
             CharSequence nameStringFinal = AndroidUtilities.removeDiacritics(currentNameString.replace('\n', ' ').replace('\u200F', ' '));
             try {
                 nameStringFinal = Emoji.replaceEmoji(nameStringFinal, Theme.chat_namePaint.getFontMetricsInt(), false);
             } catch (Exception ignore) {}
-            nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0), TextUtils.TruncateAt.END);
+            nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0) - murkaBadgesWidth /* MurkaGram */, TextUtils.TruncateAt.END);
             if (viaBot) {
                 viaNameWidth = (int) Math.ceil(Theme.chat_namePaint.measureText(nameStringFinal, 0, nameStringFinal.length()));
                 if (viaNameWidth != 0) {
@@ -17602,6 +17622,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (currentNameStatus != null) {
                     nameWidth += dp(4 + 12 + 4);
                 }
+                nameWidth += murkaBadgesWidth; // MurkaGram
                 if (currentNameBotVerificationId != 0) {
                     nameWidth += dp(4 + 12 + 4);
                 }
@@ -19549,7 +19570,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             FrameTickScheduler.unsubscribe(invalidateOutboundsRunnable);
         }
 
-        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !(currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
+        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || murkaNameBadges != null /* MurkaGram */ || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !(currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
             int color;
             float nameX, nameY;
             if (currentMessageObject.shouldDrawWithoutBackground()) {
@@ -19658,6 +19679,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 );
                 currentNameStatusDrawable.setColor(ColorUtils.setAlphaComponent(color, 115));
                 currentNameStatusDrawable.draw(canvas);
+            }
+            if (murkaNameBadges != null && viaNameWidth <= 0) { // MurkaGram: «Бейджики» после имени и эмодзи-статуса
+                int bw = murkaNameBadges.getIntrinsicWidth();
+                int bh = murkaNameBadges.getIntrinsicHeight();
+                int bx = (int) (Math.abs(nx) + nameLayoutWidth + (currentNameStatus != null ? dp(24) : dp(2)));
+                int by = (int) (ny + nameLayout.getHeight() / 2 - bh / 2);
+                murkaNameBadges.setColor(ColorUtils.setAlphaComponent(color, 115));
+                murkaNameBadges.setBounds(bx, by, bx + bw, by + bh);
+                murkaNameBadges.draw(canvas);
             }
 
             float end;

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MurkaGram: бейджик «Кот с галочкой» (Бейджики/cat_badge.svg; viewport обрезан по содержимому, линии утолщены для мелкого размера) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="21.43dp"
+    android:height="20dp"
+    android:viewportWidth="180"
+    android:viewportHeight="168">
+    <group
+        android:translateX="-10"
+        android:translateY="-22">
+        <!-- голова и уши -->
+        <path
+            android:pathData="M45,85 L35,30 L75,55 Q100,50 125,55 L165,30 L155,85 C175,115 165,165 100,165 C35,165 25,115 45,85 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="13"
+            android:strokeLineJoin="round" />
+        <!-- глаза -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M66,102 A7,11 0 1,0 80,102 A7,11 0 1,0 66,102 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M120,102 A7,11 0 1,0 134,102 A7,11 0 1,0 120,102 Z" />
+        <!-- нос -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M93,120 L107,120 L100,129 Z" />
+        <!-- рот -->
+        <path
+            android:pathData="M85,135 Q92.5,143 100,135 Q107.5,143 115,135"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="9"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- усы -->
+        <path
+            android:pathData="M20,115 L52,120 M15,128 L50,128 M22,141 L53,136 M180,115 L148,120 M185,128 L150,128"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="9"
+            android:strokeLineCap="round" />
+        <!-- кружок с галочкой -->
+        <path
+            android:pathData="M141,160 A22,22 0 1,0 185,160 A22,22 0 1,0 141,160 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="11" />
+        <path
+            android:pathData="M152,160 L160,168 L175,152"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="11"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

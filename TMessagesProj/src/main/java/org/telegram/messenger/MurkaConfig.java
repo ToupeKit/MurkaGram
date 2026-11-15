@@ -61,6 +61,10 @@ public class MurkaConfig {
     // MurkaGram: «Исключения» мониторинга — по аккаунту; неизменяемые наборы (copy-on-write), читаются с разных потоков.
     private static final java.util.concurrent.atomic.AtomicReferenceArray<java.util.Set<Long>> monitorExceptions = new java.util.concurrent.atomic.AtomicReferenceArray<>(UserConfig.MAX_ACCOUNT_COUNT);
 
+    // MurkaGram: «Бейджики» — порядок и скрытые бейджики своего аккаунта (по аккаунту, неизменяемые, copy-on-write).
+    private static final java.util.concurrent.atomic.AtomicReferenceArray<java.util.List<String>> badgeOrder = new java.util.concurrent.atomic.AtomicReferenceArray<>(UserConfig.MAX_ACCOUNT_COUNT);
+    private static final java.util.concurrent.atomic.AtomicReferenceArray<java.util.Set<String>> badgeHidden = new java.util.concurrent.atomic.AtomicReferenceArray<>(UserConfig.MAX_ACCOUNT_COUNT);
+
     private static final Object sync = new Object();
     private static boolean configLoaded;
 
@@ -68,7 +72,7 @@ public class MurkaConfig {
         loadConfig();
     }
 
-    private static SharedPreferences getPreferences() {
+    static SharedPreferences getPreferences() { // MurkaGram: package-private для MurkaBadges
         return ApplicationLoader.applicationContext.getSharedPreferences("murkaconfig", Activity.MODE_PRIVATE);
     }
 
@@ -223,6 +227,108 @@ public class MurkaConfig {
     private static void saveMonitorExceptions(int account, java.util.HashSet<Long> set) {
         monitorExceptions.set(account, java.util.Collections.unmodifiableSet(set));
         getPreferences().edit().putString("monitorExceptions" + account, android.text.TextUtils.join(",", set)).apply();
+    }
+
+    // MurkaGram: «Бейджики» — сохранённый порядок (id через запятую).
+    private static java.util.List<String> getBadgeOrderList(int account) {
+        if (account < 0 || account >= badgeOrder.length()) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.List<String> list = badgeOrder.get(account);
+        if (list != null) {
+            return list;
+        }
+        synchronized (sync) {
+            list = badgeOrder.get(account);
+            if (list == null) {
+                list = java.util.Collections.unmodifiableList(splitIds(getPreferences().getString("badgeOrder" + account, "")));
+                badgeOrder.set(account, list);
+            }
+            return list;
+        }
+    }
+
+    private static java.util.Set<String> getBadgeHiddenSet(int account) {
+        if (account < 0 || account >= badgeHidden.length()) {
+            return java.util.Collections.emptySet();
+        }
+        java.util.Set<String> set = badgeHidden.get(account);
+        if (set != null) {
+            return set;
+        }
+        synchronized (sync) {
+            set = badgeHidden.get(account);
+            if (set == null) {
+                set = java.util.Collections.unmodifiableSet(new java.util.HashSet<>(splitIds(getPreferences().getString("badgeHidden" + account, ""))));
+                badgeHidden.set(account, set);
+            }
+            return set;
+        }
+    }
+
+    private static java.util.ArrayList<String> splitIds(String value) {
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        if (value != null) {
+            for (String s : value.split(",")) {
+                s = s.trim();
+                if (!s.isEmpty() && !list.contains(s)) {
+                    list.add(s);
+                }
+            }
+        }
+        return list;
+    }
+
+    public static java.util.ArrayList<String> getBadgeOrder(int account) {
+        return new java.util.ArrayList<>(getBadgeOrderList(account));
+    }
+
+    public static void setBadgeOrder(int account, java.util.List<String> ids) {
+        if (account < 0 || account >= badgeOrder.length()) {
+            return;
+        }
+        synchronized (sync) {
+            java.util.ArrayList<String> list = new java.util.ArrayList<>(ids);
+            badgeOrder.set(account, java.util.Collections.unmodifiableList(list));
+            getPreferences().edit().putString("badgeOrder" + account, android.text.TextUtils.join(",", list)).apply();
+        }
+        MurkaBadges.onPrefsChanged(account);
+    }
+
+    // MurkaGram: «Бейджики» — восстановить из общей базы (после переустановки), без выгрузки обратно
+    static void restoreBadgePrefs(int account, java.util.List<String> order, java.util.Set<String> hidden) {
+        if (account < 0 || account >= badgeOrder.length()) {
+            return;
+        }
+        synchronized (sync) {
+            java.util.ArrayList<String> list = new java.util.ArrayList<>(order);
+            java.util.HashSet<String> set = new java.util.HashSet<>(hidden);
+            badgeOrder.set(account, java.util.Collections.unmodifiableList(list));
+            badgeHidden.set(account, java.util.Collections.unmodifiableSet(set));
+            getPreferences().edit()
+                    .putString("badgeOrder" + account, android.text.TextUtils.join(",", list))
+                    .putString("badgeHidden" + account, android.text.TextUtils.join(",", set))
+                    .apply();
+        }
+    }
+
+    public static boolean isBadgeHidden(int account, String id) {
+        return id != null && getBadgeHiddenSet(account).contains(id);
+    }
+
+    public static void setBadgeHidden(int account, String id, boolean hidden) {
+        if (id == null || account < 0 || account >= badgeHidden.length()) {
+            return;
+        }
+        synchronized (sync) {
+            java.util.HashSet<String> set = new java.util.HashSet<>(getBadgeHiddenSet(account));
+            if (!(hidden ? set.add(id) : set.remove(id))) {
+                return;
+            }
+            badgeHidden.set(account, java.util.Collections.unmodifiableSet(set));
+            getPreferences().edit().putString("badgeHidden" + account, android.text.TextUtils.join(",", set)).apply();
+        }
+        MurkaBadges.onPrefsChanged(account);
     }
 
     public static void toggleSaveReadDates() {

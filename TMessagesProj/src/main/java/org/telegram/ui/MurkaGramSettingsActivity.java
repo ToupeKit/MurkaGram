@@ -44,6 +44,7 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
     private static final int ID_DESIGN = 2;
     private static final int ID_CHANNEL = 3;
     private static final int ID_CHAT = 4;
+    private static final int ID_BADGES = 5; // MurkaGram: «Бейджики»
 
     private View headerView;
 
@@ -61,6 +62,7 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaCategories)));
         items.add(UItem.asButton(ID_MONITORING, R.drawable.msg_media, LocaleController.getString(R.string.MurkaMonitoring)));
         items.add(UItem.asButton(ID_DESIGN, R.drawable.msg_palette, LocaleController.getString(R.string.MurkaDesign)));
+        items.add(UItem.asButton(ID_BADGES, R.drawable.msg_murka_badge_cat, LocaleController.getString(R.string.MurkaBadges)));
         items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaLinks)));
         items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, LocaleController.getString(R.string.MurkaLinkChannel), "@KittenBoxStudio"));
@@ -74,6 +76,8 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
             presentFragment(new MurkaMonitoringActivity());
         } else if (item.id == ID_DESIGN) {
             presentFragment(new MurkaDesignActivity());
+        } else if (item.id == ID_BADGES) {
+            presentFragment(new MurkaBadgesActivity());
         } else if (item.id == ID_CHANNEL) {
             Browser.openUrl(getParentActivity(), CHANNEL_URL);
         } else if (item.id == ID_CHAT) {

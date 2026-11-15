@@ -189,7 +189,7 @@ public class MurkaMD3 {
                 int k = pos == RecyclerView.NO_POSITION ? kindOfView(view) : kindAt(parent, pos, view);
                 sanitize(view, k);
                 if (k == KIND_CARD) {
-                    outRect.set(AndroidUtilities.dp(SIDE), 0, AndroidUtilities.dp(SIDE), AndroidUtilities.dp(GAP));
+                    outRect.set(AndroidUtilities.dp(SIDE), pos == 0 ? AndroidUtilities.dp(SIDE) : 0, AndroidUtilities.dp(SIDE), AndroidUtilities.dp(GAP)); // MurkaGram: верхний отступ, если список начинается с карточки
                 }
             } catch (Throwable e) {
                 FileLog.e(e);

@@ -19069,6 +19069,14 @@ public class ChatActivity extends BaseFragment implements
                 avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), !MessagesController.isSupportUser(currentUser) ? currentUser.emoji_status : null, animated);
             }
         }
+        // MurkaGram: «Бейджики» — в обычном личном чате с пользователем и в канале/группе (без форумов, топиков и комментариев)
+        long murkaBadgesDialogId = 0;
+        if (chatMode == 0 && currentChat != null && !isThreadChat() && !ChatObject.isForum(currentChat)) {
+            murkaBadgesDialogId = -currentChat.id;
+        } else if (chatMode == 0 && currentChat == null && currentUser != null && !currentUser.self && (!isThreadChat() || UserObject.isBotForum(currentUser)) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) {
+            murkaBadgesDialogId = currentUser.id;
+        }
+        avatarContainer.setMurkaBadges(murkaBadgesDialogId);
         setParentActivityTitle(avatarContainer.getTitleTextView().getText());
         updateTitleIcons();
     }

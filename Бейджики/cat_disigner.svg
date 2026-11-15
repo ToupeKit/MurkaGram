@@ -1,0 +1,69 @@
+<svg width="200" height="220" viewBox="0 -20 200 220" xmlns="http://www.w3.org/2000/svg" style="background-color: #1e1e1e; border-radius: 16px;">
+  <!-- Берет художника (наклонён на правое ухо) -->
+  <path d="M 88 53 C 86 24, 152 10, 175 34 C 185 45, 168 62, 138 56"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="5"
+        stroke-linecap="round"
+        stroke-linejoin="round" />
+  <!-- Хвостик берета -->
+  <path d="M 134 22 L 138 11"
+        stroke="#FFFFFF"
+        stroke-width="4.5"
+        stroke-linecap="round" />
+
+  <!-- Контур головы и ушей (правое ухо прижато беретом) -->
+  <path d="M 45 85
+           L 35 30
+           L 75 55
+           Q 100 50 125 55
+           L 148 45
+           L 155 85
+           C 175 115, 165 165, 100 165
+           C 35 165, 25 115, 45 85 Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="6"
+        stroke-linejoin="round" />
+
+  <!-- Внутренний треугольник левого уха -->
+  <polyline points="48,72 44,46 66,60" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linejoin="round" />
+
+  <!-- Очки дизайнера -->
+  <circle cx="73" cy="102" r="16" fill="none" stroke="#FFFFFF" stroke-width="4" />
+  <circle cx="127" cy="102" r="16" fill="none" stroke="#FFFFFF" stroke-width="4" />
+  <!-- Переносица и дужки очков -->
+  <line x1="89" y1="100" x2="111" y2="100" stroke="#FFFFFF" stroke-width="4" />
+  <line x1="46" y1="98" x2="57" y2="100" stroke="#FFFFFF" stroke-width="3.5" />
+  <line x1="143" y1="100" x2="154" y2="98" stroke="#FFFFFF" stroke-width="3.5" />
+
+  <!-- Глаза внутри очков -->
+  <ellipse cx="73" cy="102" rx="5.5" ry="9" fill="#FFFFFF" />
+  <ellipse cx="127" cy="102" rx="5.5" ry="9" fill="#FFFFFF" />
+
+  <!-- Нос -->
+  <polygon points="93,122 107,122 100,131" fill="#FFFFFF" />
+
+  <!-- Рот -->
+  <path d="M 85 137 Q 92.5 145 100 137 Q 107.5 145 115 137"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="4.5"
+        stroke-linecap="round" />
+
+  <!-- Усы слева -->
+  <line x1="20" y1="115" x2="52" y2="120" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+  <line x1="15" y1="128" x2="50" y2="128" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+  <line x1="22" y1="141" x2="53" y2="136" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Усы справа (укорочены под карандаш) -->
+  <line x1="175" y1="115" x2="148" y2="120" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+  <line x1="172" y1="128" x2="150" y2="128" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Карандаш / стилус в правом нижнем углу -->
+  <g transform="translate(166, 156) rotate(45)">
+    <rect x="-6" y="-22" width="12" height="36" rx="2" fill="none" stroke="#FFFFFF" stroke-width="4" />
+    <line x1="-6" y1="-13" x2="6" y2="-13" stroke="#FFFFFF" stroke-width="3.5" />
+    <polygon points="-6,14 6,14 0,25" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round" />
+  </g>
+</svg>

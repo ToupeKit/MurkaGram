@@ -131,6 +131,7 @@ import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
@@ -366,6 +367,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final Drawable[] verifiedCheckDrawable = new Drawable[2];
     private final CrossfadeDrawable[] verifiedCrossfadeDrawable = new CrossfadeDrawable[2];
     private final CrossfadeDrawable[] premiumCrossfadeDrawable = new CrossfadeDrawable[2];
+    private final MurkaBadges.BadgesDrawable[] murkaBadgesDrawable = new MurkaBadges.BadgesDrawable[2]; // MurkaGram: «Бейджики»
     private ScamDrawable scamDrawable;
     private UndoView undoView;
     private OverlaysView overlaysView;
@@ -5498,6 +5500,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (a == 1) {
                 nameTextView[a].setScrollNonFitText(true);
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                nameTextView[a].setMurkaBadgesOnClick((v, badges, index) -> MurkaBadges.showBadgeInfo(ProfileActivity.this, badges, index)); // MurkaGram: описание бейджика по нажатию
             }
             nameTextView[a].setFocusable(a == 0);
             nameTextView[a].setEllipsizeByGradient(true);
@@ -11185,6 +11188,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return premiumCrossfadeDrawable[a];
     }
 
+    // MurkaGram: «Бейджики» у имени в профиле (null — бейджиков нет)
+    private Drawable getMurkaBadgesDrawable(long dialogId, int a) {
+        murkaBadgesDrawable[a] = MurkaBadges.getDrawable(dialogId, 20, murkaBadgesDrawable[a]);
+        updateEmojiStatusDrawableColor();
+        return murkaBadgesDrawable[a];
+    }
+
     private Drawable getBotVerificationDrawable(long icon, boolean animated, int a) {
         if (botVerificationDrawable[a] == null) {
             botVerificationDrawable[a] = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(nameTextView[a], AndroidUtilities.dp(17), a == 0 ? AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS : AnimatedEmojiDrawable.CACHE_TYPE_KEYBOARD);
@@ -11258,6 +11268,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             final int color = ColorUtils.blendARGB(ColorUtils.blendARGB(fromColor, 0xffffffff, progress), getThemedColor(Theme.key_player_actionBarTitle), mediaHeaderAnimationProgress);
             if (emojiStatusDrawable[a] != null) {
                 emojiStatusDrawable[a].setColor(color);
+            }
+            if (murkaBadgesDrawable[a] != null) { // MurkaGram
+                murkaBadgesDrawable[a].setColor(color);
             }
             if (botVerificationDrawable[a] != null) {
                 botVerificationDrawable[a].setColor(ColorUtils.blendARGB(ColorUtils.blendARGB(fromColor, 0x99ffffff, progress), getThemedColor(Theme.key_player_actionBarTitle), mediaHeaderAnimationProgress));
@@ -11612,6 +11625,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         nameTextView[a].setRightDrawable(null);
                     }
                 }
+                // MurkaGram: «Бейджики»
+                if (a == 0 && copyFromChatActivity) {
+                    nameTextView[a].setMurkaBadgesDrawable(((ChatActivity) prevFragment).avatarContainer.getTitleTextView().getMurkaBadgesDrawable());
+                } else {
+                    nameTextView[a].setMurkaBadgesDrawable(getMurkaBadgesDrawable(user.id, a));
+                }
                 if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView[a].setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false, a);
@@ -11885,6 +11904,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setLeftDrawable(null);
                 nameTextView[a].setRightDrawableOutside(a == 0);
                 nameTextView[a].setRightDrawableOnClick(null);
+                nameTextView[a].setMurkaBadgesDrawable(isTopic || ChatObject.isForum(chat) ? null : getMurkaBadgesDrawable(-chatId, a)); // MurkaGram: «Бейджики» каналов и групп (форумы и топики пока без них)
                 if (a != 0) {
                     if (chat.scam || chat.fake) {
                         nameTextView[a].setRightDrawable2(getScamDrawable(chat.scam ? 0 : 1));

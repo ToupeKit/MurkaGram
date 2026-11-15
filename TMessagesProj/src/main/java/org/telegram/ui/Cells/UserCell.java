@@ -28,6 +28,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
+import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
@@ -89,6 +90,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
 
     private String lastName;
     private int lastStatus;
+    private int murkaBadgesVersion; // MurkaGram
     private TLRPC.FileLocation lastAvatar;
 
     private int currentAccount = UserConfig.selectedAccount;
@@ -486,10 +488,14 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                     continueUpdate = true;
                 }
             }
+            if (murkaBadgesVersion != MurkaBadges.version) { // MurkaGram: бейджики изменились
+                continueUpdate = true;
+            }
             if (!continueUpdate) {
                 return;
             }
         }
+        murkaBadgesVersion = MurkaBadges.version; // MurkaGram
 
         if (currentObject instanceof String) {
             ((LayoutParams) nameTextView.getLayoutParams()).topMargin = dp(19);
@@ -537,6 +543,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                     avatarDrawable.setAvatarType(AvatarDrawable.AVATAR_TYPE_SAVED);
                     avatarImageView.setImage(null, "50_50", avatarDrawable, currentUser);
                     ((LayoutParams) nameTextView.getLayoutParams()).topMargin = dp(19);
+                    nameTextView.setMurkaBadgesDrawable(null); // MurkaGram
                     return;
                 }
                 avatarDrawable.setInfo(currentAccount, currentUser);
@@ -613,6 +620,12 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             nameTextView.setRightDrawable(null);
             nameTextView.setRightDrawableTopPadding(0);
         }
+        // MurkaGram: «Бейджики»
+        MurkaBadges.BadgesDrawable murkaBadges = currentUser != null ? MurkaBadges.getDrawable(currentUser.id, 18, nameTextView.getMurkaBadgesDrawable()) : null;
+        if (murkaBadges != null) {
+            murkaBadges.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
+        }
+        nameTextView.setMurkaBadgesDrawable(murkaBadges);
         if (currentStatus != null) {
             statusTextView.setTextColor(statusColor);
             statusTextView.setText(currentStatus);
