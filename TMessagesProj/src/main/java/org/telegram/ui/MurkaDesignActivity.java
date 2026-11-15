@@ -19,9 +19,11 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -49,9 +51,12 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_MD3 = 6; // MurkaGram: «MD3 дизайн»
     private static final int ID_NO_BUBBLE_TAIL = 8; // MurkaGram: «Убрать хвост сообщений»
     private static final int ID_MENU_ICON_BAR = 9; // MurkaGram: «Быстрые действия иконками»
+    private static final int ID_HIDE_PHONE = 10; // MurkaGram: «Скрыть номер телефона»
+    private static final int ID_EMOJI = 11; // MurkaGram: «Эмодзи»
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
+    private static final int REQUEST_EMOJI_FILE = 7702; // MurkaGram
     private static final long MAX_FONT_FILE_SIZE = 64L * 1024 * 1024;
 
     @Override
@@ -74,6 +79,11 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignChats)));
         items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
         items.add(UItem.asCheck(ID_MENU_ICON_BAR, LocaleController.getString(R.string.MurkaMessageMenuIconBar)).setChecked(MurkaConfig.messageMenuIconBar)); // MurkaGram
+        items.add(UItem.asButton(ID_EMOJI, LocaleController.getString(R.string.MurkaEmoji), getEmojiModeName(MurkaConfig.emojiMode))); // MurkaGram
+        items.add(UItem.asShadow(null));
+        // MurkaGram: категория «Профиль»
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignProfile)));
+        items.add(UItem.asCheck(ID_HIDE_PHONE, LocaleController.getString(R.string.MurkaHidePhone)).setChecked(MurkaConfig.hidePhone));
         items.add(UItem.asShadow(null));
     }
 
@@ -84,6 +94,16 @@ public class MurkaDesignActivity extends UniversalFragment {
             return LocaleController.getString(R.string.MurkaFontCustom);
         }
         return LocaleController.getString(R.string.MurkaFontDefault);
+    }
+
+    // MurkaGram: «Эмодзи»
+    private static String getEmojiModeName(int mode) {
+        if (mode == MurkaConfig.EMOJI_SYSTEM) {
+            return LocaleController.getString(R.string.MurkaEmojiSystem);
+        } else if (mode == MurkaConfig.EMOJI_CUSTOM) {
+            return LocaleController.getString(R.string.MurkaEmojiCustom);
+        }
+        return LocaleController.getString(R.string.MurkaEmojiDefault);
     }
 
     @Override
@@ -127,6 +147,19 @@ public class MurkaDesignActivity extends UniversalFragment {
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.messageMenuIconBar);
             }
+        } else if (item.id == ID_HIDE_PHONE) { // MurkaGram: «Скрыть номер телефона» — применяется сразу
+            MurkaConfig.toggleHidePhone();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.hidePhone);
+            }
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    NotificationCenter.getInstance(a).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_PHONE | MessagesController.UPDATE_MASK_NAME);
+                    NotificationCenter.getInstance(a).postNotificationName(NotificationCenter.mainUserInfoChanged);
+                }
+            }
+        } else if (item.id == ID_EMOJI) { // MurkaGram
+            showEmojiDialog();
         } else if (item.id == ID_FONT) {
             showFontDialog();
         } else if (item.id == ID_DRAWER) { // MurkaGram
@@ -156,7 +189,7 @@ public class MurkaDesignActivity extends UniversalFragment {
         };
         showDialog(AlertsCreator.createSingleChoiceDialog(getParentActivity(), options, LocaleController.getString(R.string.MurkaFont), MurkaConfig.fontMode, (dialog, which) -> {
             if (which == MurkaConfig.FONT_CUSTOM) {
-                openFontPicker();
+                openFontPicker(REQUEST_FONT_FILE);
                 return;
             }
             if (which == MurkaConfig.fontMode) {
@@ -168,13 +201,37 @@ public class MurkaDesignActivity extends UniversalFragment {
         }));
     }
 
-    private void openFontPicker() {
+    // MurkaGram: «Эмодзи» — выбор стандартных / системных / своего шрифта эмодзи (после перезапуска).
+    private void showEmojiDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final String[] options = new String[]{
+            LocaleController.getString(R.string.MurkaEmojiDefault),
+            LocaleController.getString(R.string.MurkaEmojiSystem),
+            LocaleController.getString(R.string.MurkaEmojiCustom)
+        };
+        showDialog(AlertsCreator.createSingleChoiceDialog(getParentActivity(), options, LocaleController.getString(R.string.MurkaEmoji), MurkaConfig.emojiMode, (dialog, which) -> {
+            if (which == MurkaConfig.EMOJI_CUSTOM) {
+                openFontPicker(REQUEST_EMOJI_FILE);
+                return;
+            }
+            if (which == MurkaConfig.emojiMode) {
+                return;
+            }
+            MurkaConfig.setEmojiMode(which, MurkaConfig.customEmojiPath);
+            updateList();
+            showRestartDialog(LocaleController.getString(R.string.MurkaEmojiRestart));
+        }));
+    }
+
+    private void openFontPicker(int requestCode) { // MurkaGram: requestCode — шрифт или эмодзи
         try {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.setType("*/*");
             intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/font-sfnt", "application/octet-stream"});
-            startActivityForResult(intent, REQUEST_FONT_FILE);
+            startActivityForResult(intent, requestCode);
         } catch (Exception e) {
             FileLog.e(e);
             showFontError();
@@ -183,18 +240,25 @@ public class MurkaDesignActivity extends UniversalFragment {
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
-        if (requestCode != REQUEST_FONT_FILE) {
+        if (requestCode != REQUEST_FONT_FILE && requestCode != REQUEST_EMOJI_FILE) { // MurkaGram
             return;
         }
+        final boolean emoji = requestCode == REQUEST_EMOJI_FILE;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
             return;
         }
         final Uri uri = data.getData();
         Utilities.globalQueue.postRunnable(() -> {
-            final String path = importFont(uri);
+            final String path = importFont(uri, emoji ? "murka_emoji" : "murka_font"); // MurkaGram
             AndroidUtilities.runOnUIThread(() -> {
                 if (path == null) {
                     showFontError();
+                    return;
+                }
+                if (emoji) { // MurkaGram
+                    MurkaConfig.setEmojiMode(MurkaConfig.EMOJI_CUSTOM, path);
+                    updateList();
+                    showRestartDialog(LocaleController.getString(R.string.MurkaEmojiRestart));
                     return;
                 }
                 MurkaConfig.setFontMode(MurkaConfig.FONT_CUSTOM, path);
@@ -205,7 +269,7 @@ public class MurkaDesignActivity extends UniversalFragment {
     }
 
     // Копирует выбранный файл шрифта во внутреннее хранилище и проверяет его. Возвращает путь или null при ошибке.
-    private static String importFont(Uri uri) {
+    private static String importFont(Uri uri, String baseName) { // MurkaGram: baseName — имя файла без расширения
         File tmp = null;
         try {
             final ContentResolver resolver = ApplicationLoader.applicationContext.getContentResolver();
@@ -234,7 +298,7 @@ public class MurkaDesignActivity extends UniversalFragment {
             }
 
             final File dir = ApplicationLoader.getFilesDirFixed();
-            tmp = new File(dir, "murka_font_tmp" + ext);
+            tmp = new File(dir, baseName + "_tmp" + ext);
             if (tmp.exists()) {
                 tmp.delete();
             }
@@ -261,8 +325,8 @@ public class MurkaDesignActivity extends UniversalFragment {
                 return null;
             }
 
-            final File ttf = new File(dir, "murka_font.ttf");
-            final File otf = new File(dir, "murka_font.otf");
+            final File ttf = new File(dir, baseName + ".ttf");
+            final File otf = new File(dir, baseName + ".otf");
             if (ttf.exists()) {
                 ttf.delete();
             }

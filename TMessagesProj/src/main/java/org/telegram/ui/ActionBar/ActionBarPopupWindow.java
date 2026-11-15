@@ -267,6 +267,12 @@ public class ActionBarPopupWindow extends PopupWindow {
             }
         }
 
+        public void murkaApplyMD3PagePadding() { // MurkaGram: MD3 — подстраница swipe-back без своего фона: 4dp + 2dp инсет = 6dp
+            if (MurkaMD3.enabled() && backgroundDrawable == null && linearLayout != null) {
+                linearLayout.setPadding(linearLayout.getPaddingLeft(), AndroidUtilities.dp(4), linearLayout.getPaddingRight(), AndroidUtilities.dp(4));
+            }
+        }
+
         @Nullable
         public PopupSwipeBackLayout getSwipeBack() {
             return swipeBackLayout;

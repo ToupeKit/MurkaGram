@@ -18409,7 +18409,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public boolean isDrawPinnedBottom() {
         boolean forceMediaByGroup = currentPosition != null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0 && currentMessagesGroup.isDocuments;
-        return mediaBackground || drawPinnedBottom || forceMediaByGroup;
+        return mediaBackground || drawPinnedBottom || forceMediaByGroup || murkaNoTail(); // MurkaGram: без хвоста — без ложной анимации pinned-bottom
     }
 
     public void drawCheckBox(Canvas canvas) {

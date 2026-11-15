@@ -395,6 +395,9 @@ public class PopupSwipeBackLayout extends FrameLayout {
     @Override
     public void addView(View child, int index, ViewGroup.LayoutParams params) {
         super.addView(child, index, params);
+        if (getChildCount() > 1 && child instanceof ActionBarPopupWindow.ActionBarPopupWindowLayout) { // MurkaGram: MD3 — отступы подстраницы
+            ((ActionBarPopupWindow.ActionBarPopupWindowLayout) child).murkaApplyMD3PagePadding();
+        }
         invalidateTransforms();
     }
 

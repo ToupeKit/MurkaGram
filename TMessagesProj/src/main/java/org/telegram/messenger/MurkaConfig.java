@@ -42,6 +42,14 @@ public class MurkaConfig {
     public static boolean md3Design; // MurkaGram: «MD3 дизайн» (скруглённые карточки, меню, кнопки)
     public static int fontMode;
     public static String customFontPath;
+    public static boolean hidePhone; // MurkaGram: «Скрыть номер телефона»
+
+    // MurkaGram: «Эмодзи» — стандартные / системные / свой шрифт.
+    public static final int EMOJI_DEFAULT = 0;
+    public static final int EMOJI_SYSTEM = 1;
+    public static final int EMOJI_CUSTOM = 2;
+    public static int emojiMode;
+    public static String customEmojiPath;
 
     // MurkaGram: «Настройки бокового меню» — порядок пунктов (ключи через запятую, "div" — разделитель).
     public static final String DRAWER_ITEMS_DEFAULT = "profile,div,newgroup,contacts,calls,saved,settings,div,invite,features";
@@ -84,6 +92,9 @@ public class MurkaConfig {
             md3Design = preferences.getBoolean("md3Design", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
+            hidePhone = preferences.getBoolean("hidePhone", false); // MurkaGram
+            emojiMode = preferences.getInt("emojiMode", EMOJI_DEFAULT); // MurkaGram
+            customEmojiPath = preferences.getString("customEmojiPath", null); // MurkaGram
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
             ghostWarning = preferences.getBoolean("ghostWarning", true); // MurkaGram
             configLoaded = true;
@@ -266,5 +277,26 @@ public class MurkaConfig {
         customFontPath = path;
         // commit(), т.к. сразу после смены шрифта приложение может быть перезапущено (killProcess)
         getPreferences().edit().putInt("fontMode", fontMode).putString("customFontPath", customFontPath).commit();
+    }
+
+    // MurkaGram: «Скрыть номер телефона»
+    public static void toggleHidePhone() {
+        hidePhone = !hidePhone;
+        getPreferences().edit().putBoolean("hidePhone", hidePhone).apply();
+    }
+
+    // MurkaGram: номер телефона для показа в профиле (или «Номер скрыт»). rawDigits — номер без «+».
+    public static String formatPhone(String rawDigits) {
+        if (hidePhone) {
+            return LocaleController.getString(R.string.MurkaPhoneHidden);
+        }
+        return org.telegram.PhoneFormat.PhoneFormat.getInstance().format("+" + rawDigits);
+    }
+
+    // MurkaGram: «Эмодзи». commit(), т.к. сразу после смены приложение может быть перезапущено.
+    public static void setEmojiMode(int mode, String path) {
+        emojiMode = mode;
+        customEmojiPath = path;
+        getPreferences().edit().putInt("emojiMode", emojiMode).putString("customEmojiPath", customEmojiPath).commit();
     }
 }

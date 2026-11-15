@@ -68,6 +68,15 @@
     <string name="MurkaGeneral">General</string>
     <string name="MurkaNoBubbleTail">Remove message tail</string>
     <string name="MurkaMessageMenuIconBar">Quick actions as icons</string>
+    <string name="MurkaDeleteKeepLocal">Save locally</string>
+    <string name="MurkaDesignProfile">Profile</string>
+    <string name="MurkaHidePhone">Hide phone number</string>
+    <string name="MurkaPhoneHidden">Number hidden</string>
+    <string name="MurkaEmoji">Emoji</string>
+    <string name="MurkaEmojiDefault">Standard</string>
+    <string name="MurkaEmojiSystem">System</string>
+    <string name="MurkaEmojiCustom">Custom</string>
+    <string name="MurkaEmojiRestart">Restart the app to apply emoji.</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>

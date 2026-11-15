@@ -68,6 +68,15 @@
     <string name="MurkaGeneral">Общие</string>
     <string name="MurkaNoBubbleTail">Убрать хвост сообщений</string>
     <string name="MurkaMessageMenuIconBar">Быстрые действия иконками</string>
+    <string name="MurkaDeleteKeepLocal">Сохранить локально</string>
+    <string name="MurkaDesignProfile">Профиль</string>
+    <string name="MurkaHidePhone">Скрыть номер телефона</string>
+    <string name="MurkaPhoneHidden">Номер скрыт</string>
+    <string name="MurkaEmoji">Эмодзи</string>
+    <string name="MurkaEmojiDefault">Стандартные</string>
+    <string name="MurkaEmojiSystem">Системные</string>
+    <string name="MurkaEmojiCustom">Свои</string>
+    <string name="MurkaEmojiRestart">Перезапустите приложение, чтобы применить эмодзи.</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>

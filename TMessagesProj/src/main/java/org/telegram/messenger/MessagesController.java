@@ -8961,7 +8961,16 @@ public class MessagesController extends BaseController implements NotificationCe
         deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, taskId, taskRequest, topicId, false, 0);
     }
 
+    // MurkaGram: «Сохранить локально» — удалить на сервере, но оставить сообщения в чате как удалённые.
+    public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, int topicId, boolean forAll, int mode, boolean cacheOnly, boolean murkaKeepLocal) {
+        deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, 0, null, topicId, false, 0, murkaKeepLocal);
+    }
+
     public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, boolean forAll, int mode, boolean cacheOnly, long taskId, TLObject taskRequest, int topicId, boolean movedToScheduled, int movedToScheduledMessageId) {
+        deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, taskId, taskRequest, topicId, movedToScheduled, movedToScheduledMessageId, false); // MurkaGram
+    }
+
+    public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, boolean forAll, int mode, boolean cacheOnly, long taskId, TLObject taskRequest, int topicId, boolean movedToScheduled, int movedToScheduledMessageId, boolean murkaKeepLocal) {
         final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
         final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;
         if ((messages == null || messages.isEmpty()) && taskId == 0) {
@@ -8993,21 +9002,45 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, false, ChatActivity.MODE_QUICK_REPLIES, topicId);
             } else {
-                if (channelId == 0) {
-                    for (int a = 0; a < messages.size(); a++) {
-                        Integer id = messages.get(a);
-                        MessageObject obj = dialogMessagesByIds.get(id);
-                        if (obj != null) {
-                            obj.deleted = true;
+                // MurkaGram: «Сохранить локально» — отправленные сообщения (mid > 0) не удаляем из кэша, а помечаем удалёнными
+                ArrayList<Integer> murkaDeleteNow = messages;
+                if (murkaKeepLocal && !cacheOnly && encryptedChat == null && !DialogObject.isEncryptedDialog(dialogId)) {
+                    ArrayList<Integer> keep = new ArrayList<>();
+                    murkaDeleteNow = new ArrayList<>();
+                    for (int a = 0, N = messages.size(); a < N; a++) {
+                        Integer mid = messages.get(a);
+                        if (mid > 0) {
+                            keep.add(mid);
+                        } else {
+                            murkaDeleteNow.add(mid);
                         }
                     }
-                } else {
-                    markDialogMessageAsDeleted(dialogId, messages);
+                    if (!keep.isEmpty()) {
+                        LongSparseArray<ArrayList<Integer>> murkaKeep = new LongSparseArray<>();
+                        murkaKeep.put(channelId != 0 ? -channelId : 0, keep);
+                        MurkaStorage.markMessagesDeleted(currentAccount, murkaKeep, true);
+                    }
                 }
-                getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, forAll, 0, topicId);
-                getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, messages, null, true);
+                if (!murkaDeleteNow.isEmpty()) {
+                    if (channelId == 0) {
+                        for (int a = 0; a < murkaDeleteNow.size(); a++) {
+                            Integer id = murkaDeleteNow.get(a);
+                            MessageObject obj = dialogMessagesByIds.get(id);
+                            if (obj != null) {
+                                obj.deleted = true;
+                            }
+                        }
+                    } else {
+                        markDialogMessageAsDeleted(dialogId, murkaDeleteNow);
+                    }
+                    getMessagesStorage().markMessagesAsDeleted(dialogId, murkaDeleteNow, true, forAll, 0, topicId);
+                    getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, murkaDeleteNow, null, true);
+                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, murkaDeleteNow, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+                }
             }
-            getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, messages, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+            if (scheduled || quickReplies) { // MurkaGram: для обычных сообщений уведомление отправлено выше
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, messages, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+            }
         } else {
             if (taskRequest instanceof TLRPC.TL_channels_deleteMessages) {
                 channelId = ((TLRPC.TL_channels_deleteMessages) taskRequest).channel.channel_id;
@@ -19919,6 +19952,13 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseIntArray markAsReadMessagesOutboxFinal = markAsReadMessagesOutbox;
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
         SparseIntArray markAsReadEncryptedFinal = markAsReadEncrypted;
+        // MurkaGram: «Сохранить локально» — эхо удаления с сервера не трогает уже сохранённые сообщения
+        if (deletedMessages != null) {
+            MurkaStorage.filterKeptDeletions(currentAccount, deletedMessages, murkaLocalDeleted);
+            if (deletedMessages.size() == 0) {
+                deletedMessages = null;
+            }
+        }
         // MurkaGram: «Мониторинг» — вместо удаления сохраняем сообщения как удалённые (кроме локальных удалений)
         if (deletedMessages != null && MurkaConfig.saveDeletedMessages) {
             deletedMessages = MurkaStorage.interceptDeletedMessages(currentAccount, deletedMessages, murkaLocalDeleted);

@@ -86,7 +86,7 @@ public class AutoDeletePopupWrapper {
 
             textView = new LinkSpanDrawable.LinksTextView(context);
             textView.setTag(R.id.fit_width_tag, 1);
-            textView.setPadding(AndroidUtilities.dp(13), 0, AndroidUtilities.dp(13), AndroidUtilities.dp(8));
+            textView.setPadding(AndroidUtilities.dp(13), 0, AndroidUtilities.dp(13), MurkaMD3.enabled() ? AndroidUtilities.dp(2) : AndroidUtilities.dp(8)); // MurkaGram: MD3 — нижний отступ как верхний
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
             textView.setTextColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem));
             textView.setMovementMethod(LinkMovementMethod.getInstance());

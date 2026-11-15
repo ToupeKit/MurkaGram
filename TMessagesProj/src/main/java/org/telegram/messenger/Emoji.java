@@ -114,8 +114,18 @@ public class Emoji {
             }
             loadingEmoji[page][page2] = true;
             Utilities.globalQueue.postRunnable(() -> {
-                Bitmap bitmap = loadBitmap("emoji/" + String.format(Locale.US, "%d_%d.png", page, page2));
+                // MurkaGram: «Эмодзи» — системный/свой шрифт; при ошибке — стандартная картинка
+                Bitmap bitmap = null;
                 try {
+                    bitmap = MurkaEmoji.render(EmojiData.data[page][page2]);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+                final boolean murkaRendered = bitmap != null;
+                if (!murkaRendered) {
+                    bitmap = loadBitmap("emoji/" + String.format(Locale.US, "%d_%d.png", page, page2));
+                }
+                if (!murkaRendered) try { // MurkaGram: маски только для стандартных картинок
                     if (emojiAlphaMasks == null) {
                         emojiAlphaMasks = loadEmojiAlphaMasks();
                     }

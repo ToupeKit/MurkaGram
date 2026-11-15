@@ -30937,7 +30937,8 @@ public class ChatActivity extends BaseFragment implements
                 }
                 // MurkaGram: «Быстрые действия иконками» — убираем опции из списка до цикла (лямбды ниже берут options по индексу)
                 if (MurkaConfig.messageMenuIconBar && !suggestEdit && selectedObject != null && items.size() == options.size() && icons.size() == options.size()) {
-                    final int[] murkaBarOrder = {OPTION_REPLY, OPTION_DELETE, OPTION_COPY, OPTION_EDIT};
+                    final int murkaFourth = options.contains(OPTION_EDIT) ? OPTION_EDIT : OPTION_FORWARD; // MurkaGram: нет «Изменить» — «Переслать»
+                    final int[] murkaBarOrder = {OPTION_REPLY, OPTION_DELETE, OPTION_COPY, murkaFourth};
                     for (int murkaOpt : murkaBarOrder) {
                         int idx = options.indexOf(murkaOpt);
                         if (idx < 0) {

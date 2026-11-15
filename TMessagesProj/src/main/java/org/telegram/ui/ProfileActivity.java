@@ -7410,13 +7410,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         } else if (position == phoneRow || position == numberRow) {
             if (editRow(view, position)) return true;
+            if (MurkaConfig.hidePhone && position == numberRow) return false; // MurkaGram: «Скрыть номер телефона»
 
             final TLRPC.User user = getMessagesController().getUser(userId);
             if (user == null || user.phone == null || user.phone.length() == 0 || getParentActivity() == null) {
                 return false;
             }
 
-            if (position == phoneRow && user.phone.startsWith("888")) {
+            if (position == phoneRow && user.phone.startsWith("888") && !MurkaConfig.hidePhone) { // MurkaGram
                 TL_fragment.TL_inputCollectiblePhone input = new TL_fragment.TL_inputCollectiblePhone();
                 final String phone = input.phone = user.phone;
                 TL_fragment.TL_getCollectibleInfo req = new TL_fragment.TL_getCollectibleInfo();
@@ -7446,15 +7447,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         actions.add(PHONE_OPTION_TELEGRAM_VIDEO_CALL);
                     }
                 }
-                if (!isFragmentPhoneNumber) {
+                if (!isFragmentPhoneNumber && !MurkaConfig.hidePhone) { // MurkaGram
                     icons.add(R.drawable.msg_calls_regular);
                     items.add(LocaleController.getString(R.string.Call));
                     actions.add(PHONE_OPTION_CALL);
                 }
             }
-            icons.add(R.drawable.msg_copy);
-            items.add(LocaleController.getString(R.string.Copy));
-            actions.add(PHONE_OPTION_COPY);
+            if (!MurkaConfig.hidePhone) { // MurkaGram: «Скрыть номер телефона» — без «Позвонить»/«Копировать»
+                icons.add(R.drawable.msg_copy);
+                items.add(LocaleController.getString(R.string.Copy));
+                actions.add(PHONE_OPTION_COPY);
+            }
+            if (items.isEmpty()) { // MurkaGram
+                return false;
+            }
 
             AtomicReference<ActionBarPopupWindow> popupWindowRef = new AtomicReference<>();
             ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getContext(), R.drawable.popup_fixed_alert, resourcesProvider) {
@@ -9246,6 +9252,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         RecyclerListView.Holder holder = (RecyclerListView.Holder) listView.findViewHolderForPosition(phoneRow);
                         if (holder != null) {
                             listAdapter.onBindViewHolder(holder, phoneRow);
+                        }
+                        if (numberRow >= 0) { // MurkaGram: «Скрыть номер телефона» — номер в настройках
+                            RecyclerListView.Holder numberHolder = (RecyclerListView.Holder) listView.findViewHolderForPosition(numberRow);
+                            if (numberHolder != null) {
+                                listAdapter.onBindViewHolder(numberHolder, numberRow);
+                            }
                         }
                     }
                 }
@@ -11521,7 +11533,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView[a].setText(titleTextView.getText());
                     nameTextView[a].setRightDrawable(titleTextView.getRightDrawable());
                     nameTextView[a].setRightDrawable2(titleTextView.getRightDrawable2());
-                } else if (a == 0 && user.id != getUserConfig().getClientUserId() && !MessagesController.isSupportUser(user) && user.phone != null && user.phone.length() != 0 && getContactsController().contactsDict.get(user.id) == null &&
+                } else if (a == 0 && user.id != getUserConfig().getClientUserId() && !MessagesController.isSupportUser(user) && user.phone != null && user.phone.length() != 0 && !MurkaConfig.hidePhone /* MurkaGram */ && getContactsController().contactsDict.get(user.id) == null &&
                         (getContactsController().contactsDict.size() != 0 || !getContactsController().isLoadingContacts())) {
                     nameTextView[a].setText(PhoneFormat.getInstance().format("+" + user.phone));
                 } else {
@@ -13526,6 +13538,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             text = LocaleController.getString(R.string.PhoneHidden);
                             phoneNumber = null;
                         }
+                        if (MurkaConfig.hidePhone) { // MurkaGram: «Скрыть номер телефона»
+                            text = LocaleController.getString(R.string.MurkaPhoneHidden);
+                            phoneNumber = null;
+                        }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
                         detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
                     } else if (position == noteRow) {
@@ -13619,7 +13635,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
                         String value;
                         if (user != null && user.phone != null && user.phone.length() != 0) {
-                            value = PhoneFormat.getInstance().format("+" + user.phone);
+                            value = MurkaConfig.formatPhone(user.phone); // MurkaGram: «Скрыть номер телефона»
                         } else {
                             value = LocaleController.getString(R.string.NumberUnknown);
                         }
@@ -16272,7 +16288,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (textToCopy != null) textToCopy = "@" + textToCopy;
             copyButton = getString(R.string.ProfileCopyUsername);
         } else if (position == phoneRow) {
-            textToCopy = user.phone;
+            textToCopy = MurkaConfig.hidePhone ? null : user.phone; // MurkaGram: «Скрыть номер телефона»
         } else if (position == birthdayRow) {
             textToCopy = UserInfoActivity.birthdayString(userInfo.birthday);
         }

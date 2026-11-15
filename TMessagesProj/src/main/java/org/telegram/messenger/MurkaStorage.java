@@ -104,6 +104,14 @@ public class MurkaStorage {
      * Сообщения с истёкшим ttl_period (автоудаление) удаляются по-настоящему.
      */
     public static void markMessagesDeleted(int currentAccount, LongSparseArray<ArrayList<Integer>> byKey) {
+        markMessagesDeleted(currentAccount, byKey, false);
+    }
+
+    /**
+     * MurkaGram: force — пользователь сам удалил сообщения с галочкой «Сохранить локально»:
+     * «Исключения» игнорируются, а сообщения, которых нет в кэше, удаляются по-настоящему.
+     */
+    public static void markMessagesDeleted(int currentAccount, LongSparseArray<ArrayList<Integer>> byKey, boolean force) {
         MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
         storage.getStorageQueue().postRunnable(() -> {
             SQLiteDatabase database = storage.getDatabase();
@@ -119,6 +127,7 @@ public class MurkaStorage {
                     continue;
                 }
                 ArrayList<Integer> ttlExpired = null;
+                HashSet<Integer> found = force ? new HashSet<>() : null; // MurkaGram
                 SQLiteCursor cursor = null;
                 SQLitePreparedStatement state = null;
                 try {
@@ -137,6 +146,9 @@ public class MurkaStorage {
                         if (data == null) {
                             continue;
                         }
+                        if (found != null) {
+                            found.add(mid);
+                        }
                         boolean expired = false;
                         try {
                             TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
@@ -146,7 +158,7 @@ public class MurkaStorage {
                         } catch (Exception e) {
                             FileLog.e(e);
                         }
-                        if (!expired && MurkaConfig.isMonitorExcluded(currentAccount, uid)) { // MurkaGram: «Исключения» — удаляем по-настоящему
+                        if (!expired && !force && MurkaConfig.isMonitorExcluded(currentAccount, uid)) { // MurkaGram: «Исключения» — удаляем по-настоящему
                             expired = true;
                         }
                         if (expired) {
@@ -186,6 +198,20 @@ public class MurkaStorage {
                         cursor.dispose();
                     }
                 }
+                if (found != null) {
+                    // MurkaGram: сообщений нет в кэше — сохранить нечего, удаляем по-настоящему.
+                    for (int b = 0, size2 = ids.size(); b < size2; b++) {
+                        Integer id = ids.get(b);
+                        if (!found.contains(id)) {
+                            if (ttlExpired == null) {
+                                ttlExpired = new ArrayList<>();
+                            }
+                            if (!ttlExpired.contains(id)) {
+                                ttlExpired.add(id);
+                            }
+                        }
+                    }
+                }
                 if (ttlExpired != null) {
                     // Автоудаление по таймеру и чаты из «Исключений» — удаляем по-настоящему, как это сделал бы Telegram.
                     final ArrayList<Integer> expiredFinal = ttlExpired;
@@ -204,6 +230,97 @@ public class MurkaStorage {
                 });
             }
         });
+    }
+
+    /**
+     * MurkaGram: «Сохранить локально» — убирает из deleted сообщения, уже сохранённые в murka_deleted,
+     * чтобы эхо удаления с сервера (getDifference и т.п.) не стёрло их. Синхронно (как MessagesStorage.getDialogReadMax).
+     * localDeleted (локальные удаления клиента) не фильтруются.
+     */
+    public static void filterKeptDeletions(int currentAccount, LongSparseArray<ArrayList<Integer>> deleted, ArrayList<Integer> localDeleted) {
+        if (deleted == null || deleted.size() == 0) {
+            return;
+        }
+        boolean needQuery = false;
+        for (int a = 0, size = deleted.size(); a < size && !needQuery; a++) {
+            ArrayList<Integer> ids = deleted.valueAt(a);
+            if (ids == null) {
+                continue;
+            }
+            for (int b = 0, size2 = ids.size(); b < size2; b++) {
+                if (deleted.keyAt(a) != 0 || localDeleted == null || !localDeleted.contains(ids.get(b))) {
+                    needQuery = true;
+                    break;
+                }
+            }
+        }
+        if (!needQuery) {
+            return;
+        }
+        MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
+        final LongSparseArray<HashSet<Integer>> kept = new LongSparseArray<>();
+        final java.util.concurrent.CountDownLatch countDownLatch = new java.util.concurrent.CountDownLatch(1);
+        final Runnable query = () -> {
+            try {
+                SQLiteDatabase database = storage.getDatabase();
+                if (database != null) {
+                    for (int a = 0, size = deleted.size(); a < size; a++) {
+                        long key = deleted.keyAt(a);
+                        ArrayList<Integer> ids = deleted.valueAt(a);
+                        if (ids == null || ids.isEmpty()) {
+                            continue;
+                        }
+                        String idsStr = TextUtils.join(",", ids);
+                        HashSet<Integer> mids;
+                        if (key == 0) {
+                            mids = queryMids(database, String.format(Locale.US, "SELECT d.mid FROM murka_deleted d JOIN messages_v2 m ON m.uid = d.uid AND m.mid = d.mid WHERE d.mid IN(%s) AND m.is_channel = 0", idsStr));
+                        } else {
+                            mids = queryMids(database, String.format(Locale.US, "SELECT mid FROM murka_deleted WHERE uid = %d AND mid IN(%s)", key, idsStr));
+                        }
+                        if (!mids.isEmpty()) {
+                            kept.put(key, mids);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                countDownLatch.countDown();
+            }
+        };
+        if (Thread.currentThread() == storage.getStorageQueue()) {
+            query.run(); // MurkaGram: уже на storageQueue — ждать самих себя нельзя (deadlock)
+        } else {
+            storage.getStorageQueue().postRunnable(query);
+            try {
+                countDownLatch.await();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+        if (kept.size() == 0) {
+            return;
+        }
+        for (int a = deleted.size() - 1; a >= 0; a--) {
+            long key = deleted.keyAt(a);
+            HashSet<Integer> mids = kept.get(key);
+            ArrayList<Integer> ids = deleted.valueAt(a);
+            if (mids == null || ids == null) {
+                continue;
+            }
+            ArrayList<Integer> rest = new ArrayList<>();
+            for (int b = 0, size2 = ids.size(); b < size2; b++) {
+                Integer id = ids.get(b);
+                if (!mids.contains(id) || (key == 0 && localDeleted != null && localDeleted.contains(id))) {
+                    rest.add(id);
+                }
+            }
+            if (rest.isEmpty()) {
+                deleted.removeAt(a);
+            } else {
+                deleted.setValueAt(a, rest);
+            }
+        }
     }
 
     /**

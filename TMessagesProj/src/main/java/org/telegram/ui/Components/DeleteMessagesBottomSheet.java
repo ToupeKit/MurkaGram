@@ -65,6 +65,8 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
     private static final int ACTION_REPORT = 0;
     private static final int ACTION_DELETE_ALL = 1;
     private static final int ACTION_BAN = 2;
+    private static final int ID_MURKA_KEEP_LOCAL = 100; // MurkaGram: «Сохранить локально»
+    private boolean murkaKeepLocal; // MurkaGram
 
     private boolean monoforum;
     private Action report;
@@ -663,6 +665,20 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
         }
     }
 
+    // MurkaGram: «Сохранить локально» — только для отправленных сообщений, кроме отложенных и быстрых ответов
+    private boolean murkaCanKeepLocal() {
+        if (mode == org.telegram.ui.ChatActivity.MODE_SCHEDULED || mode == org.telegram.ui.ChatActivity.MODE_QUICK_REPLIES || messages == null) {
+            return false;
+        }
+        for (int a = 0, N = messages.size(); a < N; a++) {
+            MessageObject msg = messages.get(a);
+            if (msg != null && msg.getId() > 0 && !msg.isMurkaDeleted()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         if (messages == null) {
             return;
@@ -672,6 +688,9 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
         fillAction(items, report);
         fillAction(items, deleteAll);
         fillAction(items, banOrRestrict);
+        if (murkaCanKeepLocal()) { // MurkaGram: «Сохранить локально»
+            items.add(UItem.asRoundCheckbox(ID_MURKA_KEEP_LOCAL, getString(R.string.MurkaDeleteKeepLocal)).setChecked(murkaKeepLocal));
+        }
 
         if (!monoforum && banOrRestrict.isPresent()) {
             if (restrict) {
@@ -836,6 +855,11 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
                 banOrRestrict.toggleCheck(index);
             }
         } else if (item.viewType == VIEW_TYPE_USER_GROUP_CHECKBOX || item.viewType == VIEW_TYPE_ROUND_CHECKBOX) {
+            if (item.viewType == VIEW_TYPE_ROUND_CHECKBOX && item.id == ID_MURKA_KEEP_LOCAL) { // MurkaGram
+                murkaKeepLocal = !murkaKeepLocal;
+                adapter.update(true);
+                return;
+            }
             if (item.id == ACTION_REPORT) {
                 report.toggleAllChecks();
             } else if (item.id == ACTION_DELETE_ALL) {
@@ -952,10 +976,10 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
                 .collect(Collectors.toCollection(ArrayList::new));
 
         if (!supergroupMessageIds.isEmpty()) {
-            MessagesController.getInstance(currentAccount).deleteMessages(supergroupMessageIds, null, null, -inChat.id, topicId, false, mode);
+            MessagesController.getInstance(currentAccount).deleteMessages(supergroupMessageIds, null, null, -inChat.id, topicId, false, mode, false, murkaKeepLocal); // MurkaGram
         }
         if (!groupMessageIds.isEmpty()) {
-            MessagesController.getInstance(currentAccount).deleteMessages(groupMessageIds, null, null, mergeDialogId, topicId, true, mode);
+            MessagesController.getInstance(currentAccount).deleteMessages(groupMessageIds, null, null, mergeDialogId, topicId, true, mode, false, murkaKeepLocal); // MurkaGram
         }
 
         banOrRestrict.forEachSelected((participant, i) -> {
