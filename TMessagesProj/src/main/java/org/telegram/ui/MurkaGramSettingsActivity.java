@@ -39,12 +39,14 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
 
     public static final String CHANNEL_URL = "https://t.me/KittenBoxStudio";
     public static final String CHAT_URL = "https://t.me/kittenboxstudio_chat";
+    public static final String GITHUB_URL = "https://github.com/ToupeKit/MurkaGram"; // MurkaGram
 
     private static final int ID_MONITORING = 1;
     private static final int ID_DESIGN = 2;
     private static final int ID_CHANNEL = 3;
     private static final int ID_CHAT = 4;
     private static final int ID_BADGES = 5; // MurkaGram: «Бейджики»
+    private static final int ID_GITHUB = 6; // MurkaGram: ссылка на GitHub
 
     private View headerView;
 
@@ -67,6 +69,7 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaLinks)));
         items.add(UItem.asButton(ID_CHANNEL, R.drawable.msg_channel, LocaleController.getString(R.string.MurkaLinkChannel), "@KittenBoxStudio"));
         items.add(UItem.asButton(ID_CHAT, R.drawable.msg_groups, LocaleController.getString(R.string.MurkaLinkChats), "@kittenboxstudio_chat"));
+        items.add(UItem.asButton(ID_GITHUB, R.drawable.msg_link2, "GitHub", "ToupeKit/MurkaGram")); // MurkaGram
         items.add(UItem.asShadow(null));
     }
 
@@ -82,6 +85,8 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
             Browser.openUrl(getParentActivity(), CHANNEL_URL);
         } else if (item.id == ID_CHAT) {
             Browser.openUrl(getParentActivity(), CHAT_URL);
+        } else if (item.id == ID_GITHUB) { // MurkaGram
+            Browser.openUrl(getParentActivity(), GITHUB_URL);
         }
     }
 

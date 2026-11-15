@@ -5,7 +5,7 @@
 доступны функции AyuGram и exteraGram
 всё ещё в разработке
 
-проект полностью навайбкоден с помощью **Claude Opus 5.5**
+проект полностью навайбкоден с помощью **Claude Opus 5.5** и **Claude Opus 4.8**
 
 скачать — <a href="https://t.me/KittenBoxStudio">
   Telegram Channel
