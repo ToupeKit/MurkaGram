@@ -307,11 +307,12 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         // MurkaGram: «Настройки бокового меню» — пункты в порядке пользователя (MurkaConfig.drawerItems).
         // Premium-статус, extendDrawer и боты, как в стоке, идут сразу после «Мой профиль».
         ArrayList<Item> extra = new ArrayList<>();
+        Item statusItem = null; // MurkaGram: эмодзи-статус — отдельный пункт "status"
         if (me != null && me.isPremium()) {
             if (me.getEmojiStatus() != null) {
-                extra.add(new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.msg_status_edit));
+                statusItem = new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.msg_status_edit);
             } else {
-                extra.add(new Item(15, LocaleController.getString(R.string.SetEmojiStatus), R.drawable.msg_status_set));
+                statusItem = new Item(15, LocaleController.getString(R.string.SetEmojiStatus), R.drawable.msg_status_set);
             }
         }
         if (ApplicationLoader.applicationLoaderInstance != null) {
@@ -327,7 +328,10 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
             }
         }
         boolean extraAdded = false;
-        for (String key : MurkaConfig.getDrawerItems()) {
+        boolean extraPending = false; // MurkaGram: «profile,status» — extendDrawer и боты после статуса, как в стоке
+        ArrayList<String> drawerKeys = MurkaConfig.getDrawerItems();
+        for (int k = 0; k < drawerKeys.size(); k++) {
+            String key = drawerKeys.get(k);
             switch (key) {
                 case "div":
                     items.add(null); // divider
@@ -335,8 +339,21 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
                 case "profile":
                     items.add(new Item(16, LocaleController.getString(R.string.MyProfile), R.drawable.left_status_profile));
                     if (!extraAdded) {
-                        items.addAll(extra);
+                        if (k + 1 < drawerKeys.size() && "status".equals(drawerKeys.get(k + 1))) {
+                            extraPending = true;
+                        } else {
+                            items.addAll(extra);
+                        }
                         extraAdded = true;
+                    }
+                    break;
+                case "status": // MurkaGram
+                    if (statusItem != null) {
+                        items.add(statusItem);
+                    }
+                    if (extraPending) {
+                        items.addAll(extra);
+                        extraPending = false;
                     }
                     break;
                 case "newgroup":

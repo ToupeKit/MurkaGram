@@ -27,7 +27,8 @@ public class MurkaDrawerSettingsActivity extends UniversalFragment {
     private static final int ID_RESET = 2;
     private static final int ID_ITEM_BASE = 1000;
 
-    private static final String[] ALL_KEYS = {"profile", "newgroup", "secret", "channel", "contacts", "calls", "saved", "settings", "invite", "features", "ghost", "div"};
+    // MurkaGram: + "status" (эмодзи-статус)
+    private static final String[] ALL_KEYS = {"profile", "status", "newgroup", "secret", "channel", "contacts", "calls", "saved", "settings", "invite", "features", "ghost", "div"};
 
     private final ArrayList<String> keys = MurkaConfig.getDrawerItems();
     private int orderSectionId = -1;
@@ -161,6 +162,7 @@ public class MurkaDrawerSettingsActivity extends UniversalFragment {
     private static int getIcon(String key) {
         switch (key) {
             case "profile": return R.drawable.left_status_profile;
+            case "status": return R.drawable.msg_status_set; // MurkaGram
             case "newgroup": return R.drawable.msg_groups;
             case "secret": return R.drawable.msg_secret;
             case "channel": return R.drawable.msg_channel;
@@ -178,6 +180,7 @@ public class MurkaDrawerSettingsActivity extends UniversalFragment {
     private static String getName(String key) {
         switch (key) {
             case "profile": return LocaleController.getString(R.string.MyProfile);
+            case "status": return LocaleController.getString(R.string.MurkaDrawerStatus) + " (Premium)"; // MurkaGram
             case "newgroup": return LocaleController.getString(R.string.NewGroup);
             case "secret": return LocaleController.getString(R.string.NewSecretChat);
             case "channel": return LocaleController.getString(R.string.NewChannel);

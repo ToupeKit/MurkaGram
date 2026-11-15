@@ -52,11 +52,19 @@ public class MurkaConfig {
     public static String customEmojiPath;
 
     // MurkaGram: «Настройки бокового меню» — порядок пунктов (ключи через запятую, "div" — разделитель).
-    public static final String DRAWER_ITEMS_DEFAULT = "profile,div,newgroup,contacts,calls,saved,settings,div,invite,features";
+    public static final String DRAWER_ITEMS_DEFAULT = "profile,status,div,newgroup,contacts,calls,saved,settings,div,invite,features"; // MurkaGram: + "status"
     public static String drawerItems;
 
     // MurkaGram: «Предупреждение призрака» перед просмотром одноразовых/самоуничтожающихся медиа.
     public static boolean ghostWarning;
+
+    // MurkaGram: «Подтверждение отправки голосовых и кружков».
+    public static boolean confirmVoiceSend;
+
+    // MurkaGram: «Безлимитное закрепление чатов» — локальные закрепы сверх лимита (только список «Все чаты»).
+    public static boolean unlimitedPins;
+    // Ключ — id пользователя (не индекс аккаунта); значения неизменяемые (copy-on-write), индекс 0 — верх.
+    private static final java.util.concurrent.ConcurrentHashMap<Long, java.util.List<Long>> localPins = new java.util.concurrent.ConcurrentHashMap<>();
 
     // MurkaGram: «Исключения» мониторинга — по аккаунту; неизменяемые наборы (copy-on-write), читаются с разных потоков.
     private static final java.util.concurrent.atomic.AtomicReferenceArray<java.util.Set<Long>> monitorExceptions = new java.util.concurrent.atomic.AtomicReferenceArray<>(UserConfig.MAX_ACCOUNT_COUNT);
@@ -101,6 +109,27 @@ public class MurkaConfig {
             customEmojiPath = preferences.getString("customEmojiPath", null); // MurkaGram
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
             ghostWarning = preferences.getBoolean("ghostWarning", true); // MurkaGram
+            // MurkaGram: пункт «status» в боковом меню — добавить в уже сохранённые списки
+            if (preferences.getInt("drawerItemsVer", 0) < 1) {
+                SharedPreferences.Editor editor = preferences.edit();
+                String saved = preferences.getString("drawerItems", null);
+                if (saved != null && !saved.isEmpty() && !("," + saved + ",").contains(",status,")) {
+                    java.util.ArrayList<String> list = new java.util.ArrayList<>();
+                    for (String k : saved.split(",")) {
+                        k = k.trim();
+                        if (!k.isEmpty()) {
+                            list.add(k);
+                        }
+                    }
+                    int profile = list.indexOf("profile");
+                    list.add(profile >= 0 ? profile + 1 : 0, "status");
+                    drawerItems = android.text.TextUtils.join(",", list);
+                    editor.putString("drawerItems", drawerItems);
+                }
+                editor.putInt("drawerItemsVer", 1).apply();
+            }
+            confirmVoiceSend = preferences.getBoolean("confirmVoiceSend", true); // MurkaGram
+            unlimitedPins = preferences.getBoolean("unlimitedPins", false); // MurkaGram
             configLoaded = true;
         }
     }
@@ -404,5 +433,98 @@ public class MurkaConfig {
         emojiMode = mode;
         customEmojiPath = path;
         getPreferences().edit().putInt("emojiMode", emojiMode).putString("customEmojiPath", customEmojiPath).commit();
+    }
+
+    // MurkaGram: «Подтверждение отправки голосовых и кружков»
+    public static void toggleConfirmVoiceSend() {
+        confirmVoiceSend = !confirmVoiceSend;
+        getPreferences().edit().putBoolean("confirmVoiceSend", confirmVoiceSend).apply();
+    }
+
+    // MurkaGram: «Безлимитное закрепление чатов»
+    public static void toggleUnlimitedPins() {
+        unlimitedPins = !unlimitedPins;
+        getPreferences().edit().putBoolean("unlimitedPins", unlimitedPins).apply();
+    }
+
+    private static long getPinsUserId(int account) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return 0;
+        }
+        return UserConfig.getInstance(account).getClientUserId();
+    }
+
+    // Локально закреплённые чаты (неизменяемый список, индекс 0 — верх), независимо от переключателя.
+    public static java.util.List<Long> getLocalPins(int account) {
+        long userId = getPinsUserId(account);
+        if (userId == 0) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.List<Long> list = localPins.get(userId);
+        if (list != null) {
+            return list;
+        }
+        synchronized (sync) {
+            list = localPins.get(userId);
+            if (list == null) {
+                java.util.ArrayList<Long> loaded = new java.util.ArrayList<>();
+                for (String s : splitIds(getPreferences().getString("localPins_" + userId, ""))) {
+                    try {
+                        loaded.add(Long.parseLong(s));
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                }
+                list = java.util.Collections.unmodifiableList(loaded);
+                localPins.put(userId, list);
+            }
+            return list;
+        }
+    }
+
+    public static boolean isLocalPinned(int account, long dialogId) {
+        return dialogId != 0 && getLocalPins(account).contains(dialogId);
+    }
+
+    // Активен ли локальный закреп для диалога основного списка (не архив, не серверный закреп).
+    public static boolean isLocalPinActive(int account, org.telegram.tgnet.TLRPC.Dialog dialog) {
+        return unlimitedPins && dialog != null && !dialog.pinned && dialog.folder_id == 0 && isLocalPinned(account, dialog.id);
+    }
+
+    // Новый локальный закреп — наверх блока локальных закрепов (как у Telegram: новый закреп сверху).
+    public static void addLocalPin(int account, long dialogId) {
+        if (dialogId == 0) {
+            return;
+        }
+        synchronized (sync) {
+            java.util.ArrayList<Long> list = new java.util.ArrayList<>(getLocalPins(account));
+            list.remove(dialogId);
+            list.add(0, dialogId);
+            saveLocalPins(account, list);
+        }
+    }
+
+    public static void removeLocalPin(int account, long dialogId) {
+        synchronized (sync) {
+            java.util.ArrayList<Long> list = new java.util.ArrayList<>(getLocalPins(account));
+            if (list.remove(dialogId)) {
+                saveLocalPins(account, list);
+            }
+        }
+    }
+
+    public static void setLocalPins(int account, java.util.List<Long> ids) {
+        synchronized (sync) {
+            saveLocalPins(account, new java.util.ArrayList<>(ids));
+        }
+    }
+
+    private static void saveLocalPins(int account, java.util.ArrayList<Long> list) {
+        long userId = getPinsUserId(account);
+        if (userId == 0) {
+            return;
+        }
+        localPins.put(userId, java.util.Collections.unmodifiableList(list));
+        getPreferences().edit().putString("localPins_" + userId, android.text.TextUtils.join(",", list)).apply();
     }
 }

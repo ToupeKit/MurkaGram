@@ -54,6 +54,8 @@
     <string name="MurkaBadgeCrownDesc">Творець MurkaGram</string>
     <string name="MurkaBadgeCatDesc">Офіційний ресурс MurkaGram</string>
     <string name="MurkaBadgeDesignerDesc">Намалював/ла для MurkaGram</string>
+    <string name="MurkaBadgeBow">Кішка з бантиком</string>
+    <string name="MurkaBadgeBowDesc">Друг MurkaGram</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Налаштування бічного меню</string>
     <string name="MurkaDrawerTitle">Бічне меню</string>
@@ -88,6 +90,12 @@
     <string name="MurkaEmojiSystem">Системні</string>
     <string name="MurkaEmojiCustom">Власні</string>
     <string name="MurkaEmojiRestart">Перезапустіть застосунок, щоб застосувати емодзі.</string>
+    <string name="MurkaConfirmVoiceSend">Підтвердження надсилання голосових і кружечків</string>
+    <string name="MurkaVoiceConfirmTitle">Надіслати голосове повідомлення?</string>
+    <string name="MurkaRoundConfirmTitle">Надіслати відеоповідомлення?</string>
+    <string name="MurkaUnlimitedPins">Необмежене закріплення чатів</string>
+    <string name="MurkaUnlimitedPinsInfo">Понад ліміт Telegram чати закріплюються лише на цьому пристрої.</string>
+    <string name="MurkaDrawerStatus">Емодзі-статус</string>
     <string name="LanguageName">Українська</string>
     <string name="English">Англійська</string>
     <string name="LanguageNameInEnglish">Ukrainian</string>

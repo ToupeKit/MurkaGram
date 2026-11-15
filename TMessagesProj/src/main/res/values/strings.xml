@@ -54,6 +54,8 @@
     <string name="MurkaBadgeCrownDesc">Creator of MurkaGram</string>
     <string name="MurkaBadgeCatDesc">Official MurkaGram resource</string>
     <string name="MurkaBadgeDesignerDesc">Drew for MurkaGram</string>
+    <string name="MurkaBadgeBow">Cat with a bow</string>
+    <string name="MurkaBadgeBowDesc">Friend of MurkaGram</string>
     <!-- MurkaGram: настройки бокового меню -->
     <string name="MurkaDrawerSettings">Side menu settings</string>
     <string name="MurkaDrawerTitle">Side menu</string>
@@ -88,6 +90,12 @@
     <string name="MurkaEmojiSystem">System</string>
     <string name="MurkaEmojiCustom">Custom</string>
     <string name="MurkaEmojiRestart">Restart the app to apply emoji.</string>
+    <string name="MurkaConfirmVoiceSend">Confirm sending voice and video messages</string>
+    <string name="MurkaVoiceConfirmTitle">Send voice message?</string>
+    <string name="MurkaRoundConfirmTitle">Send video message?</string>
+    <string name="MurkaUnlimitedPins">Unlimited pinned chats</string>
+    <string name="MurkaUnlimitedPinsInfo">Chats pinned beyond the Telegram limit are pinned only on this device.</string>
+    <string name="MurkaDrawerStatus">Emoji status</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>

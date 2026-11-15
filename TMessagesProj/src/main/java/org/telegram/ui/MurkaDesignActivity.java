@@ -53,6 +53,8 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_MENU_ICON_BAR = 9; // MurkaGram: «Быстрые действия иконками»
     private static final int ID_HIDE_PHONE = 10; // MurkaGram: «Скрыть номер телефона»
     private static final int ID_EMOJI = 11; // MurkaGram: «Эмодзи»
+    private static final int ID_CONFIRM_VOICE = 12; // MurkaGram: «Подтверждение отправки голосовых и кружков»
+    private static final int ID_UNLIMITED_PINS = 13; // MurkaGram: «Безлимитное закрепление чатов»
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
@@ -80,7 +82,9 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
         items.add(UItem.asCheck(ID_MENU_ICON_BAR, LocaleController.getString(R.string.MurkaMessageMenuIconBar)).setChecked(MurkaConfig.messageMenuIconBar)); // MurkaGram
         items.add(UItem.asButton(ID_EMOJI, LocaleController.getString(R.string.MurkaEmoji), getEmojiModeName(MurkaConfig.emojiMode))); // MurkaGram
-        items.add(UItem.asShadow(null));
+        items.add(UItem.asCheck(ID_CONFIRM_VOICE, LocaleController.getString(R.string.MurkaConfirmVoiceSend)).setChecked(MurkaConfig.confirmVoiceSend)); // MurkaGram
+        items.add(UItem.asCheck(ID_UNLIMITED_PINS, LocaleController.getString(R.string.MurkaUnlimitedPins)).setChecked(MurkaConfig.unlimitedPins)); // MurkaGram
+        items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaUnlimitedPinsInfo))); // MurkaGram
         // MurkaGram: категория «Профиль»
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignProfile)));
         items.add(UItem.asCheck(ID_HIDE_PHONE, LocaleController.getString(R.string.MurkaHidePhone)).setChecked(MurkaConfig.hidePhone));
@@ -146,6 +150,22 @@ public class MurkaDesignActivity extends UniversalFragment {
             MurkaConfig.toggleMessageMenuIconBar();
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.messageMenuIconBar);
+            }
+        } else if (item.id == ID_CONFIRM_VOICE) { // MurkaGram
+            MurkaConfig.toggleConfirmVoiceSend();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.confirmVoiceSend);
+            }
+        } else if (item.id == ID_UNLIMITED_PINS) { // MurkaGram: пересортировать списки чатов всех аккаунтов
+            MurkaConfig.toggleUnlimitedPins();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.unlimitedPins);
+            }
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).sortDialogs(null);
+                    NotificationCenter.getInstance(a).postNotificationName(NotificationCenter.dialogsNeedReload);
+                }
             }
         } else if (item.id == ID_HIDE_PHONE) { // MurkaGram: «Скрыть номер телефона» — применяется сразу
             MurkaConfig.toggleHidePhone();

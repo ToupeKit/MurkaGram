@@ -3094,7 +3094,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             MessagesController.DialogFilter filter = MessagesController.getInstance(currentAccount).selectedDialogFilter[dialogsType == 8 ? 1 : 0];
                             drawPin = filter != null && filter.pinnedDialogs.indexOfKey(dialog.id) >= 0;
                         } else {
-                            drawPin = currentDialogFolderId == 0 && dialog.pinned;
+                            // MurkaGram: + локальные закрепы (только основной список)
+                            drawPin = currentDialogFolderId == 0 && (dialog.pinned || dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT && org.telegram.messenger.MurkaConfig.isLocalPinActive(currentAccount, dialog));
                         }
                         if (message != null) {
                             lastSendState = message.messageOwner.send_state;

@@ -132,6 +132,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessageSuggestionParams;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
@@ -2801,6 +2802,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                         if (!hasRecordVideo || calledRecordRunnable) {
                             startedDraggingX = -1;
                             if (hasRecordVideo && isInVideoMode()) {
+                                if (MurkaConfig.confirmVoiceSend) { // MurkaGram: пауза -> предпросмотр -> подтверждение
+                                    murkaPauseAndConfirm();
+                                    return true;
+                                }
                                 if (AlertsCreator.needsPaidMessageAlert(currentAccount, dialog_id)) {
                                     if (slideText != null) {
                                         slideText.setEnabled(false);
@@ -2814,6 +2819,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                                 delegate.needStartRecordVideo(1, true, 0, 0, voiceOnce ? 0x7FFFFFFF : 0, effectId, 0);
                                 sendButton.setEffect(effectId = 0);
                             } else {
+                                if (MurkaConfig.confirmVoiceSend) { // MurkaGram: пауза -> предпросмотр -> подтверждение
+                                    murkaPauseAndConfirm();
+                                    return true;
+                                }
                                 if (recordingAudioVideo && isInScheduleMode()) {
                                     AlertsCreator.createScheduleDatePickerDialog(parentActivity, parentFragment.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> MediaController.getInstance().stopRecording(1, notify, scheduleDate, false, 0), () -> MediaController.getInstance().stopRecording(0, false, 0, false, 0), resourcesProvider);
                                 }
@@ -2923,6 +2932,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                         } else if (!hasRecordVideo || calledRecordRunnable) {
                             startedDraggingX = -1;
                             if (hasRecordVideo && isInVideoMode()) {
+                                if (MurkaConfig.confirmVoiceSend) { // MurkaGram: пауза -> предпросмотр -> подтверждение
+                                    murkaPauseAndConfirm();
+                                    return true;
+                                }
                                 if (AlertsCreator.needsPaidMessageAlert(currentAccount, dialog_id)) {
                                     if (slideText != null) {
                                         slideText.setEnabled(false);
@@ -2939,6 +2952,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                             } else if (!sendVoiceEnabled) {
                                 delegate.needShowMediaBanHint();
                             } else {
+                                if (MurkaConfig.confirmVoiceSend) { // MurkaGram: пауза -> предпросмотр -> подтверждение
+                                    murkaPauseAndConfirm();
+                                    return true;
+                                }
                                 if (AlertsCreator.needsPaidMessageAlert(currentAccount, dialog_id)) {
                                     if (sendButtonVisible) {
                                         calledRecordRunnable = true;
@@ -3769,6 +3786,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     private void resetRecordedState() {
+        murkaSendWhenReady = false; // MurkaGram
+        murkaVoiceConfirmed = false; // MurkaGram
         if (audioTimelineView != null) {
             audioTimelineView.setPlaying(false);
         }
@@ -4438,6 +4457,10 @@ public class ChatActivityEnterView extends FrameLayout implements
 
 
     private boolean dismissSendPreviewSent;
+    // MurkaGram: «Подтверждение отправки голосовых и кружков»
+    private boolean murkaVoiceConfirmed;
+    private boolean murkaSendWhenReady;
+    private AlertDialog murkaConfirmDialog;
     private final Runnable dismissSendPreview = () -> {
         if (messageSendPreview != null) {
             messageSendPreview.dismiss(dismissSendPreviewSent);
@@ -5990,6 +6013,11 @@ public class ChatActivityEnterView extends FrameLayout implements
             MediaDataController.getInstance(currentAccount).setDraftVoiceRegion(dialog_id, parentFragment != null && parentFragment.isTopic ? parentFragment.getTopicId() : 0, audioTimelineView == null ? 0.0f : audioTimelineView.getAudioLeft(), audioTimelineView == null ? 1.0f : audioTimelineView.getAudioRight());
         }
         destroyed = true;
+        murkaSendWhenReady = false; // MurkaGram
+        if (murkaConfirmDialog != null) {
+            murkaConfirmDialog.dismiss();
+            murkaConfirmDialog = null;
+        }
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordStarted);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordPaused);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.recordResumed);
@@ -6710,6 +6738,17 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private boolean premiumEmojiBulletin = true;
     protected boolean sendMessageInternal(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, boolean allowConfirm) {
+        // MurkaGram: подтверждение отправки записанного голосового/кружка из предпросмотра
+        if (allowConfirm && MurkaConfig.confirmVoiceSend && !murkaVoiceConfirmed && (audioToSend != null || videoToSendMessageObject != null)) {
+            murkaShowVoiceConfirm(videoToSendMessageObject != null, () -> {
+                murkaVoiceConfirmed = true;
+                sendMessageInternal(notify, scheduleDate, scheduleRepeatPeriod, payStars, true);
+            });
+            return true;
+        }
+        if (allowConfirm) {
+            murkaVoiceConfirmed = false; // MurkaGram
+        }
         final Runnable send = () -> {
             if (slowModeTimer == Integer.MAX_VALUE && !isInScheduleMode()) {
                 if (delegate != null) {
@@ -6885,6 +6924,78 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     protected boolean showConfirmAlert(Runnable onConfirmed) {
         return false;
+    }
+
+    // MurkaGram: «Подтверждение отправки голосовых и кружков» — ставим запись на паузу (она уходит в предпросмотр)
+    // и спрашиваем; «Отмена» оставляет запись в предпросмотре.
+    private void murkaPauseAndConfirm() {
+        final boolean video = isInVideoMode();
+        // MurkaGram: диалог — до паузы: слишком короткий кружок отменяется синхронно внутри togglePause()
+        // (audioRecordTooShort), и обработчик сразу закроет уже показанный диалог.
+        murkaShowVoiceConfirm(video, () -> {
+            if (audioToSend == null && videoToSendMessageObject == null) {
+                murkaSendWhenReady = true; // предпросмотр ещё не готов (пауза асинхронная) — отправим в audioDidSent
+            } else {
+                murkaVoiceConfirmed = true;
+                sendMessage();
+            }
+        });
+        if (video) {
+            if (slideText != null) {
+                slideText.setEnabled(false);
+            }
+            if (!delegate.isVideoRecordingPaused()) {
+                delegate.toggleVideoRecordingPause();
+            }
+        } else {
+            if (sendButtonVisible) {
+                calledRecordRunnable = true;
+            }
+            if (!MediaController.getInstance().isRecordingPaused()) {
+                MediaController.getInstance().toggleRecordingPause(voiceOnce);
+            }
+            delegate.needStartRecordAudio(0);
+            if (slideText != null) {
+                slideText.setEnabled(false);
+            }
+        }
+    }
+
+    private void murkaShowVoiceConfirm(boolean video, Runnable onConfirmed) {
+        murkaSendWhenReady = false;
+        if (murkaConfirmDialog != null) {
+            murkaConfirmDialog.dismiss();
+            murkaConfirmDialog = null;
+        }
+        Context context = parentActivity != null ? parentActivity : getContext();
+        if (context == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
+        builder.setTitle(LocaleController.getString(video ? R.string.MurkaRoundConfirmTitle : R.string.MurkaVoiceConfirmTitle));
+        builder.setPositiveButton(LocaleController.getString(R.string.Send), (dialog, which) -> onConfirmed.run());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog dialog = builder.create();
+        // MurkaGram: BaseFragment.showDialog() ставит свой OnDismissListener — наш передаём через него
+        android.content.DialogInterface.OnDismissListener onDismiss = d -> {
+            if (murkaConfirmDialog == d) {
+                murkaConfirmDialog = null;
+            }
+        };
+        murkaConfirmDialog = dialog;
+        if (parentFragment != null && parentFragment.getParentActivity() != null) {
+            if (parentFragment.showDialog(dialog, onDismiss) == null) {
+                murkaConfirmDialog = null; // фрагмент в переходе — диалог не показан, запись остаётся в предпросмотре
+            }
+        } else {
+            dialog.setOnDismissListener(onDismiss);
+            try {
+                dialog.show();
+            } catch (Exception e) {
+                FileLog.e(e);
+                murkaConfirmDialog = null;
+            }
+        }
     }
 
     public static boolean checkPremiumAnimatedEmoji(int currentAccount, long dialogId, BaseFragment parentFragment, FrameLayout container, CharSequence message) {
@@ -11884,6 +11995,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (guid != recordingGuid) {
                 return;
             }
+            murkaSendWhenReady = false; // MurkaGram: новая запись — старое «отправить, когда готово» не действует
             boolean audio = (Boolean) args[1];
             isInVideoMode = !audio;
             if (audioVideoSendButton != null) {
@@ -11906,6 +12018,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             audioToSend = null;
             videoToSendMessageObject = null;
         } else if (id == NotificationCenter.recordResumed) {
+            murkaSendWhenReady = false; // MurkaGram
             audioToSend = null;
             videoToSendMessageObject = null;
             if (recordTimerView != null) {
@@ -11919,6 +12032,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (guid != recordingGuid) {
                 return;
             }
+            murkaVoiceConfirmed = false; // MurkaGram: новая запись — нужно новое подтверждение
             millisecondsRecorded = 0;
             Object audio = args[1];
             if (audio instanceof VideoEditedInfo) {
@@ -12017,6 +12131,18 @@ public class ChatActivityEnterView extends FrameLayout implements
                     }
                 }
             }
+            // MurkaGram: подтверждение нажато раньше, чем запись ушла в предпросмотр — отправляем сейчас
+            if (murkaSendWhenReady) {
+                murkaSendWhenReady = false;
+                if (audioToSend != null || videoToSendMessageObject != null) {
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!destroyed && (audioToSend != null || videoToSendMessageObject != null)) {
+                            murkaVoiceConfirmed = true;
+                            sendMessage();
+                        }
+                    });
+                }
+            }
         } else if (id == NotificationCenter.audioRouteChanged) {
             if (parentActivity != null) {
                 boolean frontSpeaker = (Boolean) args[0];
@@ -12055,6 +12181,11 @@ public class ChatActivityEnterView extends FrameLayout implements
                 updateSlowModeText();
             }
         } else if (id == NotificationCenter.audioRecordTooShort) {
+            murkaSendWhenReady = false; // MurkaGram: слишком короткая запись — подтверждать нечего
+            if (murkaConfirmDialog != null) {
+                murkaConfirmDialog.dismiss();
+                murkaConfirmDialog = null;
+            }
             audioToSend = null;
             videoToSendMessageObject = null;
             updateRecordInterface(RECORD_STATE_CANCEL_BY_TIME, true);

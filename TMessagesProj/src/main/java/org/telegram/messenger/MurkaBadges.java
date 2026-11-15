@@ -53,13 +53,14 @@ public class MurkaBadges {
     private static final int MAX_BADGES = 5;
 
     // реестр известных бейджиков; неизвестные id из конфига игнорируются
-    public static final String[] IDS = {"cat_badge", "cat_crown", "cat_designer"}; // новые id — только в конец (стабильные id пунктов в MurkaBadgesActivity)
+    public static final String[] IDS = {"cat_badge", "cat_crown", "cat_designer", "cat_bow"}; // новые id — только в конец (стабильные id пунктов в MurkaBadgesActivity)
 
     public static int getIcon(String id) {
         switch (id) {
             case "cat_badge": return R.drawable.msg_murka_badge_cat;
             case "cat_crown": return R.drawable.msg_murka_badge_crown;
             case "cat_designer": return R.drawable.msg_murka_badge_designer;
+            case "cat_bow": return R.drawable.msg_murka_badge_bow;
             default: return 0;
         }
     }
@@ -69,6 +70,7 @@ public class MurkaBadges {
             case "cat_badge": return R.string.MurkaBadgeCat;
             case "cat_crown": return R.string.MurkaBadgeCrown;
             case "cat_designer": return R.string.MurkaBadgeDesigner;
+            case "cat_bow": return R.string.MurkaBadgeBow;
             default: return 0;
         }
     }
@@ -78,6 +80,7 @@ public class MurkaBadges {
             case "cat_badge": return R.string.MurkaBadgeCatDesc;
             case "cat_crown": return R.string.MurkaBadgeCrownDesc;
             case "cat_designer": return R.string.MurkaBadgeDesignerDesc;
+            case "cat_bow": return R.string.MurkaBadgeBowDesc;
             default: return 0;
         }
     }

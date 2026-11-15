@@ -1370,10 +1370,59 @@ public class MessagesController extends BaseController implements NotificationCe
         if (dialogs == null) {
             return;
         }
-        Collections.sort(dialogs, dialogComparator);
+        Collections.sort(dialogs, murkaDialogComparator(murkaBuildLocalPinIndex())); // MurkaGram
     }
 
-    private Comparator<TLRPC.Dialog> dialogComparator = (dialog1, dialog2) -> {
+    // MurkaGram: «Безлимитное закрепление чатов» — снимок локальных закрепов (id -> позиция) для компаратора.
+    // Снимок берётся один раз на сортировку и захватывается компаратором (не общим полем), поэтому порядок
+    // постоянен на всё время Collections.sort, даже если параллельно идёт другая сортировка.
+    // Пустой снимок (переключатель выключен / нет закрепов) — стоковый dialogComparator.
+    private final java.util.HashSet<Long> murkaRequestedLocalPins = new java.util.HashSet<>();
+
+    private LongSparseIntArray murkaBuildLocalPinIndex() {
+        LongSparseIntArray index = new LongSparseIntArray();
+        if (MurkaConfig.unlimitedPins) {
+            java.util.List<Long> pins = MurkaConfig.getLocalPins(currentAccount);
+            for (int i = 0; i < pins.size(); i++) {
+                index.put(pins.get(i), i);
+            }
+        }
+        return index;
+    }
+
+    private Comparator<TLRPC.Dialog> murkaDialogComparator(LongSparseIntArray index) {
+        return index == null || index.size() == 0 ? dialogComparator : murkaCreateDialogComparator(index);
+    }
+
+    private static int murkaLocalPinRank(LongSparseIntArray index, TLRPC.Dialog dialog) {
+        if (index == null || index.size() == 0 || dialog == null || dialog.pinned || dialog.folder_id != 0 || dialog instanceof TLRPC.TL_dialogFolder) {
+            return -1;
+        }
+        return index.get(dialog.id, -1);
+    }
+
+    // MurkaGram: старые локально закреплённые чаты могут быть не загружены — подгружаем их (раз за сессию).
+    private void murkaLoadMissingLocalPins() {
+        if (!MurkaConfig.unlimitedPins || !dialogsLoaded || loadingDialogs.get(0)) {
+            return;
+        }
+        java.util.List<Long> pins = MurkaConfig.getLocalPins(currentAccount);
+        for (int i = 0; i < pins.size(); i++) {
+            long did = pins.get(i);
+            if (dialogs_dict.get(did) != null || DialogObject.isEncryptedDialog(did) || murkaRequestedLocalPins.contains(did)) {
+                continue;
+            }
+            if (did > 0 ? getUser(did) == null : getChat(-did) == null) {
+                continue; // нет данных для InputPeer — попробуем при следующей сортировке
+            }
+            murkaRequestedLocalPins.add(did);
+            loadUnknownDialog(getInputPeer(did), 0);
+        }
+    }
+
+    private Comparator<TLRPC.Dialog> dialogComparator = murkaCreateDialogComparator(null); // MurkaGram: стоковый (без локальных закрепов)
+
+    private Comparator<TLRPC.Dialog> murkaCreateDialogComparator(LongSparseIntArray murkaPinIndex) { return (dialog1, dialog2) -> {
         if (dialog1 instanceof TLRPC.TL_dialogFolder && !(dialog2 instanceof TLRPC.TL_dialogFolder)) {
             return -1;
         } else if (!(dialog1 instanceof TLRPC.TL_dialogFolder) && dialog2 instanceof TLRPC.TL_dialogFolder) {
@@ -1391,6 +1440,17 @@ public class MessagesController extends BaseController implements NotificationCe
                 return 0;
             }
         }
+        // MurkaGram: локальные закрепы — сразу после серверных, в порядке списка
+        int localRank1 = murkaLocalPinRank(murkaPinIndex, dialog1);
+        int localRank2 = murkaLocalPinRank(murkaPinIndex, dialog2);
+        if (localRank1 >= 0 || localRank2 >= 0) {
+            if (localRank2 < 0) {
+                return -1;
+            } else if (localRank1 < 0) {
+                return 1;
+            }
+            return Integer.compare(localRank1, localRank2);
+        }
         MediaDataController mediaDataController = getMediaDataController();
         long date1 = DialogObject.getLastMessageOrDraftDate(dialog1, mediaDataController.getDraft(dialog1.id, 0));
         long date2 = DialogObject.getLastMessageOrDraftDate(dialog2, mediaDataController.getDraft(dialog2.id, 0));
@@ -1400,7 +1460,7 @@ public class MessagesController extends BaseController implements NotificationCe
             return -1;
         }
         return 0;
-    };
+    }; }
 
     private Comparator<TLRPC.Update> updatesComparator = (lhs, rhs) -> {
         int ltype = getUpdateType(lhs);
@@ -20976,7 +21036,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         }
         try {
-            Collections.sort(allDialogs, dialogComparator);
+            Collections.sort(allDialogs, murkaDialogComparator(murkaBuildLocalPinIndex())); // MurkaGram
         } catch (Exception e) {}
     }
 
@@ -21057,8 +21117,9 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         }
 
+        final LongSparseIntArray murkaPinIndex = murkaBuildLocalPinIndex(); // MurkaGram
         try {
-            Collections.sort(allDialogs, dialogComparator);
+            Collections.sort(allDialogs, murkaDialogComparator(murkaPinIndex)); // MurkaGram
         } catch (Exception e) {}
         isLeftPromoChannel = true;
         if (promoDialog != null && promoDialog.id < 0) {
@@ -21080,7 +21141,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     if (maxDate > Integer.MIN_VALUE) {
-                        if (maxDate < dialogsLoadedTillDate) {
+                        if (maxDate < dialogsLoadedTillDate && murkaLocalPinRank(murkaPinIndex, d) < 0) { // MurkaGram: локальные закрепы не скрываем
                             continue;
                         }
                     }
@@ -21174,6 +21235,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         }
         hasArchivedChats = dialogsByFolder.get(1, null) != null;
+        murkaLoadMissingLocalPins(); // MurkaGram
     }
 
     private void addDialogToItsFolder(int index, TLRPC.Dialog dialog) {

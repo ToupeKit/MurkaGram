@@ -2490,6 +2490,25 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (dialog == null || !isDialogPinned(dialog) || DialogObject.isFolderDialogId(dialogId)) {
                 return false;
             }
+            // MurkaGram: локальные закрепы двигаются только среди локальных, серверные — среди серверных
+            boolean murkaLocalMove = false;
+            if (source.itemView instanceof DialogCell) {
+                TLRPC.Dialog sourceDialog = getMessagesController().dialogs_dict.get(((DialogCell) source.itemView).getDialogId());
+                if (sourceDialog != null && murkaIsLocalPinned(sourceDialog) != murkaIsLocalPinned(dialog)) {
+                    return false;
+                }
+                murkaLocalMove = sourceDialog != null && murkaIsLocalPinned(sourceDialog);
+                if (murkaLocalMove) {
+                    ArrayList<Long> localPins = new ArrayList<>(MurkaConfig.getLocalPins(currentAccount));
+                    int i1 = localPins.indexOf(sourceDialog.id);
+                    int i2 = localPins.indexOf(dialog.id);
+                    if (i1 < 0 || i2 < 0) {
+                        return false;
+                    }
+                    Collections.swap(localPins, i1, i2);
+                    MurkaConfig.setLocalPins(currentAccount, localPins);
+                }
+            }
             int fromIndex = source.getAdapterPosition();
             int toIndex = target.getAdapterPosition();
             if (parentPage.listView.getItemAnimator() == null) {
@@ -2502,7 +2521,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 if (!movingDialogFilters.contains(filter)) {
                     movingDialogFilters.add(filter);
                 }
-            } else {
+            } else if (!murkaLocalMove) { // MurkaGram: порядок локальных закрепов уже сохранён
                 movingWas = true;
             }
             return true;
@@ -8816,6 +8835,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     continue;
                 }
                 if (isDialogPinned(dialog1)) {
+                    if (murkaIsLocalPinned(dialog1)) {
+                        continue; // MurkaGram: в лимит идут только серверные закрепы
+                    }
                     if (DialogObject.isEncryptedDialog(dialog1.id)) {
                         pinnedSecretCount++;
                     } else {
@@ -8853,6 +8875,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             hasPinAction[0] = !(newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount);
+            if (!hasPinAction[0] && filter == null && murkaLocalPinsAllowed()) {
+                hasPinAction[0] = true; // MurkaGram: сверх лимита — закрепим локально
+            }
         }
 
         if (hasPinAction[0]) {
@@ -9262,7 +9287,31 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filter != null) {
             return filter.pinnedDialogs.indexOfKey(dialog.id) >= 0;
         }
-        return dialog.pinned;
+        return dialog.pinned || murkaIsLocalPinned(dialog); // MurkaGram: + локальные закрепы
+    }
+
+    // MurkaGram: «Безлимитное закрепление чатов» — только основной список (не архив, не папки).
+    private boolean murkaLocalPinsAllowed() {
+        return MurkaConfig.unlimitedPins && folderId == 0 && viewPages != null && viewPages[0].dialogsType == DIALOGS_TYPE_DEFAULT;
+    }
+
+    private boolean murkaIsLocalPinned(TLRPC.Dialog dialog) {
+        return murkaLocalPinsAllowed() && MurkaConfig.isLocalPinActive(currentAccount, dialog);
+    }
+
+    // MurkaGram: заняты ли все серверные слоты закрепа основного списка (секретные чаты считаются отдельно, как в стоке).
+    private boolean murkaServerPinsFull(long dialogId) {
+        boolean secret = DialogObject.isEncryptedDialog(dialogId);
+        int count = 0;
+        androidx.collection.LongSparseArray<TLRPC.Dialog> dialogs = getMessagesController().dialogs_dict;
+        for (int a = 0, N = dialogs.size(); a < N; a++) {
+            TLRPC.Dialog d = dialogs.valueAt(a);
+            if (d != null && d.pinned && d.folder_id == 0 && !(d instanceof TLRPC.TL_dialogFolder) && DialogObject.isEncryptedDialog(d.id) == secret) {
+                count++;
+            }
+        }
+        int max = getUserConfig().isPremium() ? getMessagesController().maxPinnedDialogsCountPremium : getMessagesController().maxPinnedDialogsCountDefault;
+        return count >= max;
     }
 
     private void performSelectedDialogsAction(ArrayList<Long> selectedDialogs, int action, boolean alert, boolean longPress) {
@@ -9323,6 +9372,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     continue;
                 }
                 if (isDialogPinned(dialog)) {
+                    if (murkaIsLocalPinned(dialog)) {
+                        continue; // MurkaGram: в лимит идут только серверные закрепы
+                    }
                     if (DialogObject.isEncryptedDialog(dialog.id)) {
                         pinnedSecretCount++;
                     } else {
@@ -9360,7 +9412,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             } else {
                 maxPinnedCount = getUserConfig().isPremium() ? getMessagesController().dialogFiltersPinnedLimitPremium : getMessagesController().dialogFiltersPinnedLimitDefault;
             }
-            if (newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount) {
+            if ((newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount) && !(filter == null && murkaLocalPinsAllowed())) { // MurkaGram: сверх лимита — локально (pinDialog)
                 if (folderId != 0 || filter != null) {
                     AlertsCreator.showSimpleAlert(DialogsActivity.this, LocaleController.formatString("PinFolderLimitReached", R.string.PinFolderLimitReached, LocaleController.formatPluralString("Chats", maxPinnedCount)));
                 } else {
@@ -9773,6 +9825,25 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 getMessagesController().onFilterUpdate(filter);
             }
             updated = true;
+        } else if (murkaLocalPinsAllowed()) {
+            // MurkaGram: «Безлимитное закрепление чатов» — сверх серверного лимита закрепляем локально
+            TLRPC.Dialog dialog = getMessagesController().dialogs_dict.get(selectedDialog);
+            if (pin && dialog != null && !dialog.pinned && murkaServerPinsFull(selectedDialog)) {
+                MurkaConfig.addLocalPin(currentAccount, selectedDialog);
+                getMessagesController().sortDialogs(null);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                updated = true;
+            } else if (!pin && MurkaConfig.isLocalPinActive(currentAccount, dialog)) {
+                MurkaConfig.removeLocalPin(currentAccount, selectedDialog);
+                getMessagesController().sortDialogs(null);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                updated = true;
+            } else {
+                if (MurkaConfig.isLocalPinned(currentAccount, selectedDialog)) {
+                    MurkaConfig.removeLocalPin(currentAccount, selectedDialog); // закреп ушёл на сервер или снят
+                }
+                updated = getMessagesController().pinDialog(selectedDialog, pin, null, -1);
+            }
         } else {
             updated = getMessagesController().pinDialog(selectedDialog, pin, null, -1);
         }

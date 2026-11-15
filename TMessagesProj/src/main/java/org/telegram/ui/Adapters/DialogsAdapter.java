@@ -311,7 +311,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     MessagesController.DialogFilter filter = MessagesController.getInstance(currentAccount).selectedDialogFilter[dialogsType == 8 ? 1 : 0];
                     pinned = filter != null && filter.pinnedDialogs.indexOfKey(dialog.id) >= 0;
                 } else {
-                    pinned = dialog.pinned;
+                    pinned = dialog.pinned || dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT && org.telegram.messenger.MurkaConfig.isLocalPinActive(currentAccount, dialog); // MurkaGram: + локальные закрепы
                 }
                 isFolder = dialog.isFolder;
                 isForumCell = MessagesController.getInstance(currentAccount).isForum(dialog.id);
@@ -900,7 +900,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                 } else {
                     DialogCell cell = (DialogCell) holder.itemView;
                     cell.useSeparator = nextDialog != null && !MurkaMD3.enabled(); // MurkaGram: MD3 — без разделителей между чатами (и под архивом)
-                    cell.fullSeparator = dialog.pinned && nextDialog != null && !nextDialog.pinned;
+                    cell.fullSeparator = murkaPinnedAny(dialog) && nextDialog != null && !murkaPinnedAny(nextDialog); // MurkaGram: + локальные закрепы
                     if (dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT) {
                         if (AndroidUtilities.isTablet()) {
                             cell.setDialogSelected(dialog.id == openedDialogId);
@@ -1103,6 +1103,11 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
     @Override
     public int getItemViewType(int i) {
         return itemInternals.get(i).viewType;
+    }
+
+    // MurkaGram: закреплён на сервере или локально («Безлимитное закрепление чатов»)
+    private boolean murkaPinnedAny(TLRPC.Dialog dialog) {
+        return dialog.pinned || dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT && org.telegram.messenger.MurkaConfig.isLocalPinActive(currentAccount, dialog);
     }
 
     public void moveDialogs(RecyclerListView recyclerView, int fromPosition, int toPosition) {
