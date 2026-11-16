@@ -38,6 +38,17 @@
     <string name="MurkaRestart">Restart</string>
     <string name="MurkaMD3Design">MD3 design</string>
     <string name="MurkaMD3Restart">Restart the app to apply the MD3 design.</string>
+    <string name="MurkaMD3Category">Material Design 3</string>
+    <string name="MurkaMD3Dividers">Divider style</string>
+    <string name="MurkaMD3DividersHide">Hide</string>
+    <string name="MurkaMD3DividersLines">Lines</string>
+    <string name="MurkaMD3DividersSegments">Segments</string>
+    <string name="MurkaMD3Containers">MD3 containers</string>
+    <string name="MurkaMD3SeparateHeaders">Separate headers</string>
+    <string name="MurkaMD3Switches">MD3 switches</string>
+    <string name="MurkaFabShapeCircle">Round button</string>
+    <string name="MurkaFabShapeSquare">Square button</string>
+    <string name="MurkaEditedIcon">Replace «edited» with an icon</string>
     <string name="MurkaAccountId">Account ID</string>
     <string name="MurkaIdCopied">ID copied to clipboard.</string>
     <string name="MurkaRegDate">Registration date</string>

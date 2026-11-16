@@ -40,6 +40,18 @@ public class MurkaConfig {
     public static boolean noBubbleTail; // MurkaGram: «Убрать хвост сообщений»
     public static boolean messageMenuIconBar; // MurkaGram: «Быстрые действия иконками»
     public static boolean md3Design; // MurkaGram: «MD3 дизайн» (скруглённые карточки, меню, кнопки)
+    // MurkaGram: категория «Material Design 3»
+    public static final int FAB_CIRCLE = 0;
+    public static final int FAB_SQUARE = 1;
+    public static final int DIVIDERS_HIDE = 0;
+    public static final int DIVIDERS_LINES = 1;
+    public static final int DIVIDERS_SEGMENTS = 2;
+    public static int md3FabShape;
+    public static int md3DividerMode;
+    public static boolean md3Containers;
+    public static boolean md3SeparateHeaders;
+    public static boolean md3Switches;
+    public static boolean editedIcon; // MurkaGram: «Заменять «изменено» иконкой»
     public static int fontMode;
     public static String customFontPath;
     public static boolean hidePhone; // MurkaGram: «Скрыть номер телефона»
@@ -102,6 +114,12 @@ public class MurkaConfig {
             noBubbleTail = preferences.getBoolean("noBubbleTail", false);
             messageMenuIconBar = preferences.getBoolean("messageMenuIconBar", false); // MurkaGram
             md3Design = preferences.getBoolean("md3Design", false); // MurkaGram
+            md3FabShape = preferences.getInt("md3FabShape", FAB_CIRCLE); // MurkaGram
+            md3DividerMode = preferences.getInt("md3DividerMode", DIVIDERS_SEGMENTS); // MurkaGram
+            md3Containers = preferences.getBoolean("md3Containers", true); // MurkaGram
+            md3SeparateHeaders = preferences.getBoolean("md3SeparateHeaders", true); // MurkaGram
+            md3Switches = preferences.getBoolean("md3Switches", true); // MurkaGram
+            editedIcon = preferences.getBoolean("editedIcon", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
             hidePhone = preferences.getBoolean("hidePhone", false); // MurkaGram
@@ -405,6 +423,39 @@ public class MurkaConfig {
     public static void toggleMd3Design() {
         md3Design = !md3Design;
         getPreferences().edit().putBoolean("md3Design", md3Design).commit();
+    }
+
+    // MurkaGram: категория «Material Design 3»
+    public static void setMd3FabShape(int shape) {
+        md3FabShape = shape;
+        getPreferences().edit().putInt("md3FabShape", md3FabShape).apply();
+    }
+
+    public static void setMd3DividerMode(int mode) {
+        md3DividerMode = mode;
+        getPreferences().edit().putInt("md3DividerMode", md3DividerMode).apply();
+    }
+
+    public static void toggleMd3Containers() {
+        md3Containers = !md3Containers;
+        getPreferences().edit().putBoolean("md3Containers", md3Containers).commit(); // MurkaGram: commit(), т.к. следом может быть перезапуск
+    }
+
+    public static void toggleMd3SeparateHeaders() {
+        md3SeparateHeaders = !md3SeparateHeaders;
+        getPreferences().edit().putBoolean("md3SeparateHeaders", md3SeparateHeaders).apply();
+    }
+
+    // commit(), т.к. сразу после переключения приложение может быть перезапущено.
+    public static void toggleMd3Switches() {
+        md3Switches = !md3Switches;
+        getPreferences().edit().putBoolean("md3Switches", md3Switches).commit();
+    }
+
+    // MurkaGram: «Заменять «изменено» иконкой»
+    public static void toggleEditedIcon() {
+        editedIcon = !editedIcon;
+        getPreferences().edit().putBoolean("editedIcon", editedIcon).apply();
     }
 
     public static void setFontMode(int mode, String path) {

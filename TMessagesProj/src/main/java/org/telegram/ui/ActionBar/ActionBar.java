@@ -48,6 +48,7 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -462,6 +463,17 @@ public class ActionBar extends FrameLayout {
 
     public boolean isMurkaCenterTitle() {
         return murkaCenterTitle;
+    }
+
+    // MurkaGram: центрирование по настройке «Центрировать название» для обычных экранов (без подзаголовка)
+    private boolean murkaCenterTitleAuto;
+
+    public void setMurkaCenterTitleAuto(boolean value) {
+        if (murkaCenterTitleAuto == value) {
+            return;
+        }
+        murkaCenterTitleAuto = value;
+        requestLayout();
     }
 
     public void setTitle(CharSequence value) {
@@ -1382,7 +1394,10 @@ public class ActionBar extends FrameLayout {
                 }
                 // MurkaGram: центрирование заголовка (раздел «Дизайн»)
                 int titleLeft = textLeft;
-                if (murkaCenterTitle && !isSearchFieldVisible && !LocaleController.isRTL) {
+                final boolean murkaCenter = murkaCenterTitle || murkaCenterTitleAuto && MurkaConfig.centerTitle && !isCenterTitle
+                        && (subtitleTextView == null || subtitleTextView.getVisibility() == GONE)
+                        && (additionalSubtitleTextView == null || additionalSubtitleTextView.getVisibility() == GONE);
+                if (murkaCenter && !isSearchFieldVisible && !LocaleController.isRTL) {
                     final SimpleTextView t = titleTextView[i];
                     int w = t.getTextWidth();
                     final Drawable rd = t.getRightDrawable();

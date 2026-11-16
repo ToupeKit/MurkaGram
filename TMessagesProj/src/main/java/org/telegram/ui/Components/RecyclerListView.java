@@ -2574,7 +2574,7 @@ public class RecyclerListView extends RecyclerView {
             }
             boolean clip = false;
             try {
-                clip = murkaMD3.buildPath(this, child, murkaClip, 1);
+                clip = murkaMD3.buildPathForChild(this, child, murkaClip); // MurkaGram: учитывает режим «Линии»
             } catch (Throwable e) {
                 FileLog.e(e);
             }

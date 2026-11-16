@@ -380,7 +380,7 @@ public class Switch extends View {
         int ty = getMeasuredHeight() / 2;
         // MurkaGram: MD3 — трек-«пилюля» 52x32dp (ячейки расширяют Switch через MurkaMD3.switchWidth()),
         // круг 8dp в выключенном состоянии и 12dp во включённом; в узких контейнерах трек сжимается
-        final boolean md3 = MurkaMD3.enabled();
+        final boolean md3 = MurkaMD3.switchStyle(); // MurkaGram: «Переключатели в стиле MD3»
         final float md3TrackW = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_W), getMeasuredWidth());
         final float md3TrackH = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_H), Math.min(getMeasuredHeight(), md3TrackW * 0.6f));
         final float md3Left = (getMeasuredWidth() - md3TrackW) / 2f;

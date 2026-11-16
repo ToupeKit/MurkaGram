@@ -38,6 +38,17 @@
     <string name="MurkaRestart">Перезапустить</string>
     <string name="MurkaMD3Design">MD3 дизайн</string>
     <string name="MurkaMD3Restart">Перезапустите приложение, чтобы применить MD3 дизайн.</string>
+    <string name="MurkaMD3Category">Material Design 3</string>
+    <string name="MurkaMD3Dividers">Тип разделителей</string>
+    <string name="MurkaMD3DividersHide">Скрыть</string>
+    <string name="MurkaMD3DividersLines">Линии</string>
+    <string name="MurkaMD3DividersSegments">Сегменты</string>
+    <string name="MurkaMD3Containers">Контейнеры в стиле MD3</string>
+    <string name="MurkaMD3SeparateHeaders">Отделить заголовки</string>
+    <string name="MurkaMD3Switches">Переключатели в стиле MD3</string>
+    <string name="MurkaFabShapeCircle">Круглая кнопка</string>
+    <string name="MurkaFabShapeSquare">Квадратная кнопка</string>
+    <string name="MurkaEditedIcon">Заменять «изменено» иконкой</string>
     <string name="MurkaAccountId">ID аккаунта</string>
     <string name="MurkaIdCopied">ID скопирован в буфер обмена.</string>
     <string name="MurkaRegDate">Дата регистрации</string>

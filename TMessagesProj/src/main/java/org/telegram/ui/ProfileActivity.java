@@ -4194,7 +4194,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             public boolean supportsPredictiveItemAnimations() {
-                return imageUpdater != null;
+                // MurkaGram: пока AboutLinkCell меняет высоту (mIgnoreTopPadding), якорем служит строка 0 над paddingTop;
+                // с predictive-анимациями LinearLayoutManager «прижимает» такой якорь к paddingTop — шапка раздувается до размера аватарки
+                return imageUpdater != null && !mIgnoreTopPadding;
             }
 
             @Override
@@ -4241,9 +4243,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (viewType == ListAdapter.VIEW_TYPE_SHARED_MEDIA || viewType == ListAdapter.VIEW_TYPE_BOTTOM_PADDING || viewType == ListAdapter.VIEW_TYPE_MUSIC) {
                     return MurkaMD3.KIND_SKIP;
                 }
+                if (viewType == ListAdapter.VIEW_TYPE_HEADER) { // MurkaGram: заголовок отдельно или внутри карточки
+                    return MurkaMD3.separateHeaders() ? MurkaMD3.KIND_SEPARATOR : MurkaMD3.KIND_CARD;
+                }
                 // MurkaGram: явный список, чтобы углы были верными и для ещё не показанных соседей
                 if (viewType == ListAdapter.VIEW_TYPE_EMPTY || viewType == ListAdapter.VIEW_TYPE_HEADER_EMPTY
-                        || viewType == ListAdapter.VIEW_TYPE_HEADER || viewType == ListAdapter.VIEW_TYPE_SHADOW
+                        || viewType == ListAdapter.VIEW_TYPE_SHADOW
                         || viewType == ListAdapter.VIEW_TYPE_SHADOW_TEXT || viewType == ListAdapter.VIEW_TYPE_DIVIDER
                         || viewType == ListAdapter.VIEW_TYPE_ADDTOGROUP_INFO || viewType == ListAdapter.VIEW_TYPE_VERSION) {
                     return MurkaMD3.KIND_SEPARATOR;
@@ -4257,6 +4262,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return;
             }
             listView.stopScroll();
+            // MurkaGram: тап по «ещё» в описании только раскрывает текст
+            if (view instanceof AboutLinkCell && ((AboutLinkCell) view).murkaIsShowMoreAt(x, y)) {
+                ((AboutLinkCell) view).onClick();
+                return;
+            }
             if (position == murkaIdRow) { // MurkaGram: копирование ID аккаунта
                 murkaCopyId();
                 return;

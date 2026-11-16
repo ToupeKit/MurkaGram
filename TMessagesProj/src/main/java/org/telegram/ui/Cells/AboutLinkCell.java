@@ -772,6 +772,13 @@ public class AboutLinkCell extends FrameLayout {
 //        return textLayout != null && textLayout.getLineCount() > 4/* && valueTextView.getVisibility() != View.VISIBLE*/;
 //    }
 
+    // MurkaGram: тап по «ещё» (координаты относительно ячейки)
+    public boolean murkaIsShowMoreAt(float x, float y) {
+        return shouldExpand && expandT < 1f && showMoreTextView.getVisibility() == VISIBLE
+            && x >= showMoreTextBackgroundView.getLeft() && x <= showMoreTextBackgroundView.getRight()
+            && y >= showMoreTextBackgroundView.getTop() && y <= showMoreTextBackgroundView.getBottom();
+    }
+
     public boolean onClick() {
         if (shouldExpand && expandT <= 0) {
             updateCollapse(true, true);

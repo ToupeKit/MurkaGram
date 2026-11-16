@@ -313,6 +313,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils implements MurkaMD3.S
     public boolean shouldApplyBackground(int viewType) {
         if (!applyBackground) return false;
         if (murkaMD3Header(viewType)) return false; // MurkaGram: MD3 — заголовки на сером фоне, вне карточек
+        if (viewType == VIEW_TYPE_LARGE_HEADER && murkaMD3Active()) return true; // MurkaGram: MD3 — заголовок внутри карточки
         if (viewType >= UItem.factoryViewTypeStartsWith) {
             return true;
         }
@@ -363,7 +364,11 @@ public class UniversalAdapter extends AdapterWithDiffUtils implements MurkaMD3.S
     // MurkaGram: MD3 — заголовки секций лежат вне карточек (только в списках с подключёнными карточками).
     private boolean murkaMD3Header(int viewType) {
         return (viewType == VIEW_TYPE_HEADER || viewType == VIEW_TYPE_ANIMATED_HEADER || viewType == VIEW_TYPE_BLACK_HEADER || viewType == VIEW_TYPE_LARGE_HEADER)
-            && listView != null && listView.murkaMD3 != null && MurkaMD3.enabled();
+            && murkaMD3Active() && MurkaMD3.separateHeaders(); // MurkaGram: «Отделить заголовки»
+    }
+
+    private boolean murkaMD3Active() {
+        return listView != null && listView.murkaMD3 != null && MurkaMD3.enabled();
     }
 
     // MurkaGram: MD3 — тип строки для карточек: белые строки — карточки, заголовки и тени — промежутки.

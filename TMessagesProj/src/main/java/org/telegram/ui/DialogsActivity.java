@@ -4592,7 +4592,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 @SuppressLint("NewApi")
                 @Override
                 public void getOutline(View view, Outline outline) {
-                    outline.setOval(0, 0, dp(36), dp(36));
+                    if (murkaSquareFab()) { // MurkaGram: MD3 — форма кнопки
+                        outline.setRoundRect(0, 0, dp(36), dp(36), dp(11));
+                    } else {
+                        outline.setOval(0, 0, dp(36), dp(36));
+                    }
                 }
             });
 
@@ -4675,7 +4679,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             @SuppressLint("NewApi")
             @Override
             public void getOutline(View view, Outline outline) {
-                outline.setOval(0, 0, dp(56), dp(56));
+                if (murkaSquareFab()) { // MurkaGram: MD3 — форма кнопки
+                    outline.setRoundRect(0, 0, dp(56), dp(56), dp(16));
+                } else {
+                    outline.setOval(0, 0, dp(56), dp(56));
+                }
             }
         });
         Drawable drawable = Theme.createSimpleSelectorCircleDrawable(dp(56), Theme.getColor(Theme.key_chats_actionBackground), Theme.getColor(Theme.key_chats_actionPressedBackground));
@@ -7051,6 +7059,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         super.onResume();
         if (murkaCenterTitleAllowed && actionBar != null) { // MurkaGram: применить «Центрировать название» при возврате из настроек
             actionBar.setMurkaCenterTitle(MurkaConfig.centerTitle);
+        }
+        if (murkaFabSquareApplied != murkaSquareFab()) { // MurkaGram: MD3 — форма кнопки могла измениться в настройках
+            updateFloatingButtonColor();
         }
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
@@ -12691,19 +12702,41 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         Drawable drawable;
+        final boolean murkaSquare = murkaSquareFab(); // MurkaGram: MD3 — форма кнопки
+        murkaFabSquareApplied = murkaSquare;
         if (floatingButtonContainer != null) {
-            drawable = Theme.createSimpleSelectorCircleDrawable(dp(56), Theme.getColor(Theme.key_chats_actionBackground), Theme.getColor(Theme.key_chats_actionPressedBackground));
+            if (murkaSquare) {
+                drawable = Theme.createSimpleSelectorRoundRectDrawable(dp(16), Theme.getColor(Theme.key_chats_actionBackground), Theme.getColor(Theme.key_chats_actionPressedBackground));
+            } else {
+                drawable = Theme.createSimpleSelectorCircleDrawable(dp(56), Theme.getColor(Theme.key_chats_actionBackground), Theme.getColor(Theme.key_chats_actionPressedBackground));
+            }
             floatingButtonContainer.setBackground(drawable);
+            floatingButtonContainer.invalidateOutline(); // MurkaGram
         }
 
         if (floatingButton2Container != null) {
+            if (murkaSquare) { // MurkaGram: MD3 — форма кнопки
+                drawable = Theme.createSimpleSelectorRoundRectDrawable(
+                        dp(11),
+                        ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhite), Color.WHITE, 0.1f),
+                        Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector))
+                );
+            } else {
             drawable = Theme.createSimpleSelectorCircleDrawable(
                     dp(36),
                     ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhite), Color.WHITE, 0.1f),
                     Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector))
             );
+            }
             floatingButton2Container.setBackground(drawable);
+            floatingButton2Container.invalidateOutline(); // MurkaGram
         }
+    }
+
+    private boolean murkaFabSquareApplied; // MurkaGram
+    // MurkaGram: MD3 — «квадратная» кнопка (скруглённый квадрат) вместо круга
+    private static boolean murkaSquareFab() {
+        return org.telegram.ui.Components.MurkaMD3.enabled() && MurkaConfig.md3FabShape == MurkaConfig.FAB_SQUARE;
     }
 
     float slideFragmentProgress = 1f;

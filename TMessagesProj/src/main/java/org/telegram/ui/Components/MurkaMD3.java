@@ -14,6 +14,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 import android.view.View;
 
@@ -38,6 +39,34 @@ public class MurkaMD3 {
         return MurkaConfig.md3Design;
     }
 
+    // MurkaGram: категория «Material Design 3»
+    /** MD3-переключатели (крупный трек). */
+    public static boolean switchStyle() {
+        return enabled() && MurkaConfig.md3Switches;
+    }
+
+    /** Карточки с боковыми отступами и скруглением. Иначе — строки на всю ширину. */
+    public static boolean containers() {
+        return MurkaConfig.md3Containers;
+    }
+
+    /** Заголовки секций над карточкой (на сером). Без контейнеров заголовок всегда внутри секции. */
+    public static boolean separateHeaders() {
+        return containers() && MurkaConfig.md3SeparateHeaders;
+    }
+
+    /** MurkaConfig.DIVIDERS_HIDE / DIVIDERS_LINES / DIVIDERS_SEGMENTS. */
+    public static int dividerMode() {
+        return MurkaConfig.md3DividerMode;
+    }
+
+    /** Счётчик изменений вида карточек: списки из стека пересчитывают отступы при следующей отрисовке. */
+    public static int version;
+
+    public static void bump() {
+        version++;
+    }
+
     // dp
     public static final int SIDE = 12;
     public static final int GAP = 2;
@@ -54,22 +83,22 @@ public class MurkaMD3 {
 
     /** Ширина вида Switch в ячейке (dp). */
     public static int switchWidth() {
-        return enabled() ? SWITCH_W : 37;
+        return switchStyle() ? SWITCH_W : 37; // MurkaGram: «Переключатели в стиле MD3»
     }
 
     /** Высота вида Switch в ячейке (dp). */
     public static int switchHeight(int stock) {
-        return enabled() ? Math.max(stock, SWITCH_H) : stock;
+        return switchStyle() ? Math.max(stock, SWITCH_H) : stock;
     }
 
     /** Отступ Switch от края ячейки (dp). */
     public static int switchMargin(int stock) {
-        return enabled() ? SWITCH_MARGIN : stock;
+        return switchStyle() ? SWITCH_MARGIN : stock;
     }
 
     /** Отступ текста от края со стороны Switch (dp). */
     public static int switchTextMargin(int stock) {
-        return enabled() ? stock + SWITCH_TEXT_EXTRA : stock;
+        return switchStyle() ? stock + SWITCH_TEXT_EXTRA : stock;
     }
 
     /** InsetDrawable без padding: View.setBackground() не перезаписывает отступы вида (иначе пункты меню «съезжают»). */
@@ -119,12 +148,14 @@ public class MurkaMD3 {
     public static class Decoration extends RecyclerView.ItemDecoration {
 
         private final SparseIntArray typeKind = new SparseIntArray();
+        private final SparseBooleanArray headerTypes = new SparseBooleanArray(); // MurkaGram: типы строк-заголовков (HeaderCell)
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
         private final RectF rect = new RectF();
         private final float[] radii = new float[8];
         public int colorKey = Theme.key_windowBackgroundWhite;
         public KindOverride kindOverride;
+        private int seenVersion = MurkaMD3.version; // MurkaGram: см. MurkaMD3.bump()
 
         public static int kindOfView(View v) {
             if (v == null) {
@@ -133,7 +164,10 @@ public class MurkaMD3 {
             if (v instanceof SharedMediaLayout) {
                 return KIND_SKIP;
             }
-            if (v instanceof HeaderCell || v instanceof ShadowSectionCell || v instanceof TextInfoPrivacyCell
+            if (v instanceof HeaderCell) { // MurkaGram: «Отделить заголовки»
+                return separateHeaders() ? KIND_SEPARATOR : KIND_CARD;
+            }
+            if (v instanceof ShadowSectionCell || v instanceof TextInfoPrivacyCell
                     || v instanceof GraySectionCell || v instanceof EmptyCell || v instanceof FixedHeightEmptyCell
                     || v instanceof DividerCell || v.getClass() == View.class) {
                 return KIND_SEPARATOR;
@@ -162,6 +196,27 @@ public class MurkaMD3 {
             return k < 0 ? KIND_CARD : k;
         }
 
+        // MurkaGram: строка — заголовок секции (HeaderCell)
+        private boolean isHeaderAt(RecyclerView rv, int pos, View view) {
+            if (view != null) {
+                return view instanceof HeaderCell;
+            }
+            RecyclerView.Adapter adapter = rv.getAdapter();
+            if (adapter == null || pos < 0 || pos >= adapter.getItemCount()) {
+                return false;
+            }
+            RecyclerView.ViewHolder holder = rv.findViewHolderForAdapterPosition(pos);
+            if (holder != null) {
+                return holder.itemView instanceof HeaderCell;
+            }
+            return headerTypes.get(adapter.getItemViewType(pos), false);
+        }
+
+        /** MurkaGram: заголовок внутри карточки («Отделить заголовки» выкл.) сливается со следующей строкой: без зазора и скруглений между ними. */
+        private boolean joinedWithNext(RecyclerView rv, int pos, View view) {
+            return pos != RecyclerView.NO_POSITION && isHeaderAt(rv, pos, view) && kindAt(rv, pos + 1, null) == KIND_CARD;
+        }
+
         private static int positionOf(RecyclerView rv, View c) {
             RecyclerView.ViewHolder holder = rv.getChildViewHolder(c);
             if (holder == null) {
@@ -184,12 +239,16 @@ public class MurkaMD3 {
                 RecyclerView.ViewHolder holder = parent.getChildViewHolder(view);
                 if (holder != null) {
                     typeKind.put(holder.getItemViewType(), kindOfView(view));
+                    headerTypes.put(holder.getItemViewType(), view instanceof HeaderCell); // MurkaGram
                 }
                 int pos = positionOf(parent, view);
                 int k = pos == RecyclerView.NO_POSITION ? kindOfView(view) : kindAt(parent, pos, view);
                 sanitize(view, k);
                 if (k == KIND_CARD) {
-                    outRect.set(AndroidUtilities.dp(SIDE), pos == 0 ? AndroidUtilities.dp(SIDE) : 0, AndroidUtilities.dp(SIDE), AndroidUtilities.dp(GAP)); // MurkaGram: верхний отступ, если список начинается с карточки
+                    // MurkaGram: боковые отступы только с контейнерами, зазор между строками только в режиме «Сегменты»
+                    final int side = containers() ? AndroidUtilities.dp(SIDE) : 0;
+                    final int gap = dividerMode() == MurkaConfig.DIVIDERS_SEGMENTS && !joinedWithNext(parent, pos, view) ? AndroidUtilities.dp(GAP) : 0; // MurkaGram: заголовок слит с первой строкой
+                    outRect.set(side, pos == 0 ? side : 0, side, gap); // MurkaGram: верхний отступ, если список начинается с карточки
                 }
             } catch (Throwable e) {
                 FileLog.e(e);
@@ -205,11 +264,21 @@ public class MurkaMD3 {
 
         /** Строит форму карточки для дочернего view (в координатах списка). false — не карточка. */
         public boolean buildPath(RecyclerView rv, View c, Path out, int bottomInsetPx) {
+            return buildPath(rv, c, out, bottomInsetPx, false);
+        }
+
+        /** MurkaGram: форма для обрезки самой ячейки: в режиме «Линии» разделитель ячейки виден везде, кроме последней строки. */
+        public boolean buildPathForChild(RecyclerView rv, View c, Path out) {
+            return buildPath(rv, c, out, 1, true);
+        }
+
+        private boolean buildPath(RecyclerView rv, View c, Path out, int bottomInsetPx, boolean forChild) {
             if (!enabled() || c == null || c.getVisibility() != View.VISIBLE || c.getWidth() <= 0 || c.getHeight() <= 0) {
                 return false;
             }
             int pos = positionOf(rv, c);
             boolean first, last;
+            boolean joinedTop = false, joinedBottom = false; // MurkaGram: стык заголовка и первой строки секции
             if (pos == RecyclerView.NO_POSITION) {
                 if (kindOfView(c) != KIND_CARD) {
                     return false;
@@ -221,9 +290,17 @@ public class MurkaMD3 {
                 }
                 first = kindAt(rv, pos - 1, null) != KIND_CARD;
                 last = kindAt(rv, pos + 1, null) != KIND_CARD;
+                joinedTop = !first && isHeaderAt(rv, pos - 1, null);
+                joinedBottom = !last && isHeaderAt(rv, pos, c);
             }
-            float t = AndroidUtilities.dp(first ? R_BIG : R_SMALL);
-            float b = AndroidUtilities.dp(last ? R_BIG : R_SMALL);
+            // MurkaGram: радиусы зависят от «Контейнеров» и типа разделителей
+            final int big = containers() ? R_BIG : 0;
+            final int small = containers() && dividerMode() == MurkaConfig.DIVIDERS_SEGMENTS ? R_SMALL : 0;
+            float t = AndroidUtilities.dp(first ? big : joinedTop ? 0 : small);
+            float b = AndroidUtilities.dp(last ? big : joinedBottom ? 0 : small);
+            if (forChild && !last && dividerMode() == MurkaConfig.DIVIDERS_LINES) {
+                bottomInsetPx = 0;
+            }
             radii[0] = radii[1] = radii[2] = radii[3] = t;
             radii[4] = radii[5] = radii[6] = radii[7] = b;
             float bottom = c.getY() + c.getHeight() - bottomInsetPx;
@@ -240,6 +317,17 @@ public class MurkaMD3 {
         public void onDraw(@NonNull Canvas canvas, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
             if (!enabled()) {
                 return;
+            }
+            // MurkaGram: настройки карточек поменялись — пересчитать отступы (RecyclerView кэширует их)
+            if (seenVersion != MurkaMD3.version) {
+                seenVersion = MurkaMD3.version;
+                typeKind.clear();
+                headerTypes.clear();
+                parent.post(() -> {
+                    if (!parent.isComputingLayout()) {
+                        parent.invalidateItemDecorations();
+                    }
+                });
             }
             try {
                 Theme.ResourcesProvider resourcesProvider = parent instanceof RecyclerListView ? ((RecyclerListView) parent).resourcesProvider : null;

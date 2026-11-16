@@ -380,7 +380,7 @@ public class TextCheckCell extends FrameLayout {
     }
 
     private float getLastTouchX() {
-        return isAnimatingToThumbInsteadOfTouch ? (LocaleController.isRTL ? AndroidUtilities.dp(MurkaMD3.enabled() ? 32 : 22) : getMeasuredWidth() - AndroidUtilities.dp(MurkaMD3.enabled() ? 32 : 42)) /* MurkaGram: MD3 */ : lastTouchX;
+        return isAnimatingToThumbInsteadOfTouch ? (LocaleController.isRTL ? AndroidUtilities.dp(MurkaMD3.switchStyle() ? 32 : 22) : getMeasuredWidth() - AndroidUtilities.dp(MurkaMD3.switchStyle() ? 32 : 42)) /* MurkaGram: MD3 */ : lastTouchX;
     }
 
     @Override

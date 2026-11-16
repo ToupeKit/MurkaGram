@@ -17138,6 +17138,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
         String timeString;
+        boolean murkaEditedIcon = false; // MurkaGram
         TLRPC.User author = null;
         if (currentMessageObject.isFromUser()) {
             author = MessagesController.getInstance(currentAccount).getUser(fromId);
@@ -17168,6 +17169,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             timeString = LocaleController.formatSmallDateChat(currentMessageObject.realDate) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (currentMessageObject.realDate) * 1000);
         } else if (currentMessageObject.isRepostPreview) {
             timeString = LocaleController.formatSmallDateChat(messageObject.messageOwner.date) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
+        } else if (edited && MurkaConfig.editedIcon) { // MurkaGram: «Заменять «изменено» иконкой» — значок добавляется ниже
+            timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
+            murkaEditedIcon = true;
         } else if (edited) {
             timeString = getString(R.string.EditedMessage) + " " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         } else if (currentMessageObject.isSaved && currentMessageObject.messageOwner.fwd_from != null && (currentMessageObject.messageOwner.fwd_from.date != 0 || currentMessageObject.messageOwner.fwd_from.saved_date != 0)) {
@@ -17192,6 +17196,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         } else {
             currentTimeString = timeString;
+        }
+        if (murkaEditedIcon && currentTimeString != null) { // MurkaGram: значок карандаша перед временем вместо «изменено»
+            final String plain = currentTimeString.toString();
+            final int at = Math.max(0, plain.lastIndexOf(timeString));
+            SpannableStringBuilder sb = new SpannableStringBuilder(currentTimeString);
+            sb.insert(at, "e ");
+            ColoredImageSpan editedSpan = new ColoredImageSpan(R.drawable.mini_checklist_edited);
+            editedSpan.setSize(dp(13));
+            sb.setSpan(editedSpan, at, at + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            currentTimeString = sb;
         }
         final long starsPrice = currentMessageObject.getDialogId() < 0 ? getStarsPrice() : 0;
         if (starsPrice > 0) {
@@ -17224,6 +17238,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             trashSpan.setSize(dp(12));
             trash.setSpan(trashSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             currentTimeString = TextUtils.concat(trash, currentTimeString);
+            timeTextWidth = timeWidth = (int) Math.ceil(Layout.getDesiredWidth(currentTimeString, Theme.chat_timePaint));
+        } else if (murkaEditedIcon && currentTimeString != null) { // MurkaGram: ширина с учётом значка
             timeTextWidth = timeWidth = (int) Math.ceil(Layout.getDesiredWidth(currentTimeString, Theme.chat_timePaint));
         } else {
             timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));

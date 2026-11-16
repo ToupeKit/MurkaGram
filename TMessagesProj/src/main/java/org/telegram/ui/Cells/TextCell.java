@@ -191,7 +191,7 @@ public class TextCell extends FrameLayout {
         lastWidth = width;
 
         // MurkaGram: MD3 — bigger switch needs more room for the text
-        final int murkaSw = (checkBox != null && checkBox.getVisibility() == VISIBLE && MurkaMD3.enabled()) ? (MurkaMD3.switchWidth() + MurkaMD3.switchMargin(22) - 37 - 22 + 8) : 0;
+        final int murkaSw = (checkBox != null && checkBox.getVisibility() == VISIBLE && MurkaMD3.switchStyle()) ? (MurkaMD3.switchWidth() + MurkaMD3.switchMargin(22) - 37 - 22 + 8) : 0;
         int valueWidth;
         if (prioritizeTitleOverValue) {
             textView.measure(MeasureSpec.makeMeasureSpec(width - dp(71 + leftPadding + murkaSw), MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.EXACTLY));

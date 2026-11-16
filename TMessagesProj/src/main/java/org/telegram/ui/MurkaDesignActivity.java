@@ -29,6 +29,8 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.MurkaFabShapeCell;
+import org.telegram.ui.Components.MurkaMD3;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -55,6 +57,13 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_EMOJI = 11; // MurkaGram: «Эмодзи»
     private static final int ID_CONFIRM_VOICE = 12; // MurkaGram: «Подтверждение отправки голосовых и кружков»
     private static final int ID_UNLIMITED_PINS = 13; // MurkaGram: «Безлимитное закрепление чатов»
+    // MurkaGram: категория «Material Design 3»
+    private static final int ID_FAB_SHAPE = 14;
+    private static final int ID_DIVIDERS = 15;
+    private static final int ID_MD3_CONTAINERS = 16;
+    private static final int ID_MD3_HEADERS = 17;
+    private static final int ID_MD3_SWITCHES = 18;
+    private static final int ID_EDITED_ICON = 19; // MurkaGram: «Заменять «изменено» иконкой»
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
@@ -77,10 +86,26 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asButton(ID_FONT, LocaleController.getString(R.string.MurkaFont), getFontModeName(MurkaConfig.fontMode)));
         items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings))); // MurkaGram
         items.add(UItem.asShadow(null));
+        // MurkaGram: категория «Material Design 3» (только при включённом MD3 дизайне)
+        if (MurkaConfig.md3Design) {
+            items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaMD3Category)));
+            items.add(MurkaFabShapeCell.Factory.as(ID_FAB_SHAPE));
+            items.add(UItem.asButton(ID_DIVIDERS, LocaleController.getString(R.string.MurkaMD3Dividers), getDividerModeName(MurkaConfig.md3DividerMode)));
+            items.add(UItem.asCheck(ID_MD3_CONTAINERS, LocaleController.getString(R.string.MurkaMD3Containers)).setChecked(MurkaConfig.md3Containers));
+            if (MurkaConfig.md3Containers) {
+                items.add(UItem.asCheck(ID_MD3_HEADERS, LocaleController.getString(R.string.MurkaMD3SeparateHeaders)).setChecked(MurkaConfig.md3SeparateHeaders));
+            }
+            items.add(UItem.asCheck(ID_MD3_SWITCHES, LocaleController.getString(R.string.MurkaMD3Switches)).setChecked(MurkaConfig.md3Switches));
+            items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
+            items.add(UItem.asShadow(null));
+        }
         // MurkaGram: категория «Чаты»
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignChats)));
-        items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
+        if (!MurkaConfig.md3Design) { // MurkaGram: при MD3 пункт в категории «Material Design 3»
+            items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
+        }
         items.add(UItem.asCheck(ID_MENU_ICON_BAR, LocaleController.getString(R.string.MurkaMessageMenuIconBar)).setChecked(MurkaConfig.messageMenuIconBar)); // MurkaGram
+        items.add(UItem.asCheck(ID_EDITED_ICON, LocaleController.getString(R.string.MurkaEditedIcon)).setChecked(MurkaConfig.editedIcon)); // MurkaGram
         items.add(UItem.asButton(ID_EMOJI, LocaleController.getString(R.string.MurkaEmoji), getEmojiModeName(MurkaConfig.emojiMode))); // MurkaGram
         items.add(UItem.asCheck(ID_CONFIRM_VOICE, LocaleController.getString(R.string.MurkaConfirmVoiceSend)).setChecked(MurkaConfig.confirmVoiceSend)); // MurkaGram
         items.add(UItem.asCheck(ID_UNLIMITED_PINS, LocaleController.getString(R.string.MurkaUnlimitedPins)).setChecked(MurkaConfig.unlimitedPins)); // MurkaGram
@@ -100,6 +125,16 @@ public class MurkaDesignActivity extends UniversalFragment {
         return LocaleController.getString(R.string.MurkaFontDefault);
     }
 
+    // MurkaGram: «Тип разделителей»
+    private static String getDividerModeName(int mode) {
+        if (mode == MurkaConfig.DIVIDERS_HIDE) {
+            return LocaleController.getString(R.string.MurkaMD3DividersHide);
+        } else if (mode == MurkaConfig.DIVIDERS_LINES) {
+            return LocaleController.getString(R.string.MurkaMD3DividersLines);
+        }
+        return LocaleController.getString(R.string.MurkaMD3DividersSegments);
+    }
+
     // MurkaGram: «Эмодзи»
     private static String getEmojiModeName(int mode) {
         if (mode == MurkaConfig.EMOJI_SYSTEM) {
@@ -116,6 +151,9 @@ public class MurkaDesignActivity extends UniversalFragment {
             MurkaConfig.toggleCenterTitle();
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.centerTitle);
+            }
+            if (actionBar != null) { // MurkaGram: сразу передвинуть заголовок этого экрана
+                actionBar.requestLayout();
             }
         } else if (item.id == ID_NO_ROUNDING) {
             MurkaConfig.toggleNoNumberRounding();
@@ -140,7 +178,35 @@ public class MurkaDesignActivity extends UniversalFragment {
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.md3Design);
             }
+            updateList(); // MurkaGram: показать/скрыть категорию «Material Design 3»
             showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
+        } else if (item.id == ID_DIVIDERS) { // MurkaGram: «Тип разделителей»
+            showDividersDialog();
+        } else if (item.id == ID_MD3_CONTAINERS) { // MurkaGram: ширина строк меняется — на уже открытых экранах ячейки могут остаться со старой разметкой, поэтому предлагаем перезапуск
+            MurkaConfig.toggleMd3Containers();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.md3Containers);
+            }
+            applyMd3Change();
+            showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
+        } else if (item.id == ID_MD3_HEADERS) { // MurkaGram: применяется сразу
+            MurkaConfig.toggleMd3SeparateHeaders();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.md3SeparateHeaders);
+            }
+            applyMd3Change();
+        } else if (item.id == ID_MD3_SWITCHES) { // MurkaGram: размеры переключателей задаются при создании ячеек
+            MurkaConfig.toggleMd3Switches();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.md3Switches);
+            }
+            showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
+        } else if (item.id == ID_EDITED_ICON) { // MurkaGram: «Заменять «изменено» иконкой»
+            MurkaConfig.toggleEditedIcon();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.editedIcon);
+            }
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
         } else if (item.id == ID_NO_BUBBLE_TAIL) { // MurkaGram
             MurkaConfig.toggleNoBubbleTail();
             if (view instanceof TextCheckCell) {
@@ -196,6 +262,37 @@ public class MurkaDesignActivity extends UniversalFragment {
         if (listView != null) {
             listView.adapter.update(true);
         }
+    }
+
+    // MurkaGram: пересчитать карточки на этом экране и (при следующей отрисовке) на остальных
+    private void applyMd3Change() {
+        MurkaMD3.bump();
+        updateList();
+        if (listView != null) {
+            if (!listView.isComputingLayout()) {
+                listView.invalidateItemDecorations();
+            }
+            listView.invalidate();
+        }
+    }
+
+    // MurkaGram: «Тип разделителей»
+    private void showDividersDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final String[] options = new String[]{
+            LocaleController.getString(R.string.MurkaMD3DividersHide),
+            LocaleController.getString(R.string.MurkaMD3DividersLines),
+            LocaleController.getString(R.string.MurkaMD3DividersSegments)
+        };
+        showDialog(AlertsCreator.createSingleChoiceDialog(getParentActivity(), options, LocaleController.getString(R.string.MurkaMD3Dividers), MurkaConfig.md3DividerMode, (dialog, which) -> {
+            if (which == MurkaConfig.md3DividerMode) {
+                return;
+            }
+            MurkaConfig.setMd3DividerMode(which);
+            applyMd3Change();
+        }));
     }
 
     private void showFontDialog() {

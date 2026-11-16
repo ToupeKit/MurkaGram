@@ -3619,6 +3619,7 @@ public class ChatActivity extends BaseFragment implements
         Theme.createChatResources(context, false);
 
         actionBar.setAddToContainer(false);
+        actionBar.setMurkaCenterTitleAuto(false); // MurkaGram: в чате «Центрировать название» не применяется
         if (inPreviewMode) {
             actionBar.setBackButtonDrawable(null);
         } else {
