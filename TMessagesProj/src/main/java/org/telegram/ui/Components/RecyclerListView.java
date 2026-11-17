@@ -2565,7 +2565,7 @@ public class RecyclerListView extends RecyclerView {
     public MurkaMD3.Decoration murkaMD3;
     private Path murkaClip;
 
-    // MurkaGram: MD3 — обрезаем ячейку по форме карточки (на 1px короче снизу, чтобы скрыть разделитель).
+    // MurkaGram: MD3 — обрезаем ячейку по форме карточки (на 2px короче снизу, чтобы скрыть разделитель).
     @Override
     public boolean drawChild(Canvas canvas, View child, long drawingTime) {
         if (murkaMD3 != null && MurkaMD3.enabled() && !(child instanceof org.telegram.ui.Cells.DialogCell)) { // MurkaGram: у DialogCell разделитель не обрезаем

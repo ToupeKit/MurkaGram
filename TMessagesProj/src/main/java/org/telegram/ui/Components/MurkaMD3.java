@@ -269,7 +269,8 @@ public class MurkaMD3 {
 
         /** MurkaGram: форма для обрезки самой ячейки: в режиме «Линии» разделитель ячейки виден везде, кроме последней строки. */
         public boolean buildPathForChild(RecyclerView rv, View c, Path out) {
-            return buildPath(rv, c, out, 1, true);
+            // MurkaGram: линия разделителя рисуется на h-1 без сглаживания и попадает и в ряд h-2 — срезаем минимум 2px
+            return buildPath(rv, c, out, Math.max(2, AndroidUtilities.dp(1)), true);
         }
 
         private boolean buildPath(RecyclerView rv, View c, Path out, int bottomInsetPx, boolean forChild) {
@@ -323,9 +324,14 @@ public class MurkaMD3 {
                 seenVersion = MurkaMD3.version;
                 typeKind.clear();
                 headerTypes.clear();
-                parent.post(() -> {
-                    if (!parent.isComputingLayout()) {
-                        parent.invalidateItemDecorations();
+                parent.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (parent.isComputingLayout()) { // MurkaGram: не теряем обновление — повторим позже
+                            parent.post(this);
+                        } else {
+                            parent.invalidateItemDecorations();
+                        }
                     }
                 });
             }

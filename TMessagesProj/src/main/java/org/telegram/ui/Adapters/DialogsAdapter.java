@@ -899,7 +899,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                     cell.setChecked(selectedDialogs.contains(cell.getDialogId()), oldDialogId == cell.getDialogId());
                 } else {
                     DialogCell cell = (DialogCell) holder.itemView;
-                    cell.useSeparator = nextDialog != null && !MurkaMD3.enabled(); // MurkaGram: MD3 — без разделителей между чатами (и под архивом)
+                    cell.useSeparator = nextDialog != null && (!MurkaMD3.enabled() || MurkaMD3.dividerMode() == org.telegram.messenger.MurkaConfig.DIVIDERS_LINES); // MurkaGram: MD3 — разделители между чатами только в режиме «Линии»
                     cell.fullSeparator = murkaPinnedAny(dialog) && nextDialog != null && !murkaPinnedAny(nextDialog); // MurkaGram: + локальные закрепы
                     if (dialogsType == DialogsActivity.DIALOGS_TYPE_DEFAULT) {
                         if (AndroidUtilities.isTablet()) {

@@ -7278,10 +7278,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return userId != 0 ? userId : chatId;
     }
 
+    // MurkaGram: ID профиля строкой в формате Bot API (канал/супергруппа — «-100…», обычная группа — «-…»)
+    private String getMurkaIdString() {
+        if (userId != 0) {
+            return String.valueOf(userId);
+        }
+        TLRPC.Chat chat = getMessagesController().getChat(chatId);
+        if (chat == null) {
+            chat = currentChat;
+        }
+        return (ChatObject.isChannel(chat) ? "-100" : "-") + chatId;
+    }
+
     // MurkaGram: копирование ID аккаунта в буфер обмена
     private void murkaCopyId() {
         try {
-            AndroidUtilities.addToClipboard(String.valueOf(getMurkaId()));
+            AndroidUtilities.addToClipboard(getMurkaIdString());
             BulletinFactory.of(this).createCopyBulletin(getString(R.string.MurkaIdCopied), resourcesProvider).show();
         } catch (Exception e) {
             FileLog.e(e);
@@ -13322,7 +13334,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     view = new View(mContext) {
                         @Override
                         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-                            super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(7.33f), MeasureSpec.EXACTLY));
+                            int height = AndroidUtilities.dp(7.33f);
+                            // MurkaGram: MD3 — отступ над карточкой канала равен отступу под ней (ShadowSectionCell, 12dp)
+                            if (Boolean.TRUE.equals(getTag())) {
+                                height = AndroidUtilities.dp(12);
+                            }
+                            super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
                         }
                     };
                     view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
@@ -13497,6 +13514,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             switch (holder.getItemViewType()) {
+                case VIEW_TYPE_HEADER_EMPTY: { // MurkaGram: MD3 — высота отступа над карточкой канала (см. onCreateViewHolder)
+                    Boolean murkaChannelTop = position == murkaChannelTopRow;
+                    if (!murkaChannelTop.equals(holder.itemView.getTag())) {
+                        holder.itemView.setTag(murkaChannelTop);
+                        holder.itemView.requestLayout();
+                    }
+                    break;
+                }
                 case VIEW_TYPE_HEADER:
                     HeaderCell headerCell = (HeaderCell) holder.itemView;
                     if (position == infoHeaderRow) {
@@ -13653,7 +13678,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
                     } else if (position == murkaIdRow) { // MurkaGram: строка «ID аккаунта»
                         final boolean murkaDivider = position + 1 == bioRow || infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0;
-                        detailCell.setTextAndValue(String.valueOf(getMurkaId()), getString(R.string.MurkaAccountId), murkaDivider);
+                        detailCell.setTextAndValue(getMurkaIdString(), getString(R.string.MurkaAccountId), murkaDivider);
                         detailCell.setContentDescriptionValueFirst(false);
                         containsMurkaCalendar = userId != 0; // MurkaGram: календарь — дата регистрации
                     } else if (position == locationRow) {

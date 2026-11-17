@@ -2199,8 +2199,16 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 nameLeft += w;
             }
         }
+        if (drawMurkaBadges && isForChannelSubscriberCell) { // MurkaGram: в карточке канала бейджики только если имя влезает целиком
+            int w = dp(4) + murkaBadges.getIntrinsicWidth() + dp(4);
+            int avail = nameWidth - w - (drawBotVerified ? dp(21) : 0) - Math.max(0, namePaddingEnd) - dp(12);
+            String plainName = nameString == null ? "" : nameString.toString().replace('\n', ' ');
+            if (Theme.dialogs_namePaint[paintIndex].measureText(plainName) > avail) {
+                drawMurkaBadges = false;
+            }
+        }
         if (drawMurkaBadges) { // MurkaGram: место под бейджики
-            int w = dp(4) + murkaBadges.getIntrinsicWidth();
+            int w = dp(4) + murkaBadges.getIntrinsicWidth() + (isForChannelSubscriberCell ? dp(4) : 0);
             nameWidth -= w;
             nameAdditionalsForChannelSubscriber += w;
             if (LocaleController.isRTL) {
@@ -4223,6 +4231,13 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 int centerY = dp(useForceThreeLines || SharedConfig.useThreeLinesLayout ? 19.5f : 22.5f);
                 if ((!(useForceThreeLines || SharedConfig.useThreeLinesLayout) || isForumCell()) && hasTags()) {
                     centerY -= dp(9);
+                }
+                if (isForChannelSubscriberCell) { // MurkaGram: в карточке канала — по центру строки имени и плашки подписчиков
+                    centerY = dp(useForceThreeLines || SharedConfig.useThreeLinesLayout ? 10 : 13);
+                    if ((!(useForceThreeLines || SharedConfig.useThreeLinesLayout) || isForumCell()) && hasTags()) {
+                        centerY -= dp(isForumCell() ? 8 : 9);
+                    }
+                    centerY += dp(8.5f);
                 }
                 int w = murkaBadges.getIntrinsicWidth();
                 int h = murkaBadges.getIntrinsicHeight();

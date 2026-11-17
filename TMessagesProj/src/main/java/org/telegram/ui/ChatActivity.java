@@ -30238,13 +30238,14 @@ public class ChatActivity extends BaseFragment implements
 
             final AtomicBoolean waitForLangDetection = new AtomicBoolean(false);
             final AtomicReference<Runnable> onLangDetectionDone = new AtomicReference(null);
+            final Runnable[] murkaBarGapUpdate = new Runnable[1]; // MurkaGram: обновление разделителя над рядом иконок (см. ниже)
 
             Rect rect = new Rect();
 
             List<TLRPC.TL_availableReaction> availableReacts = getMediaDataController().getEnabledReactionsList();
             final boolean isReactionsViewAvailable = !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia() && !primaryMessage.isMurkaDeleted(); // MurkaGram: без запросов к серверу для удалённых
             final boolean isReactionsAvailable;
-            if (suggestEdit) {
+            if (suggestEdit || primaryMessage.isMurkaDeleted()) { // MurkaGram: у удалённых — обычное меню без панели реакций
                 isReactionsAvailable = false;
             } else if (message.isForwardedChannelPost()) {
                 TLRPC.ChatFull chatInfo = getMessagesController().getChatFull(-message.getFromChatId());
@@ -31045,6 +31046,9 @@ public class ChatActivity extends BaseFragment implements
                                         (currentChat != null && (currentChat.has_link || ChatObject.isPublic(currentChat)) || selectedObject.messageOwner.fwd_from != null) && ("uk".equals(fromLang[0]) || "ru".equals(fromLang[0]))
                                     )) {
                                         cell.setVisibility(View.VISIBLE);
+                                        if (murkaBarGapUpdate[0] != null) { // MurkaGram: язык мог определиться уже после показа меню
+                                            murkaBarGapUpdate[0].run();
+                                        }
                                     }
                                     waitForLangDetection.set(false);
                                     if (onLangDetectionDone.get() != null) {
@@ -31377,12 +31381,38 @@ public class ChatActivity extends BaseFragment implements
 
             // MurkaGram: «Быстрые действия иконками» — ряд иконок в самом низу меню
             if (optionsView == null && !murkaBarOptions.isEmpty()) {
+                LinearLayout murkaBar = new LinearLayout(getParentActivity());
                 int murkaCnt = popupLayout.getItemsCount();
                 boolean murkaPrevIsGap = murkaCnt > 0 && popupLayout.getItemAt(murkaCnt - 1) instanceof ActionBarPopupWindow.GapView;
-                if (murkaCnt > 0 && !murkaPrevIsGap) {
-                    popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                final View murkaGap;
+                if (murkaPrevIsGap) {
+                    murkaGap = popupLayout.getItemAt(murkaCnt - 1);
+                } else if (murkaCnt > 0) {
+                    murkaGap = new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate);
+                    popupLayout.addView(murkaGap, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                } else {
+                    murkaGap = null;
                 }
-                LinearLayout murkaBar = new LinearLayout(getParentActivity());
+                if (murkaGap != null) {
+                    // MurkaGram: разделитель над рядом иконок — только если над ним есть видимый пункт (GONE-пункты, напр. «Перевести», не в счёт)
+                    murkaBarGapUpdate[0] = () -> {
+                        boolean hasVisibleItem = false;
+                        for (int k = 0; k < popupLayout.getItemsCount(); k++) {
+                            View child = popupLayout.getItemAt(k);
+                            if (child == murkaGap) {
+                                break;
+                            }
+                            if (child.getVisibility() == View.VISIBLE) {
+                                hasVisibleItem = !(child instanceof ActionBarPopupWindow.GapView);
+                            }
+                        }
+                        murkaGap.setVisibility(hasVisibleItem ? View.VISIBLE : View.GONE);
+                        murkaBar.setMinimumWidth(hasVisibleItem ? 0 : dp(200)); // MurkaGram: при других пунктах ширина меню прежняя
+                    };
+                    murkaBarGapUpdate[0].run();
+                } else {
+                    murkaBar.setMinimumWidth(dp(200)); // MurkaGram: иконки не сжимаются влево, если других пунктов нет
+                }
                 murkaBar.setOrientation(LinearLayout.HORIZONTAL);
                 murkaBar.setPadding(dp(4), 0, dp(4), 0);
                 final int murkaIconColor = getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon);
@@ -31506,6 +31536,9 @@ public class ChatActivity extends BaseFragment implements
             Runnable showMenu = () -> {
                 if (scrimPopupWindow == null || fragmentView == null || scrimPopupWindow.isShowing() || !AndroidUtilities.isActivityRunning(getParentActivity())) {
                     return;
+                }
+                if (murkaBarGapUpdate[0] != null) { // MurkaGram: «Перевести» мог появиться после определения языка
+                    murkaBarGapUpdate[0].run();
                 }
                 scrimPopupWindow.showAtLocation(chatListView, Gravity.LEFT | Gravity.TOP, finalPopupX, finalPopupY);
                 if (isReactionsAvailableFinal && finalReactionsLayout != null) {
