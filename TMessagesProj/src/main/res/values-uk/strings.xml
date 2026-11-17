@@ -16,6 +16,13 @@
     <string name="MurkaExceptionsRemove">Видалити з винятків?</string>
     <string name="MurkaGhostWarning">Попередження привида</string>
     <string name="MurkaGhostWarningInfo">Перед відкриттям фото чи відео, що самознищується, питати, чи увімкнути режим привида. У режимі привида такі медіа можна переглядати скільки завгодно, вони не зникнуть і співрозмовник не дізнається про перегляд.</string>
+    <string name="MurkaSecurity">Безпека</string>
+    <string name="MurkaAntiScam">Захист від шахраїв</string>
+    <string name="MurkaAntiScamInfo">Попереджає, якщо посилання або юзернейм схожі на офіційні (наприклад, NFT-маркети @mrkt, @portals, @Tonnel_Network_bot), але відрізняються парою символів — так часто роблять шахраї.</string>
+    <string name="MurkaAntiScamTitle">Можливо, це шахраї</string>
+    <string name="MurkaAntiScamText">Це посилання схоже на офіційне **@%1$s**, але це **@%2$s**. Офіційне посилання: @%1$s.</string>
+    <string name="MurkaAntiScamOpenOfficial">Перейти до @%1$s</string>
+    <string name="MurkaAntiScamOpenAnyway">Все одно перейти</string>
     <string name="MurkaGhostWarningTitle">Режим привида</string>
     <string name="MurkaGhostWarningText">Увімкнути режим привида перед переглядом?</string>
     <string name="MurkaGhostWarningEnable">Увімкнути</string>

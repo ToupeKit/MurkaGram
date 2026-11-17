@@ -21601,6 +21601,22 @@ public class MessagesController extends BaseController implements NotificationCe
         if (username == null || fragment == null) {
             return;
         }
+        // MurkaGram: «Защита от мошенников» — юзернейм похож на официальный
+        if (MurkaAntiScam.isEnabled() && fragment.getParentActivity() != null) {
+            String murkaOfficial = MurkaAntiScam.findImpersonated(username);
+            if (murkaOfficial != null) {
+                MurkaAntiScam.showWarning(fragment, murkaOfficial, username, () -> murkaOpenByUserName(murkaOfficial, fragment, type, null), () -> murkaOpenByUserName(username, fragment, type, progress));
+                return;
+            }
+        }
+        murkaOpenByUserName(username, fragment, type, progress);
+    }
+
+    // MurkaGram: исходное тело openByUserName (без проверки «Защиты от мошенников»)
+    private void murkaOpenByUserName(String username, BaseFragment fragment, int type, Browser.Progress progress) {
+        if (username == null || fragment == null) {
+            return;
+        }
         TLObject object = getUserOrChat(username);
         TLRPC.User user = null;
         TLRPC.Chat chat = null;

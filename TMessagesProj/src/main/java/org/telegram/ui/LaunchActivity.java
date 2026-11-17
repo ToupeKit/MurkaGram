@@ -124,6 +124,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaAntiScam; // MurkaGram
 import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -4542,6 +4543,19 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 }
             }));
         } else if (username != null) {
+            // MurkaGram: «Защита от мошенников» — юзернейм похож на официальный
+            if (state == 0 && MurkaAntiScam.isEnabled()) {
+                final String murkaOfficial = MurkaAntiScam.findImpersonated(username);
+                if (murkaOfficial != null) {
+                    MurkaAntiScam.showWarning(getSafeLastFragment(), murkaOfficial, username, () -> {
+                        BaseFragment murkaFragment = getSafeLastFragment();
+                        if (murkaFragment != null) {
+                            MessagesController.getInstance(intentAccount).openByUserName(murkaOfficial, murkaFragment, 0);
+                        }
+                    }, () -> runLinkRequest(intentAccount, username, group, sticker, emoji, botUser, botChat, botChannel, botChatAdminParams, message, contactToken, folderSlug, text, hasUrl, messageId, channelId, threadId, commentId, game, auth, lang, unsupportedUrl, code, loginToken, wallPaper, inputInvoiceSlug, uniqueGiftSlug, theme, voicechat, videochat, livestream, 1, videoTimestamp, setAsAttachBot, attachMenuBotToOpen, attachMenuBotChoose, botAppMaybe, botAppStartParam, progress, forceNotInternalForApps, storyId, liveStory, storyAlbumId, giftCollectionId, auctionSlug, isBoost, chatLinkSlug, botCompact, botFullscreen, openedTelegram, openProfile, forceRequest, referrer, taskId, openDirect));
+                    return;
+                }
+            }
             if (progress != null) {
                 progress.init();
             }

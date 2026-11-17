@@ -30,6 +30,7 @@ public class MurkaStorage {
     public static class EditVersion {
         public int date;
         public String text;
+        public ArrayList<TLRPC.MessageEntity> entities; // форматирование старой версии (из data), может быть null
     }
 
     // Запись о дате прочтения диапазона исходящих сообщений (prevMax < mid <= maxId прочитаны в момент date).
@@ -505,11 +506,23 @@ public class MurkaStorage {
             if (database != null) {
                 SQLiteCursor cursor = null;
                 try {
-                    cursor = database.queryFinalized(String.format(Locale.US, "SELECT version_date, text FROM murka_edit_history WHERE uid = %d AND mid = %d ORDER BY saved_at ASC, rowid ASC", uid, mid));
+                    cursor = database.queryFinalized(String.format(Locale.US, "SELECT version_date, text, data FROM murka_edit_history WHERE uid = %d AND mid = %d ORDER BY saved_at ASC, rowid ASC", uid, mid));
                     while (cursor.next()) {
                         EditVersion version = new EditVersion();
                         version.date = cursor.intValue(0);
                         version.text = cursor.isNull(1) ? "" : cursor.stringValue(1);
+                        NativeByteBuffer data = cursor.byteBufferValue(2);
+                        if (data != null) {
+                            try {
+                                TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                                if (message != null) {
+                                    version.entities = message.entities;
+                                }
+                            } catch (Exception e) {
+                                FileLog.e(e);
+                            }
+                            data.reuse();
+                        }
                         result.add(version);
                     }
                 } catch (Exception e) {

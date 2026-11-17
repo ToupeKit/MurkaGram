@@ -70,6 +70,9 @@ public class MurkaConfig {
     // MurkaGram: «Предупреждение призрака» перед просмотром одноразовых/самоуничтожающихся медиа.
     public static boolean ghostWarning;
 
+    // MurkaGram: «Защита от мошенников» — предупреждение о юзернеймах, похожих на официальные.
+    public static boolean antiScam;
+
     // MurkaGram: «Подтверждение отправки голосовых и кружков».
     public static boolean confirmVoiceSend;
 
@@ -127,6 +130,7 @@ public class MurkaConfig {
             customEmojiPath = preferences.getString("customEmojiPath", null); // MurkaGram
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
             ghostWarning = preferences.getBoolean("ghostWarning", true); // MurkaGram
+            antiScam = preferences.getBoolean("antiScam", true); // MurkaGram
             // MurkaGram: пункт «status» в боковом меню — добавить в уже сохранённые списки
             if (preferences.getInt("drawerItemsVer", 0) < 1) {
                 SharedPreferences.Editor editor = preferences.edit();
@@ -207,6 +211,12 @@ public class MurkaConfig {
     public static void toggleGhostWarning() {
         ghostWarning = !ghostWarning;
         getPreferences().edit().putBoolean("ghostWarning", ghostWarning).apply();
+    }
+
+    // MurkaGram: «Защита от мошенников»
+    public static void toggleAntiScam() {
+        antiScam = !antiScam;
+        getPreferences().edit().putBoolean("antiScam", antiScam).apply();
     }
 
     // MurkaGram: «Исключения» мониторинга — в этих чатах удалённые сообщения и изменения не сохраняются.

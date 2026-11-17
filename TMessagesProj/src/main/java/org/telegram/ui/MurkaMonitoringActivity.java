@@ -42,6 +42,7 @@ public class MurkaMonitoringActivity extends UniversalFragment {
     private static final int ID_DELETED_TRANSPARENCY = 5;
     private static final int ID_EXCEPTIONS = 6; // MurkaGram: «Исключения»
     private static final int ID_GHOST_WARNING = 7; // MurkaGram: «Предупреждение призрака»
+    private static final int ID_ANTI_SCAM = 8; // MurkaGram: «Защита от мошенников»
 
     @Override
     protected CharSequence getTitle() {
@@ -62,6 +63,10 @@ public class MurkaMonitoringActivity extends UniversalFragment {
         // MurkaGram: «Предупреждение призрака» — отдельный блок с пояснением
         items.add(UItem.asCheck(ID_GHOST_WARNING, LocaleController.getString(R.string.MurkaGhostWarning)).setChecked(MurkaConfig.ghostWarning));
         items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaGhostWarningInfo)));
+        // MurkaGram: «Безопасность» → «Защита от мошенников»
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaSecurity)));
+        items.add(UItem.asCheck(ID_ANTI_SCAM, LocaleController.getString(R.string.MurkaAntiScam)).setChecked(MurkaConfig.antiScam));
+        items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaAntiScamInfo)));
     }
 
     @Override
@@ -94,6 +99,11 @@ public class MurkaMonitoringActivity extends UniversalFragment {
             MurkaConfig.toggleGhostWarning();
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.ghostWarning);
+            }
+        } else if (item.id == ID_ANTI_SCAM) { // MurkaGram
+            MurkaConfig.toggleAntiScam();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.antiScam);
             }
         }
     }

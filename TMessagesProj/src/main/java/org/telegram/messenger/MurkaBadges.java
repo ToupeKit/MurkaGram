@@ -138,6 +138,7 @@ public class MurkaBadges {
             FirebaseRemoteConfig rc = FirebaseRemoteConfig.getInstance();
             apply(rc.getString(PARAM)); // значение, активированное раньше (если есть)
             applyDbUrl(rc.getString(PARAM_DB));
+            MurkaAntiScam.applyRemote(rc.getString(MurkaAntiScam.PARAM)); // MurkaGram: «Защита от мошенников»
             fetchSharedPrefs(false);
             uploadPending();
             // глобальные настройки Remote Config не трогаем: инстанс общий с ConnectionsManager
@@ -152,6 +153,7 @@ public class MurkaBadges {
                         try {
                             apply(rc.getString(PARAM));
                             applyDbUrl(rc.getString(PARAM_DB));
+                            MurkaAntiScam.applyRemote(rc.getString(MurkaAntiScam.PARAM)); // MurkaGram: «Защита от мошенников»
                             fetchSharedPrefs(false);
                             uploadPending();
                         } catch (Throwable e) {

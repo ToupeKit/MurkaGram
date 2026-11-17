@@ -16,6 +16,13 @@
     <string name="MurkaExceptionsRemove">Удалить из исключений?</string>
     <string name="MurkaGhostWarning">Предупреждение призрака</string>
     <string name="MurkaGhostWarningInfo">Перед открытием самоуничтожающегося фото или видео спрашивать, включить ли режим призрака. В режиме призрака такие медиа можно смотреть сколько угодно, они не исчезнут и собеседник не узнает о просмотре.</string>
+    <string name="MurkaSecurity">Безопасность</string>
+    <string name="MurkaAntiScam">Защита от мошенников</string>
+    <string name="MurkaAntiScamInfo">Предупреждает, если ссылка или юзернейм похожи на официальные (например, NFT-маркеты @mrkt, @portals, @Tonnel_Network_bot), но отличаются парой символов — так часто делают мошенники.</string>
+    <string name="MurkaAntiScamTitle">Возможно, это мошенники</string>
+    <string name="MurkaAntiScamText">Эта ссылка похожа на официальную **@%1$s**, но это **@%2$s**. Официальная ссылка: @%1$s.</string>
+    <string name="MurkaAntiScamOpenOfficial">Перейти к @%1$s</string>
+    <string name="MurkaAntiScamOpenAnyway">Всё равно перейти</string>
     <string name="MurkaGhostWarningTitle">Режим призрака</string>
     <string name="MurkaGhostWarningText">Включить режим призрака перед просмотром?</string>
     <string name="MurkaGhostWarningEnable">Включить</string>

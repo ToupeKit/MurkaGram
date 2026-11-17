@@ -172,6 +172,7 @@ import org.telegram.messenger.MessageSuggestionParams;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.MurkaStorage;
+import org.telegram.messenger.MurkaTextDiff;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -44317,33 +44318,105 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    // MurkaGram: показ сохранённых версий сообщения
+    // MurkaGram: показ сохранённых версий сообщения (изменённые символы выделяются жирным)
     private void murkaShowEditHistory(MessageObject messageObject) {
         if (messageObject == null || messageObject.messageOwner == null) {
             return;
         }
         final String currentText = messageObject.messageOwner.message;
+        final ArrayList<TLRPC.MessageEntity> currentEntities = messageObject.messageOwner.entities;
         final int currentDate = messageObject.messageOwner.edit_date != 0 ? messageObject.messageOwner.edit_date : messageObject.messageOwner.date;
         MurkaStorage.getEditHistory(currentAccount, messageObject.getDialogId(), messageObject.getId(), versions -> {
             if (getParentActivity() == null) {
                 return;
             }
-            StringBuilder text = new StringBuilder();
-            for (int a = 0; a < versions.size(); a++) {
-                MurkaStorage.EditVersion version = versions.get(a);
-                text.append(LocaleController.formatDateTime(version.date, true)).append('\n');
-                text.append(TextUtils.isEmpty(version.text) ? LocaleController.getString(R.string.MurkaEditHistoryNoText) : version.text);
-                text.append("\n\n");
-            }
-            text.append(LocaleController.getString(R.string.MurkaEditHistoryCurrent)).append(" · ").append(LocaleController.formatDateTime(currentDate, true)).append('\n');
-            text.append(TextUtils.isEmpty(currentText) ? LocaleController.getString(R.string.MurkaEditHistoryNoText) : currentText);
+            // diff считаем не на UI-потоке: на длинных текстах это до ~1.5M операций на пару версий
+            Utilities.globalQueue.postRunnable(() -> {
+                final ArrayList<ArrayList<int[]>> diffs = new ArrayList<>();
+                for (int a = 0; a <= versions.size(); a++) {
+                    String text = a < versions.size() ? versions.get(a).text : currentText;
+                    String prevText = a > 0 ? versions.get(a - 1).text : null;
+                    ArrayList<int[]> ranges = null;
+                    if (a > 0 && !TextUtils.isEmpty(text) && !TextUtils.isEmpty(prevText)) {
+                        try {
+                            ranges = MurkaTextDiff.changedRanges(prevText, text);
+                        } catch (Throwable e) {
+                            FileLog.e(e);
+                        }
+                    }
+                    diffs.add(ranges);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (getParentActivity() == null) {
+                        return;
+                    }
+                    SpannableStringBuilder text = new SpannableStringBuilder();
+                    for (int a = 0; a < versions.size(); a++) {
+                        MurkaStorage.EditVersion version = versions.get(a);
+                        text.append(LocaleController.formatDateTime(version.date, true)).append('\n');
+                        text.append(murkaEditHistoryVersionText(version.text, version.entities, diffs.get(a)));
+                        text.append("\n\n");
+                    }
+                    text.append(LocaleController.getString(R.string.MurkaEditHistoryCurrent)).append(" · ").append(LocaleController.formatDateTime(currentDate, true)).append('\n');
+                    text.append(murkaEditHistoryVersionText(currentText, currentEntities, diffs.get(versions.size())));
 
-            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
-            builder.setTitle(LocaleController.getString(R.string.MurkaEditHistory));
-            builder.setMessage(text.toString());
-            builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
-            showDialog(builder.create());
+                    TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                    paint.setTextSize(AndroidUtilities.dp(16));
+                    CharSequence message = Emoji.replaceEmoji(text, paint.getFontMetricsInt(), false);
+
+                    AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+                    builder.setTitle(LocaleController.getString(R.string.MurkaEditHistory));
+                    builder.setMessage(message);
+                    builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
+                    showDialog(builder.create());
+                });
+            });
         });
+    }
+
+    // MurkaGram: текст одной версии — исходное форматирование (только стили) + жирным изменённые участки
+    private CharSequence murkaEditHistoryVersionText(String text, ArrayList<TLRPC.MessageEntity> entities, ArrayList<int[]> changed) {
+        if (TextUtils.isEmpty(text)) {
+            return LocaleController.getString(R.string.MurkaEditHistoryNoText);
+        }
+        SpannableString result = new SpannableString(text);
+        ArrayList<TLRPC.MessageEntity> styles = new ArrayList<>();
+        if (entities != null) {
+            for (int a = 0; a < entities.size(); a++) {
+                TLRPC.MessageEntity entity = entities.get(a);
+                TLRPC.MessageEntity copy;
+                // копии: addEntitiesToText может менять entity.length
+                if (entity instanceof TLRPC.TL_messageEntityBold) {
+                    copy = new TLRPC.TL_messageEntityBold();
+                } else if (entity instanceof TLRPC.TL_messageEntityItalic) {
+                    copy = new TLRPC.TL_messageEntityItalic();
+                } else if (entity instanceof TLRPC.TL_messageEntityUnderline) {
+                    copy = new TLRPC.TL_messageEntityUnderline();
+                } else if (entity instanceof TLRPC.TL_messageEntityStrike) {
+                    copy = new TLRPC.TL_messageEntityStrike();
+                } else if (entity instanceof TLRPC.TL_messageEntityCode) {
+                    copy = new TLRPC.TL_messageEntityCode();
+                } else {
+                    continue;
+                }
+                copy.offset = entity.offset;
+                copy.length = entity.length;
+                styles.add(copy);
+            }
+        }
+        if (changed != null) {
+            for (int a = 0; a < changed.size(); a++) {
+                int[] range = changed.get(a);
+                TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
+                bold.offset = range[0];
+                bold.length = range[1] - range[0];
+                styles.add(bold);
+            }
+        }
+        if (!styles.isEmpty()) {
+            MessageObject.addEntitiesToText(result, styles, false, false, false, false);
+        }
+        return result;
     }
 
     // MurkaGram: локальное удаление сохранённых удалённых сообщений (на сервере их уже нет)
