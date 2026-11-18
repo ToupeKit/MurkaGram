@@ -12,6 +12,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.view.Gravity;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
@@ -20,7 +21,10 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildVars;
+import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
+import org.telegram.ui.BadWayToMakeButtonRound;
 import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.CircularProgressDrawable;
@@ -29,11 +33,15 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Loadable;
 import org.telegram.ui.Components.RLottieImageView;
+import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 
 public class PremiumButtonView extends FrameLayout implements Loadable {
 
     private Paint paintOverlayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // paintOverlayPaint is featuredStickers_addButton (read on every draw) once the overlay is created
+    private boolean themedOverlayPaint;
+    private Theme.ResourcesProvider overlayResourcesProvider;
 
     private float progress;
     private boolean inc;
@@ -108,13 +116,34 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
         iconView.setColorFilter(Color.WHITE);
         iconView.setVisibility(View.GONE);
 
-        buttonLayout = new FrameLayout(context);
+        buttonLayout = new FrameLayout(context) {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(@NonNull AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(info);
+                info.setClassName("android.widget.Button");
+                CharSequence label = null;
+                if (showOverlay && overlayTextView != null) {
+                    label = overlayTextView.getText();
+                }
+                if (label == null && buttonTextView != null) {
+                    label = buttonTextView.getText();
+                }
+                if (label != null) {
+                    info.setText(label);
+                    if (getContentDescription() == null) {
+                        info.setContentDescription(label);
+                    }
+                }
+            }
+        };
         buttonLayout.addView(linearLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         buttonLayout.setBackground(Theme.createSimpleSelectorRoundRectDrawable(radius, Color.TRANSPARENT, ColorUtils.setAlphaComponent(Color.WHITE, 120)));
 
         linearLayout.addView(buttonTextView, LayoutHelper.createLinear(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
         linearLayout.addView(iconView, LayoutHelper.createLinear(24, 24, 0, Gravity.CENTER_VERTICAL, 4, 0, 0, 0));
         addView(buttonLayout);
+        BadWayToMakeButtonRound.round(this);
+        ScaleStateListAnimator.apply(this, 0.02f, 1.2f);
 
         if (createOverlayTextView) {
             overlayTextView = new AnimatedTextView(context, true, true, true) {
@@ -146,7 +175,7 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
             };
             overlayTextView.setPadding(AndroidUtilities.dp(34), 0, AndroidUtilities.dp(34), 0);
             overlayTextView.setGravity(Gravity.CENTER);
-            overlayTextView.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider));
+            ThemeBind.textColor(overlayTextView, Theme.key_featuredStickers_buttonText, resourcesProvider);
             overlayTextView.setTextSize(AndroidUtilities.dp(14));
             overlayTextView.setTypeface(AndroidUtilities.bold());
             overlayTextView.getDrawable().setAllowCancel(true);
@@ -154,8 +183,20 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
             addView(overlayTextView);
 
             paintOverlayPaint.setColor(Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider));
+            themedOverlayPaint = true;
+            overlayResourcesProvider = resourcesProvider;
             updateOverlayProgress();
         }
+    }
+
+    private boolean nonClickable;
+
+    public void setNonClickable() {
+        this.nonClickable = true;
+        setClickable(false);
+        buttonLayout.setClickable(false);
+        setStateListAnimator(null);
+
     }
 
     public boolean isShowOverlay() {
@@ -246,6 +287,9 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
                 PremiumGradient.getInstance().updateMainGradientMatrix(0, 0, getMeasuredWidth(), getMeasuredHeight(), -getMeasuredWidth() * 0.1f * progress, 0);
                 canvas.drawRoundRect(AndroidUtilities.rectTmp, radius, radius, PremiumGradient.getInstance().getMainGradientPaint());
             } else {
+                if (themedOverlayPaint) {
+                    paintOverlayPaint.setColor(Theme.getColor(Theme.key_featuredStickers_addButton, overlayResourcesProvider));
+                }
                 paintOverlayPaint.setAlpha(255);
                 canvas.drawRoundRect(AndroidUtilities.rectTmp, radius, radius, paintOverlayPaint);
             }
@@ -258,6 +302,9 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
         }
 
         if (overlayProgress != 0 && drawOverlayColor) {
+            if (themedOverlayPaint) {
+                paintOverlayPaint.setColor(Theme.getColor(Theme.key_featuredStickers_addButton, overlayResourcesProvider));
+            }
             paintOverlayPaint.setAlpha((int) (255 * overlayProgress));
             if (overlayProgress != 1f) {
                 path.rewind();
@@ -279,6 +326,7 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
         showOverlay = true;
         this.drawOverlayColor = drawOverlayColor;
         overlayTextView.setText(text, animated);
+        overlayTextView.setContentDescription(text);
         updateOverlay(animated);
     }
 
@@ -372,7 +420,11 @@ public class PremiumButtonView extends FrameLayout implements Loadable {
             buttonTextView.cancelAnimation();
         }
         buttonTextView.setText(text, animated);
-        buttonLayout.setOnClickListener(clickListener);
+        buttonLayout.setContentDescription(text);
+
+        if (!nonClickable) {
+            buttonLayout.setOnClickListener(clickListener);
+        }
     }
 
     public void checkCounterView() {

@@ -3,13 +3,10 @@ package org.telegram.ui.Cells;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.text.Spannable;
@@ -31,14 +28,15 @@ import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
-import org.telegram.messenger.MurkaCustomIcon;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.Easings;
@@ -58,7 +56,6 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
     private List<LauncherIconController.LauncherIcon> availableIcons = new ArrayList<>();
     private LinearLayoutManager linearLayoutManager;
     private int currentAccount;
-    public Runnable onCustomIconClick; // MurkaGram: плитка «Своя иконка»
 
     public AppIconsSelectorCell(Context context, BaseFragment fragment, int currentAccount) {
         super(context);
@@ -66,7 +63,6 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         setPadding(0, AndroidUtilities.dp(12), 0, AndroidUtilities.dp(12));
 
         setFocusable(false);
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         setItemAnimator(null);
         setLayoutAnimation(null);
 
@@ -82,22 +78,15 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             @Override
             public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
                 IconHolderView holderView = (IconHolderView) holder.itemView;
-                if (position >= availableIcons.size()) { // MurkaGram: плитка «Своя иконка» в конце списка
-                    holderView.bindCustom(MurkaCustomIcon.loadPreview());
-                    holderView.iconView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(ICONS_ROUND_RADIUS), Color.TRANSPARENT, Theme.getColor(Theme.key_listSelector), Color.BLACK));
-                    return;
-                }
                 LauncherIconController.LauncherIcon icon = availableIcons.get(position);
                 holderView.bind(icon);
-                holderView.iconView.murkaSetCustom(false, null); // MurkaGram: holder мог быть переиспользован от плитки «Своя иконка»
-                holderView.iconView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(ICONS_ROUND_RADIUS), Color.TRANSPARENT, Theme.getColor(Theme.key_listSelector), Color.BLACK));
+                ThemeBind.selectorBackground(holderView.iconView, Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(ICONS_ROUND_RADIUS), Color.TRANSPARENT, Theme.getColor(Theme.key_listSelector), Color.BLACK), null, ThemeBind.of(Theme.key_listSelector));
                 holderView.iconView.setForeground(icon.foreground);
-                holderView.iconView.murkaClipForeground = icon == LauncherIconController.LauncherIcon.MURKAGRAM || icon == LauncherIconController.LauncherIcon.MURKAGRAM_FLAT; // MurkaGram: opaque artwork must be clipped to the icon shape
             }
 
             @Override
             public int getItemCount() {
-                return availableIcons.size() + 1; // MurkaGram: + плитка «Своя иконка»
+                return availableIcons.size();
             }
         });
         addItemDecoration(new ItemDecoration() {
@@ -121,12 +110,6 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         });
         setOnItemClickListener((view, position) -> {
             IconHolderView holderView = (IconHolderView) view;
-            if (position >= availableIcons.size()) { // MurkaGram: плитка «Своя иконка»
-                if (onCustomIconClick != null) {
-                    onCustomIconClick.run();
-                }
-                return;
-            }
             LauncherIconController.LauncherIcon icon = availableIcons.get(position);
             if (icon.premium && !UserConfig.hasPremiumOnAccounts()) {
                 fragment.showDialog(new PremiumFeatureBottomSheet(fragment, PremiumPreviewFragment.PREMIUM_FEATURE_APPLICATION_ICONS, true));
@@ -190,13 +173,6 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         }
     }
 
-    // MurkaGram: обновить плитку «Своя иконка» после выбора/удаления картинки
-    public void murkaRefreshCustom() {
-        if (getAdapter() != null) {
-            getAdapter().notifyItemChanged(availableIcons.size());
-        }
-    }
-
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
@@ -213,7 +189,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
 
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.premiumStatusChangedGlobal);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.premiumStatusChangedGlobal);
     }
 
     @Override
@@ -230,7 +206,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         }
     }
 
-    private final static class IconHolderView extends LinearLayout {
+    private final static class IconHolderView extends LinearLayout implements Theme.Colorable {
         private Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -272,8 +248,22 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(ICONS_ROUND_RADIUS), AndroidUtilities.dp(ICONS_ROUND_RADIUS), outlinePaint);
         }
 
+        private boolean progressApplied;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (progressApplied && titleView != null) {
+                    setProgress(progress);
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
         private void setProgress(float progress) {
             this.progress = progress;
+            progressApplied = true;
 
             titleView.setTextColor(ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), Theme.getColor(Theme.key_windowBackgroundWhiteValueText), progress));
             outlinePaint.setColor(ColorUtils.blendARGB(ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_switchTrack), 0x3F), Theme.getColor(Theme.key_windowBackgroundWhiteValueText), progress));
@@ -316,27 +306,10 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             }
             setSelected(LauncherIconController.isEnabled(icon), false);
         }
-
-        // MurkaGram: плитка «Своя иконка» — превью картинки или плюс
-        private void bindCustom(Bitmap preview) {
-            iconView.setImageDrawable(null);
-            iconView.foreground = null;
-            iconView.murkaClipForeground = false;
-            iconView.murkaSetCustom(true, preview);
-            MarginLayoutParams params = (MarginLayoutParams) titleView.getLayoutParams();
-            params.rightMargin = 0;
-            titleView.setText(LocaleController.getString(R.string.MurkaCustomIcon));
-            setSelected(false, false);
-        }
     }
 
     public static class AdaptiveIconImageView extends ImageView {
         private Drawable foreground;
-        public boolean murkaClipForeground; // MurkaGram
-        private boolean murkaCustom; // MurkaGram: плитка «Своя иконка»
-        private Bitmap murkaCustomBitmap; // MurkaGram
-        private Drawable murkaPlaceholder; // MurkaGram
-        private Paint murkaPaint; // MurkaGram
         private Path path = new Path();
         private int outerPadding = AndroidUtilities.dp(5);
         private int backgroundOuterPadding = AndroidUtilities.dp(42);
@@ -368,40 +341,8 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             this.backgroundOuterPadding = backgroundOuterPadding;
         }
 
-        // MurkaGram: режим плитки «Своя иконка» — картинка без масштабирования фона
-        public void murkaSetCustom(boolean custom, Bitmap bitmap) {
-            murkaCustom = custom;
-            murkaCustomBitmap = bitmap;
-            invalidate();
-        }
-
         @Override
         public void draw(Canvas canvas) {
-            if (murkaCustom) { // MurkaGram: своя картинка в круге внутри padding
-                if (murkaPaint == null) {
-                    murkaPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-                }
-                canvas.save();
-                canvas.clipPath(path);
-                AndroidUtilities.rectTmp.set(getPaddingLeft(), getPaddingTop(), getWidth() - getPaddingRight(), getHeight() - getPaddingBottom());
-                if (murkaCustomBitmap != null && !murkaCustomBitmap.isRecycled()) {
-                    canvas.drawBitmap(murkaCustomBitmap, null, AndroidUtilities.rectTmp, murkaPaint);
-                } else {
-                    murkaPaint.setColor(Theme.getColor(Theme.key_windowBackgroundGray));
-                    canvas.drawRect(AndroidUtilities.rectTmp, murkaPaint);
-                    if (murkaPlaceholder == null) {
-                        murkaPlaceholder = ContextCompat.getDrawable(getContext(), R.drawable.msg_add).mutate();
-                    }
-                    murkaPlaceholder.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon), PorterDuff.Mode.SRC_IN));
-                    int size = AndroidUtilities.dp(24);
-                    int cx = getWidth() / 2, cy = getHeight() / 2;
-                    murkaPlaceholder.setBounds(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
-                    murkaPlaceholder.draw(canvas);
-                }
-                super.draw(canvas);
-                canvas.restore();
-                return;
-            }
             canvas.save();
             canvas.clipPath(path);
             canvas.scale(1f + backgroundOuterPadding / (float) getWidth(), 1f + backgroundOuterPadding / (float) getHeight(), getWidth() / 2f, getHeight() / 2f);
@@ -409,16 +350,8 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             canvas.restore();
 
             if (foreground != null) {
-                // MurkaGram: clip MurkaGram foreground to the same circle as the background
-                if (murkaClipForeground) {
-                    canvas.save();
-                    canvas.clipPath(path);
-                }
                 foreground.setBounds(-outerPadding, -outerPadding, getWidth() + outerPadding, getHeight() + outerPadding);
                 foreground.draw(canvas);
-                if (murkaClipForeground) {
-                    canvas.restore();
-                }
             }
         }
 

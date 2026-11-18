@@ -8,6 +8,8 @@
 
 package org.telegram.ui.Cells;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -24,6 +26,7 @@ import android.os.Build;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.StaticLayout;
 import android.text.TextUtils;
 import android.text.style.ClickableSpan;
@@ -52,6 +55,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
@@ -63,13 +67,14 @@ import org.telegram.ui.Components.URLSpanNoUnderline;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class AboutLinkCell extends FrameLayout {
+public class AboutLinkCell extends FrameLayout implements Theme.Colorable {
 
     private StaticLayout textLayout;
     private String oldText;
     private int textX;
     private int textY;
     private SpannableStringBuilder stringBuilder;
+    private CharSequence accessibilityText;
     private TextView valueTextView;
     private TextView showMoreTextView;
     private FrameLayout showMoreTextBackgroundView;
@@ -117,7 +122,7 @@ public class AboutLinkCell extends FrameLayout {
 
         valueTextView = new TextView(context);
         valueTextView.setVisibility(GONE);
-        valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+        ThemeBind.textColor(valueTextView, Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider);
         valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         valueTextView.setLines(1);
         valueTextView.setMaxLines(1);
@@ -125,13 +130,13 @@ public class AboutLinkCell extends FrameLayout {
         valueTextView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         valueTextView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         valueTextView.setFocusable(false);
-        container.addView(valueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 23, 0, 23, 10));
+        container.addView(valueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 18, 0, 18, 10));
 
         bottomShadow = new FrameLayout(context);
         Drawable shadowDrawable = context.getResources().getDrawable(R.drawable.gradient_bottom).mutate();
-        shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), PorterDuff.Mode.SRC_ATOP));
+        ThemeBind.drawableColorFilter(this, shadowDrawable, Theme.key_windowBackgroundWhite, resourcesProvider, PorterDuff.Mode.SRC_ATOP);
         bottomShadow.setBackground(shadowDrawable);
-        addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 12, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 0));
+        addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 12, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 16, 0, 16, 0));
 
         addView(container, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
@@ -155,12 +160,12 @@ public class AboutLinkCell extends FrameLayout {
             protected void onDraw(Canvas canvas) {
                 if (pressed) {
                     AndroidUtilities.rectTmp.set(0, 0, getWidth(), getHeight());
-                    canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(4), AndroidUtilities.dp(4), Theme.chat_urlPaint);
+                    canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(4), dp(4), Theme.chat_urlPaint);
                 }
                 super.onDraw(canvas);
             }
         };
-        showMoreTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
+        ThemeBind.textColor(showMoreTextView, Theme.key_windowBackgroundWhiteBlueText, resourcesProvider);
         showMoreTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         showMoreTextView.setLines(1);
         showMoreTextView.setMaxLines(1);
@@ -169,19 +174,19 @@ public class AboutLinkCell extends FrameLayout {
         showMoreTextView.setOnClickListener(e -> {
             updateCollapse(true, true);
         });
-        showMoreTextView.setPadding(AndroidUtilities.dp(2), 0, AndroidUtilities.dp(2), 0);
+        showMoreTextView.setPadding(dp(2), 0, dp(2), 0);
         showMoreTextBackgroundView = new FrameLayout(context);
         showMoreBackgroundDrawable = context.getResources().getDrawable(R.drawable.gradient_left).mutate();
-        showMoreBackgroundDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), PorterDuff.Mode.MULTIPLY));
+        ThemeBind.drawableColorFilter(this, showMoreBackgroundDrawable, Theme.key_windowBackgroundWhite, resourcesProvider, PorterDuff.Mode.MULTIPLY);
         showMoreTextBackgroundView.setBackground(showMoreBackgroundDrawable);
         showMoreTextBackgroundView.setPadding(
-            showMoreTextBackgroundView.getPaddingLeft() + AndroidUtilities.dp(4),
-            AndroidUtilities.dp(1),
+            showMoreTextBackgroundView.getPaddingLeft() + dp(4),
+            dp(1),
             0,
-            AndroidUtilities.dp(3)
+            dp(3)
         );
         showMoreTextBackgroundView.addView(showMoreTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-        addView(showMoreTextBackgroundView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM, 22 - showMoreTextBackgroundView.getPaddingLeft() / AndroidUtilities.density, 0, 22 - showMoreTextBackgroundView.getPaddingRight() / AndroidUtilities.density, 6));
+        addView(showMoreTextBackgroundView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM, 18 - showMoreTextBackgroundView.getPaddingLeft() / AndroidUtilities.density, 0, 18 - showMoreTextBackgroundView.getPaddingRight() / AndroidUtilities.density, 6));
         backgroundPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
 
         setWillNotDraw(false);
@@ -191,8 +196,21 @@ public class AboutLinkCell extends FrameLayout {
         return color;
     }
 
+    private int lastRippleColor;
+
+    @Override
     public void updateColors() {
         Theme.profile_aboutTextPaint.linkColor = processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        try {
+            final int rippleColor = Theme.getColor(Theme.key_listSelector, resourcesProvider);
+            if (rippleBackground != null && rippleColor != lastRippleColor) { // recoloring a RippleDrawable allocates a ColorStateList
+                lastRippleColor = rippleColor;
+                Theme.setSelectorDrawableColor(rippleBackground, rippleColor, true);
+            }
+            backgroundPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 
     @Override
@@ -280,15 +298,15 @@ public class AboutLinkCell extends FrameLayout {
         container.draw(canvas);
     }
 
-    final float SPACE = AndroidUtilities.dp(3f);
+    final float SPACE = dp(3f);
     private void drawText(Canvas canvas) {
         canvas.save();
-        canvas.clipRect(AndroidUtilities.dp(23 - 8), AndroidUtilities.dp(8), getWidth() - AndroidUtilities.dp(23), getHeight());
-        canvas.translate(textX = AndroidUtilities.dp(23), 0);
+        canvas.clipRect(dp(18 - 8), dp(8), getWidth() - dp(18), getHeight());
+        canvas.translate(textX = dp(18), 0);
         if (links != null && links.draw(canvas)) {
             invalidate();
         }
-        canvas.translate(0, textY = AndroidUtilities.dp(8));
+        canvas.translate(0, textY = dp(8));
 
         try {
             Theme.profile_aboutTextPaint.linkColor = processColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
@@ -363,10 +381,11 @@ public class AboutLinkCell extends FrameLayout {
             oldText = text;
         }
         stringBuilder = new SpannableStringBuilder(oldText);
+        accessibilityText = null;
         MessageObject.addLinks(false, stringBuilder, false, false, !parseLinks);
         Emoji.replaceEmoji(stringBuilder, Theme.profile_aboutTextPaint.getFontMetricsInt(), false);
         if (lastMaxWidth <= 0) {
-            lastMaxWidth = AndroidUtilities.displaySize.x - AndroidUtilities.dp(23 + 23);
+            lastMaxWidth = AndroidUtilities.displaySize.x - dp(18 + 18);
         }
         checkTextLayout(lastMaxWidth, true);
         updateHeight();
@@ -437,7 +456,7 @@ public class AboutLinkCell extends FrameLayout {
             y >= showMoreTextView.getTop() &&  y <= showMoreTextView.getBottom()) {
             return null;
         }
-        if (getMeasuredWidth() > 0 && x > getMeasuredWidth() - AndroidUtilities.dp(23)) {
+        if (getMeasuredWidth() > 0 && x > getMeasuredWidth() - dp(18)) {
             return null;
         }
         LinkSpanDrawable link;
@@ -540,7 +559,7 @@ public class AboutLinkCell extends FrameLayout {
         }
     }
 
-    private static final int COLLAPSED_HEIGHT = AndroidUtilities.dp(8 + 20 * 3 + 8);
+    private static final int COLLAPSED_HEIGHT = dp(8 + 20 * 3 + 8);
     private static final int MAX_OPEN_HEIGHT = COLLAPSED_HEIGHT;// + AndroidUtilities.dp(20);
 
     public class SpringInterpolator {
@@ -642,7 +661,7 @@ public class AboutLinkCell extends FrameLayout {
     }
 
     private int fromHeight() {
-        return Math.min(COLLAPSED_HEIGHT + (valueTextView.getVisibility() == View.VISIBLE ? AndroidUtilities.dp(20) : 0), textHeight());
+        return Math.min(COLLAPSED_HEIGHT + (valueTextView.getVisibility() == View.VISIBLE ? dp(20) : 0), textHeight());
     }
     private int updateHeight() {
         int textHeight = textHeight();
@@ -674,7 +693,7 @@ public class AboutLinkCell extends FrameLayout {
     @SuppressLint("DrawAllocation")
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        checkTextLayout(MeasureSpec.getSize(widthMeasureSpec) - AndroidUtilities.dp(23 + 23), false);
+        checkTextLayout(MeasureSpec.getSize(widthMeasureSpec) - dp(18 + 18), false);
         int height = updateHeight();
         super.onMeasure(
             widthMeasureSpec,
@@ -743,7 +762,7 @@ public class AboutLinkCell extends FrameLayout {
             if (shouldExpand && firstThreeLinesLayout != null) {
                 setShowMoreMarginBottom(
                     fromHeight()
-                    -AndroidUtilities.dp(8)
+                    - dp(8)
                     -firstThreeLinesLayout.getLineBottom(firstThreeLinesLayout.getLineCount() - 1)
                     -showMoreTextBackgroundView.getPaddingBottom()
                     -showMoreTextView.getPaddingBottom()
@@ -761,9 +780,9 @@ public class AboutLinkCell extends FrameLayout {
     }
 
     private int textHeight() {
-        int height = (textLayout != null ? textLayout.getHeight() : AndroidUtilities.dp(20)) + AndroidUtilities.dp(16);
+        int height = (textLayout != null ? textLayout.getHeight() : dp(20)) + dp(16);
         if (valueTextView.getVisibility() == VISIBLE) {
-            height += AndroidUtilities.dp(23);
+            height += dp(23);
         }
         return height;
     }
@@ -771,13 +790,6 @@ public class AboutLinkCell extends FrameLayout {
 //    private boolean shouldCollapse() {
 //        return textLayout != null && textLayout.getLineCount() > 4/* && valueTextView.getVisibility() != View.VISIBLE*/;
 //    }
-
-    // MurkaGram: тап по «ещё» (координаты относительно ячейки)
-    public boolean murkaIsShowMoreAt(float x, float y) {
-        return shouldExpand && expandT < 1f && showMoreTextView.getVisibility() == VISIBLE
-            && x >= showMoreTextBackgroundView.getLeft() && x <= showMoreTextBackgroundView.getRight()
-            && y >= showMoreTextBackgroundView.getTop() && y <= showMoreTextBackgroundView.getBottom();
-    }
 
     public boolean onClick() {
         if (shouldExpand && expandT <= 0) {
@@ -794,15 +806,39 @@ public class AboutLinkCell extends FrameLayout {
     public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info);
         if (textLayout != null) {
-            final CharSequence text = stringBuilder;
+            final CharSequence text = buildAccessibilityText();
             final CharSequence valueText = valueTextView.getText();
             info.setClassName("android.widget.TextView");
             if (TextUtils.isEmpty(valueText)) {
                 info.setText(text);
             } else {
-                info.setText(valueText + ": " + text);
+                info.setText(TextUtils.concat(valueText, ": ", text));
             }
         }
+    }
+
+    private CharSequence buildAccessibilityText() {
+        if (accessibilityText != null) return accessibilityText;
+        if (stringBuilder == null) return null;
+        ClickableSpan[] spans = stringBuilder.getSpans(0, stringBuilder.length(), ClickableSpan.class);
+        if (spans == null || spans.length == 0) {
+            return accessibilityText = stringBuilder;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder(stringBuilder);
+        for (ClickableSpan span : spans) {
+            int start = sb.getSpanStart(span);
+            int end = sb.getSpanEnd(span);
+            if (start < 0 || end <= start) continue;
+            sb.removeSpan(span);
+            final ClickableSpan original = span;
+            sb.setSpan(new ClickableSpan() {
+                @Override
+                public void onClick(View widget) {
+                    onLinkClick(original, textLayout, 0);
+                }
+            }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return accessibilityText = sb;
     }
 
     public void setMoreButtonDisabled(boolean moreButtonDisabled) {

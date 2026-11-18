@@ -21,20 +21,17 @@ import org.telegram.tgnet.TL_smsjobs;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.Adapters.DrawerLayoutAdapter;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.UpdateAppAlertDialog;
-import org.telegram.ui.Components.UpdateButton;
 import org.telegram.ui.Components.UpdateLayout;
-import org.telegram.ui.IUpdateButton;
 import org.telegram.ui.IUpdateLayout;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.SMSStatsActivity;
 import org.telegram.ui.SMSSubscribeSheet;
 
 import java.io.File;
-import java.util.ArrayList;
 
 public class ApplicationLoaderImpl extends ApplicationLoader {
     @Override
@@ -112,13 +109,8 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
     }
 
     @Override
-    public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenu, ViewGroup sideMenuContainer) {
-        return new UpdateLayout(activity, sideMenu, sideMenuContainer);
-    }
-
-    @Override
-    public IUpdateButton takeUpdateButton(Context context) {
-        return new UpdateButton(context);
+    public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenuContainer) {
+        return new UpdateLayout(activity, sideMenuContainer);
     }
 
     @Override
@@ -137,13 +129,14 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
     }
 
     @Override
-    public boolean extendDrawer(ArrayList<DrawerLayoutAdapter.Item> items) {
+    public void addItemOptions(ItemOptions itemOptions) {
         if (SMSJobController.getInstance(UserConfig.selectedAccount).isAvailable()) {
             CharSequence text = LocaleController.getString(R.string.SmsJobsMenu);
             if (MessagesController.getGlobalMainSettings().getBoolean("newppsms", true)) {
                 text = applyNewSpan(text.toString());
             }
-            DrawerLayoutAdapter.Item item = new DrawerLayoutAdapter.Item(93, text, R.drawable.left_sms).onClick(v -> {
+            boolean withError = isInAirplaneMode(LaunchActivity.instance) || SMSJobController.getInstance(UserConfig.selectedAccount).hasError();
+            itemOptions.add(R.drawable.left_sms, text, withError, () -> {
                 MessagesController.getGlobalMainSettings().edit().putBoolean("newppsms", false).apply();
                 SMSJobController controller = (SMSJobController) SMSJobController.getInstance(UserConfig.selectedAccount);
                 final int state = controller.currentState;
@@ -156,7 +149,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                         new AlertDialog.Builder(LaunchActivity.instance)
                                 .setTitle(LocaleController.getString(R.string.SmsNoSimTitle))
                                 .setMessage(AndroidUtilities.replaceTags(LocaleController.getString(R.string.SmsNoSimMessage)))
-                                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                                .setPositiveButton(LocaleController.getString(org.telegram.messenger.R.string.OK), null)
                                 .show();
                         return;
                     }
@@ -168,7 +161,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                             new AlertDialog.Builder(LaunchActivity.instance)
                                     .setTitle(LocaleController.getString(R.string.SmsNoSimTitle))
                                     .setMessage(AndroidUtilities.replaceTags(LocaleController.getString(R.string.SmsNoSimMessage)))
-                                    .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                                    .setPositiveButton(LocaleController.getString(org.telegram.messenger.R.string.OK), null)
                                     .show();
                             return;
                         }
@@ -176,7 +169,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                             if (err != null) {
                                 BulletinFactory.showError(err);
                             } else if (res instanceof TLRPC.TL_boolFalse) {
-                                BulletinFactory.global().createErrorBulletin(LocaleController.getString(R.string.UnknownError)).show();
+                                BulletinFactory.global().createErrorBulletin(LocaleController.getString(org.telegram.messenger.R.string.UnknownError)).show();
                             } else {
                                 controller.setState(SMSJobController.STATE_JOINED);
                                 controller.loadStatus(true);
@@ -195,12 +188,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                     lastFragment.presentFragment(new SMSStatsActivity());
                 }
             });
-            if (isInAirplaneMode(LaunchActivity.instance) || SMSJobController.getInstance(UserConfig.selectedAccount).hasError()) {
-                item.withError();
-            }
-            items.add(item);
         }
-        return true;
     }
 
     @Override

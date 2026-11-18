@@ -6,24 +6,23 @@ import static org.telegram.messenger.LocaleController.getString;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import androidx.annotation.NonNull;
-
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.SharedMediaLayout;
 import org.telegram.ui.Components.ViewPagerFixed;
 import org.telegram.ui.Stories.StoriesController;
 
@@ -31,8 +30,9 @@ import java.util.ArrayList;
 
 @SuppressLint("ViewConstructor")
 public class ProfileStoriesCollectionTabs extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
+
     private final ViewPagerFixed viewPager;
-    private final ViewPagerFixed.TabsView tabsView;
+    public final ViewPagerFixed.TabsView tabsView;
     private final StoriesController.StoriesCollections collections;
     private final Adapter adapter;
 
@@ -47,6 +47,7 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
 
     public ProfileStoriesCollectionTabs(Context context, StoriesController.StoriesCollections collections, Delegate delegate) {
         super(context);
+
         this.collections = collections;
         this.sendCollectionsOrder = collections::sendOrder;
 
@@ -81,7 +82,14 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
 
         viewPager.setAdapter(adapter);
         viewPager.setTranslationY(dp(42));
-        tabsView = viewPager.createTabsView(true, 9);
+        tabsView = viewPager.createTabsView(true, 10);
+        tabsView.setColors(
+            Theme.key_profile_tabSelectedLine,
+            Theme.key_windowBackgroundWhiteBlackText,
+            Theme.key_profile_tabText,
+            Theme.key_profile_tabSelector,
+            Theme.key_actionBarDefault
+        );
         tabsView.tabMarginDp = 12;
         tabsView.setPreTabClick((id, pos) -> {
             if (reorderingCollections) {
@@ -120,11 +128,7 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
     public void setInitialTabId(int albumId) {
         final int position = adapter.getItemPosition(albumId);
         if (position != -1) {
-            AndroidUtilities.runOnUIThread(() -> {
-                scrollToAlbumId(albumId);
-            }, 500);
-
-            // tabsView.selectTab(position, position, 0.0f);
+            AndroidUtilities.runOnUIThread(() -> scrollToAlbumId(albumId), 500);
         } else {
             initialAlbumId = albumId;
         }
@@ -146,46 +150,48 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         NotificationCenter.getInstance(collections.currentAccount)
-            .addObserver(this, NotificationCenter.storyAlbumsCollectionsUpdate);
+            .addWeakObserver(this, NotificationCenter.storyAlbumsCollectionsUpdate);
+        // collections might have been updated while we were detached and missed the notification
+        if (visibilityValue == collections.collections.isEmpty() || adapter.canCreateNewAlbum != collections.canCreateNewAlbum()) {
+            onCollectionsUpdate();
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         NotificationCenter.getInstance(collections.currentAccount)
-            .addObserver(this, NotificationCenter.storyAlbumsCollectionsUpdate);
+            .removeObserver(this, NotificationCenter.storyAlbumsCollectionsUpdate);
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.storyAlbumsCollectionsUpdate) {
             if ((Long) args[0] != collections.dialogId) return;
-
-            final int tabId = tabsView != null ? tabsView.getCurrentTabId() : 0;
-
-            adapter.canCreateNewAlbum = collections.canCreateNewAlbum();
-            viewPager.fillTabs(true);
-            setVisibility(!collections.collections.isEmpty(), true, false);
-
-            if (initialAlbumId > 0) {
-                final int position = adapter.getItemPosition(initialAlbumId);
-                if (position != -1) {
-                    final int finalAlbumId = initialAlbumId;
-                    AndroidUtilities.runOnUIThread(() -> {
-                        scrollToAlbumId(finalAlbumId);
-                    }, 500);
-
-                    //tabsView.selectTab(position, position, 0.0f);
-                    initialAlbumId = 0;
-                }
-            } else {
-                if (tabsView != null && tabId > 0 && collections.findById(tabId) == null) {
-                    tabsView.scrollToTab(0, 0);
-                }
-            }
+            onCollectionsUpdate();
         }
     }
 
+    private void onCollectionsUpdate() {
+        final int tabId = tabsView != null ? tabsView.getCurrentTabId() : 0;
+
+        adapter.canCreateNewAlbum = collections.canCreateNewAlbum();
+        viewPager.fillTabs(true);
+        setVisibility(!collections.collections.isEmpty(), true, false);
+
+        if (initialAlbumId > 0) {
+            final int position = adapter.getItemPosition(initialAlbumId);
+            if (position != -1) {
+                final int finalAlbumId = initialAlbumId;
+                AndroidUtilities.runOnUIThread(() -> scrollToAlbumId(finalAlbumId), 500);
+                initialAlbumId = 0;
+            }
+        } else {
+            if (tabsView != null && tabId > 0 && collections.findById(tabId) == null) {
+                tabsView.scrollToTab(0, 0);
+            }
+        }
+    }
 
     public void selectTabWithId(int albumId, float progress) {
         tabsView.selectTabWithId(albumId, progress);
@@ -195,6 +201,11 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
         tabsView.scrollToTab(albumId, adapter.getItemPosition(albumId));
     }
 
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        checkUi_clipRect();
+    }
 
 
     private boolean reorderingCollections;
@@ -217,9 +228,7 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
             final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
             if (lastFragment instanceof ProfileActivity) {
                 ((ProfileActivity) lastFragment).scrollToSharedMedia(false);
-                AndroidUtilities.runOnUIThread(() -> {
-                    ((ProfileActivity) lastFragment).scrollToSharedMedia(true);
-                });
+                AndroidUtilities.runOnUIThread(() -> ((ProfileActivity) lastFragment).scrollToSharedMedia(true));
             }
         }
         if (!reordering) {
@@ -270,7 +279,14 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
     }
 
     protected void onVisibilityChange(float factor) {
+        checkUi_clipRect();
         invalidate();
+    }
+
+    private final Rect clipRect = new Rect();
+    private void checkUi_clipRect() {
+        clipRect.set(0, 0, getMeasuredWidth(), (int) getVisualHeight());
+        setClipBounds(clipRect);
     }
 
     public float getVisibilityFactor() {
@@ -284,18 +300,6 @@ public class ProfileStoriesCollectionTabs extends FrameLayout implements Notific
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         return visibilityValue && super.dispatchTouchEvent(ev);
-    }
-
-    @Override
-    public void draw(@NonNull Canvas canvas) {
-        if (visibilityFactor == 0f) {
-            return;
-        }
-
-        canvas.save();
-        canvas.clipRect(0, 0, getMeasuredWidth(), getVisualHeight());
-        super.draw(canvas);
-        canvas.restore();
     }
 
     private final Runnable sendCollectionsOrder;

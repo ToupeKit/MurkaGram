@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.AndroidUtilities.lerp;
 
+import org.telegram.messenger.FileLog;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -32,11 +33,12 @@ import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SvgHelper;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.Premium.StarParticlesView;
 
 import java.util.Arrays;
 
-public class CacheChart extends View {
+public class CacheChart extends View implements Theme.Colorable {
 
     public static final int TYPE_CACHE = 0;
     public static final int TYPE_NETWORK = 1;
@@ -99,11 +101,11 @@ public class CacheChart extends View {
     private LinearGradient completeGradient, completeTextGradient;
     private Matrix completeGradientMatrix, completeTextGradientMatrix;
 
-    private AnimatedTextView.AnimatedTextDrawable topText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
-    private AnimatedTextView.AnimatedTextDrawable bottomText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
+    private final AnimatedTextView.AnimatedTextDrawable topText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
+    private final AnimatedTextView.AnimatedTextDrawable bottomText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
 
-    private AnimatedTextView.AnimatedTextDrawable topCompleteText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
-    private AnimatedTextView.AnimatedTextDrawable bottomCompleteText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
+    private final AnimatedTextView.AnimatedTextDrawable topCompleteText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
+    private final AnimatedTextView.AnimatedTextDrawable bottomCompleteText = new AnimatedTextView.AnimatedTextDrawable(false, true, true);
 
     private StarParticlesView.Drawable completeDrawable;
 
@@ -388,23 +390,27 @@ public class CacheChart extends View {
         completePaintStroke.setStrokeJoin(Paint.Join.ROUND);
 
         topText.setAnimationProperties(.2f, 0, 450, CubicBezierInterpolator.EASE_OUT_QUINT);
+        topText.setScaleProperty(.6f);
         topText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         topText.setTypeface(AndroidUtilities.bold());
         topText.setTextSize(AndroidUtilities.dp(32));
         topText.setGravity(Gravity.CENTER);
 
         bottomText.setAnimationProperties(.6f, 0, 450, CubicBezierInterpolator.EASE_OUT_QUINT);
+        bottomText.setScaleProperty(.6f);
         bottomText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         bottomText.setTextSize(AndroidUtilities.dp(12));
         bottomText.setGravity(Gravity.CENTER);
 
         topCompleteText.setAnimationProperties(.2f, 0, 450, CubicBezierInterpolator.EASE_OUT_QUINT);
+        topCompleteText.setScaleProperty(.6f);
         topCompleteText.getPaint().setShader(completeTextGradient);
         topCompleteText.setTypeface(AndroidUtilities.bold());
         topCompleteText.setTextSize(AndroidUtilities.dp(32));
         topCompleteText.setGravity(Gravity.CENTER);
 
         bottomCompleteText.setAnimationProperties(.6f, 0, 450, CubicBezierInterpolator.EASE_OUT_QUINT);
+        bottomCompleteText.setScaleProperty(.6f);
         bottomCompleteText.getPaint().setShader(completeTextGradient);
         bottomCompleteText.setTypeface(AndroidUtilities.bold());
         bottomCompleteText.setTextSize(AndroidUtilities.dp(12));
@@ -965,5 +971,29 @@ public class CacheChart extends View {
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         requestLayout();
+    }
+
+    @Override
+    public void updateColors() {
+        try {
+            loadingBackgroundPaint.setColor(Theme.getColor(Theme.key_listSelector));
+            updateTextColors();
+            invalidate();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void updateTextColors() {
+        try {
+            if (topText != null) {
+                topText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            }
+            if (bottomText != null) {
+                bottomText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 }

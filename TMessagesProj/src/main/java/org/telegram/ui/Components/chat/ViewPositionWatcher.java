@@ -1,7 +1,6 @@
 package org.telegram.ui.Components.chat;
 
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,6 +38,7 @@ public final class ViewPositionWatcher implements
         final ViewGroup parent;
         final OnChangedListener listener;
         final RectF last = new RectF();
+        boolean multiwindow;
         boolean hasLast;
 
         Tracked(@NonNull ViewGroup parent, @NonNull OnChangedListener listener) {
@@ -49,6 +49,7 @@ public final class ViewPositionWatcher implements
 
     private final WeakHashMap<View, List<Tracked>> tracked = new WeakHashMap<>();
     private final RectF tmpRect = new RectF(); // reused for all calculations
+    private static final int[] tmpCords = new int[2];
 
     public ViewPositionWatcher(@NonNull View anchorView) {
         this.anchorView = anchorView;
@@ -56,11 +57,19 @@ public final class ViewPositionWatcher implements
         attachIfPossible();
     }
 
-    /** Subscribe a view for tracking relative to the given parent (must be an ancestor). */
     public void subscribe(@NonNull View view,
                           @NonNull ViewGroup parentView,
                           @NonNull OnChangedListener listener) {
+        subscribe(view, parentView, listener, false);
+    }
+
+    /** Subscribe a view for tracking relative to the given parent (must be an ancestor). */
+    public void subscribe(@NonNull View view,
+                          @NonNull ViewGroup parentView,
+                          @NonNull OnChangedListener listener,
+                          boolean multiwindow) {
         Tracked t = new Tracked(parentView, listener);
+        t.multiwindow = multiwindow;
         List<Tracked> tList = tracked.get(view);
         if (tList == null) {
             tList = new ArrayList<>(1);
@@ -70,9 +79,13 @@ public final class ViewPositionWatcher implements
 
         computeRectInParent(view, parentView, tmpRect);
         t.last.set(tmpRect);
-        t.hasLast = true;
+        // t.hasLast = true;
 
         ensureListening();
+
+        if (multiwindow) {
+            new ViewOnPreDraw(view, this);
+        }
     }
 
     /** Unsubscribe a specific view. */
@@ -149,7 +162,15 @@ public final class ViewPositionWatcher implements
             if (view == null || tList == null) continue;
 
             for (Tracked t : tList) {
-                if (!computeRectInParent(view, t.parent, tmpRect)) continue;
+                if (t.multiwindow) {
+                    view.getLocationOnScreen(tmpCords);
+                    tmpRect.set(tmpCords[0], tmpCords[1], tmpCords[0] + view.getWidth(), tmpCords[1] + view.getHeight());
+
+                    t.parent.getLocationOnScreen(tmpCords);
+                    tmpRect.offset(-tmpCords[0], -tmpCords[1]);
+                } else {
+                    if (!computeRectInParent(view, t.parent, tmpRect)) continue;
+                }
 
                 if (!t.hasLast || !tmpRect.equals(t.last)) {
                     t.last.set(tmpRect);
@@ -172,6 +193,11 @@ public final class ViewPositionWatcher implements
         return tmpRectF2.top;
     }
 
+    public static float computeXCoordinateInParent(@NonNull View view, @NonNull ViewGroup parentView) {
+        computeRectInParent(view, parentView, tmpRectF2);
+        return tmpRectF2.left;
+    }
+
     private static RectF tmpRectF2 = new RectF();
     public static boolean computeCoordinatesInParent(@NonNull View view,
                                                    @NonNull ViewGroup parentView, PointF out) {
@@ -191,8 +217,31 @@ public final class ViewPositionWatcher implements
      * @return false if parentView is not an ancestor of view.
      */
 
+    private static final float[] tmpOffset = new float[2];
+
+    /** The position of {@code view} in {@code root} by the sum of the positions of its ancestors; false if not under it. */
+    private static boolean computeOffsetInRoot(@NonNull View view, @NonNull View root, float[] out) {
+        float left = 0f, top = 0f;
+        View current = view;
+        while (current != root) {
+            left += current.getX();
+            top += current.getY();
+            final ViewParent vp = current.getParent();
+            if (!(vp instanceof View)) {
+                return false;
+            }
+            final View parent = (View) vp;
+            left -= parent.getScrollX();
+            top -= parent.getScrollY();
+            current = parent;
+        }
+        out[0] = left;
+        out[1] = top;
+        return true;
+    }
+
     public static boolean computeRectInParent(@NonNull View view,
-                                               @NonNull ViewGroup parentView,
+                                               @NonNull View parentView,
                                                @NonNull RectF out) {
         float left = 0f;
         float top = 0f;
@@ -204,14 +253,23 @@ public final class ViewPositionWatcher implements
 
             ViewParent vp = current.getParent();
             if (!(vp instanceof View)) {
-                return false; // parentView not found in hierarchy
+                break; // the root: parentView is not an ancestor
             }
-            current = (View) vp;
+            View parent = (View) vp;
+            left -= parent.getScrollX();
+            top  -= parent.getScrollY();
+
+            current = parent;
         }
 
         if (current != parentView) {
-            // parentView not found in ancestor chain
-            return false;
+            // parentView is not an ancestor (e.g. a menu over the tabs of a page whose glass it is): through their
+            // common root, both positions summed up to it
+            if (current == null || !computeOffsetInRoot(parentView, current, tmpOffset)) {
+                return false;
+            }
+            left -= tmpOffset[0];
+            top -= tmpOffset[1];
         }
 
         final float l = left;
@@ -220,5 +278,76 @@ public final class ViewPositionWatcher implements
         final float b = t + view.getHeight();
         out.set(l, t, r, b);
         return true;
+    }
+
+
+
+
+
+
+
+    private static class ViewOnPreDraw {
+
+        private final View view;
+        private final ViewTreeObserver.OnPreDrawListener listener;
+
+        private ViewTreeObserver viewTreeObserver;
+
+        public ViewOnPreDraw(
+                @NonNull View view,
+                @NonNull ViewTreeObserver.OnPreDrawListener listener
+        ) {
+            this.view = view;
+            this.listener = listener;
+
+            view.addOnAttachStateChangeListener(attachStateChangeListener);
+
+            if (view.isAttachedToWindow()) {
+                attach();
+            }
+        }
+
+        private final View.OnAttachStateChangeListener attachStateChangeListener =
+                new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(@NonNull View v) {
+                        attach();
+                    }
+
+                    @Override
+                    public void onViewDetachedFromWindow(@NonNull View v) {
+                        detach();
+                    }
+                };
+
+        private void attach() {
+            ViewTreeObserver observer = view.getViewTreeObserver();
+            if (viewTreeObserver == observer) {
+                return;
+            }
+
+            detach();
+
+            viewTreeObserver = observer;
+            if (observer.isAlive()) {
+                observer.addOnPreDrawListener(listener);
+            }
+        }
+
+        private void detach() {
+            if (viewTreeObserver == null) {
+                return;
+            }
+
+            if (viewTreeObserver.isAlive()) {
+                viewTreeObserver.removeOnPreDrawListener(listener);
+            }
+            viewTreeObserver = null;
+        }
+
+        public void destroy() {
+            detach();
+            view.removeOnAttachStateChangeListener(attachStateChangeListener);
+        }
     }
 }

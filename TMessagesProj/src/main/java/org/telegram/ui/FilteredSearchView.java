@@ -1,15 +1,19 @@
 package org.telegram.ui;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -48,15 +52,16 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLMethod;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Adapters.FiltersView;
 import org.telegram.ui.Business.QuickRepliesController;
-import org.telegram.ui.Cells.ChatActionCell;
 import org.telegram.ui.Cells.ContextLinkCell;
 import org.telegram.ui.Cells.DialogCell;
 import org.telegram.ui.Cells.GraySectionCell;
@@ -68,8 +73,8 @@ import org.telegram.ui.Cells.SharedLinkCell;
 import org.telegram.ui.Cells.SharedMediaSectionCell;
 import org.telegram.ui.Cells.SharedPhotoVideoCell;
 import org.telegram.ui.Components.AlertsCreator;
+import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.BackupImageView;
-import org.telegram.ui.Components.BlurredRecyclerView;
 import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EmbedBottomSheet;
@@ -79,14 +84,26 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SearchViewPager;
 import org.telegram.ui.Components.StickerEmptyView;
+import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
+import org.telegram.ui.Components.blur3.capture.IBlur3Capture;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Locale;
 
-public class FilteredSearchView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
+import me.vkryl.android.animator.BoolAnimator;
+import me.vkryl.android.animator.FactorAnimator;
 
-    public RecyclerListView recyclerListView;
+@SuppressLint("ViewConstructor")
+public class FilteredSearchView extends FrameLayout implements Theme.Colorable, NotificationCenter.NotificationCenterDelegate, FactorAnimator.Target {
+    private static final int ANIMATOR_ID_FLOATING_DATE_VISIBLE = 0;
+    private final BoolAnimator animatorFloatingDataVisible = new BoolAnimator(ANIMATOR_ID_FLOATING_DATE_VISIBLE, this, CubicBezierInterpolator.EASE_OUT_QUINT, 380);
+
+    public final @NonNull RecyclerListView recyclerListView;
+    public IBlur3Capture iBlur3Capture;
 
     StickerEmptyView emptyView;
     RecyclerListView.Adapter adapter;
@@ -105,6 +122,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
 
     FiltersView.MediaFilterData currentSearchFilter;
     long currentSearchDialogId;
+    long currentSearchCommunityId;
     long currentSearchMaxDate;
     long currentSearchMinDate;
     String currentSearchString;
@@ -161,7 +179,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         @Override
         public boolean loadMore() {
             if (!endReached) {
-                search(currentSearchDialogId, currentSearchMinDate, currentSearchMaxDate, currentSearchFilter, currentIncludeFolder, lastMessagesSearchString, false);
+                search(currentSearchDialogId, currentSearchCommunityId, currentSearchMinDate, currentSearchMaxDate, currentSearchFilter, currentIncludeFolder, lastMessagesSearchString, false);
             }
             return true;
         }
@@ -265,10 +283,9 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
     private boolean firstLoading = true;
     private AnimationNotificationsLocker notificationsLocker = new AnimationNotificationsLocker();
     public int keyboardHeight;
-    private final ChatActionCell floatingDateView;
+    private final FloatingDateView floatingDateView;
 
-    private AnimatorSet floatingDateAnimation;
-    private Runnable hideFloatingDateRunnable = () -> hideFloatingDateView(true);
+    private final Runnable hideFloatingDateRunnable = () -> hideFloatingDateView();
 
     private UiCallback uiCallback;
 
@@ -276,8 +293,8 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         super(fragment.getParentActivity());
         parentFragment = fragment;
         Context context = parentActivity = fragment.getParentActivity();
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-        recyclerListView = new BlurredRecyclerView(context) {
+        ThemeBind.backgroundColor(this, Theme.key_windowBackgroundWhite);
+        recyclerListView = new RecyclerListView(context) {
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
@@ -351,7 +368,6 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                 chatPreviewDelegate.finish();
             }
         });
-        recyclerListView.setPadding(0, 0, 0, AndroidUtilities.dp(3));
 
         layoutManager = new LinearLayoutManager(context);
         recyclerListView.setLayoutManager(layoutManager);
@@ -364,6 +380,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         addView(recyclerListView);
 
         recyclerListView.setSectionsType(RecyclerListView.SECTIONS_TYPE_DATE);
+        recyclerListView.setSkipDrawSection(true);
         recyclerListView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
@@ -383,7 +400,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                 int totalItemCount = recyclerView.getAdapter().getItemCount();
                 if (!isLoading && visibleItemCount > 0 && lastVisibleItem >= totalItemCount - 10 && !endReached) {
                     AndroidUtilities.runOnUIThread(() -> {
-                        search(currentSearchDialogId, currentSearchMinDate, currentSearchMaxDate, currentSearchFilter, currentIncludeFolder, lastMessagesSearchString, false);
+                        search(currentSearchDialogId, currentSearchCommunityId, currentSearchMinDate, currentSearchMaxDate, currentSearchFilter, currentIncludeFolder, lastMessagesSearchString, false);
                     });
                 }
 
@@ -397,20 +414,35 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                             SharedPhotoVideoCell cell = (SharedPhotoVideoCell) holder.itemView;
                             MessageObject messageObject = cell.getMessageObject(0);
                             if (messageObject != null) {
-                                floatingDateView.setCustomDate(messageObject.messageOwner.date, false, true);
+                                floatingDateView.setCustomDate(messageObject.messageOwner.date);
                             }
                         }
+                    }
+                } else {
+                    boolean hideFloatingView = true;
+                    View pinnedHeader = recyclerListView.getPinnedHeader();
+                    if (pinnedHeader instanceof GraySectionCell) {
+                        GraySectionCell cell = (GraySectionCell) pinnedHeader;
+                        CharSequence text = cell.getText();
+                        if (!TextUtils.isEmpty(text) && cell.getAlpha() > 0) {
+                            hideFloatingView = false;
+                            floatingDateView.setCustomText(text.toString());
+                            if (dy != 0) {
+                                showFloatingDateView();
+                            }
+                        }
+                    }
+                    if (hideFloatingView) {
+                        hideFloatingDateView();
                     }
                 }
             }
         });
 
-        floatingDateView = new ChatActionCell(context);
-        floatingDateView.setCustomDate((int) (System.currentTimeMillis() / 1000), false, false);
-        floatingDateView.setAlpha(0.0f);
-        floatingDateView.setOverrideColor(Theme.key_chat_mediaTimeBackground, Theme.key_chat_mediaTimeText);
-        floatingDateView.setTranslationY(-AndroidUtilities.dp(48));
-        addView(floatingDateView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
+        floatingDateView = new FloatingDateView(context);
+        floatingDateView.setCustomDate((int) (System.currentTimeMillis() / 1000));
+        // floatingDateView.setOverrideColor(Theme.key_chat_mediaTimeBackground, Theme.key_chat_mediaTimeText);
+        addView(floatingDateView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 33, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, -2, 0, 0));
 
         dialogsAdapter = new OnlyUserFiltersAdapter();
         sharedPhotoVideoAdapter = new SharedPhotoVideoAdapter(getContext());
@@ -423,6 +455,14 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         addView(emptyView);
         recyclerListView.setEmptyView(emptyView);
         emptyView.setVisibility(View.GONE);
+        checkUi_floatingDateView();
+    }
+
+    BlurredBackgroundDrawableViewFactory blurredBackgroundDrawableFactory;
+
+    public void setBlurredBackgroundDrawableFactory(BlurredBackgroundDrawableViewFactory factory) {
+        blurredBackgroundDrawableFactory = factory;
+        floatingDateView.setBlurredBackgroundDrawable(factory.create(floatingDateView, BlurredBackgroundProviderImpl.searchFloatingDate(null)));
     }
 
     public static CharSequence createFromInfoString(MessageObject messageObject, int arrowType) {
@@ -530,14 +570,15 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         return fromName == null ? "" : fromName;
     }
 
-    public void search(long dialogId, long minDate, long maxDate, FiltersView.MediaFilterData currentSearchFilter, boolean includeFolder, String query, boolean clearOldResults) {
+    public void search(long dialogId, long communityId, long minDate, long maxDate, FiltersView.MediaFilterData currentSearchFilter, boolean includeFolder, String query, boolean clearOldResults) {
         if (query == null) query = "";
         final String finalQuery = query;
-        String currentSearchFilterQueryString = String.format(Locale.ENGLISH, "%d%d%d%d%s%s", dialogId, minDate, maxDate, currentSearchFilter == null ? -1 : currentSearchFilter.filterType, query, includeFolder);
+        String currentSearchFilterQueryString = String.format(Locale.ENGLISH, "%d%d%d%d%d%s%s", dialogId, communityId, minDate, maxDate, currentSearchFilter == null ? -1 : currentSearchFilter.filterType, query, includeFolder);
         boolean filterAndQueryIsSame = lastSearchFilterQueryString != null && lastSearchFilterQueryString.equals(currentSearchFilterQueryString);
         boolean forceClear = !filterAndQueryIsSame && clearOldResults;
         this.currentSearchFilter = currentSearchFilter;
         this.currentSearchDialogId = dialogId;
+        this.currentSearchCommunityId = communityId;
         this.currentSearchMinDate = minDate;
         this.currentSearchMaxDate = maxDate;
         this.currentSearchString = query;
@@ -549,7 +590,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         if (filterAndQueryIsSame && clearOldResults) {
             return;
         }
-        if (forceClear || currentSearchFilter == null && dialogId == 0 && minDate == 0 && maxDate == 0) {
+        if (forceClear || currentSearchFilter == null && communityId == 0 && dialogId == 0 && minDate == 0 && maxDate == 0) {
             messages.clear();
             sections.clear();
             sectionArrays.clear();
@@ -593,10 +634,10 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         int currentAccount = UserConfig.selectedAccount;
 
         AndroidUtilities.runOnUIThread(searchRunnable = () -> {
-            TLObject request;
+            TLMethod<TLRPC.messages_Messages> request;
 
             ArrayList<Object> resultArray = null;
-            if (dialogId != 0) {
+            if (dialogId != 0 && communityId == 0) {
                 final TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
                 req.q = finalQuery;
                 req.limit = 20;
@@ -627,6 +668,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                 req.limit = 20;
                 req.q = finalQuery;
                 req.filter = currentSearchFilter == null ? new TLRPC.TL_inputMessagesFilterEmpty() : currentSearchFilter.filter;
+                req.community = MessagesController.getInstance(currentAccount).getInputChannel(communityId);
                 if (minDate > 0) {
                     req.min_date = (int) (minDate / 1000);
                 }
@@ -655,10 +697,10 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
             ArrayList<Object> finalResultArray = resultArray;
             final ArrayList<FiltersView.DateData> dateData = new ArrayList<>();
             FiltersView.fillTipDates(lastMessagesSearchString, dateData);
-            ConnectionsManager.getInstance(currentAccount).sendRequest(request, (response, error) -> {
+            ConnectionsManager.getInstance(currentAccount).sendRequestTyped(request, (response, error) -> {
                 ArrayList<MessageObject> messageObjects = new ArrayList<>();
                 if (error == null) {
-                    TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                    TLRPC.messages_Messages res = response;
                     int n = res.messages.size();
                     for (int i = 0; i < n; i++) {
                         MessageObject messageObject = new MessageObject(currentAccount, res.messages.get(i), false, true);
@@ -682,7 +724,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
 
                     emptyView.showProgress(false);
 
-                    TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                    TLRPC.messages_Messages res = response;
                     nextSearchRate = res.next_rate;
                     MessagesStorage.getInstance(currentAccount).putUsersAndChats(res.users, res.chats, true, true);
                     MessagesController.getInstance(currentAccount).putUsers(res.users, false);
@@ -892,6 +934,25 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         } else if (currentSearchFilter.filterType == FiltersView.FILTER_TYPE_LINKS) {
             loadingView.setViewType(FlickerLoadingView.LINKS_TYPE);
         }
+    }
+
+    public void setPagesPaddings(int top, int bottom) {
+        setPagesPaddings(top, bottom, false);
+    }
+
+    public void setPagesPaddings(int top, int bottom, boolean doNotRequestLayout) {
+        setClipToPadding(false);
+        ignoreRequestLayout = doNotRequestLayout;
+
+        setPadding(0, top, 0, bottom);
+        recyclerListView.setPadding(0, top, 0, bottom, doNotRequestLayout);
+
+        MarginLayoutParams lp = null;
+        lp = (MarginLayoutParams) recyclerListView.getLayoutParams();
+        lp.topMargin = -top;
+        lp.bottomMargin = -bottom;
+
+        ignoreRequestLayout = false;
     }
 
     public void update() {
@@ -1529,7 +1590,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        NotificationCenter.getInstance(lastAccount = UserConfig.selectedAccount).addObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getInstance(lastAccount = UserConfig.selectedAccount).addWeakObserver(this, NotificationCenter.emojiLoaded);
     }
 
     @Override
@@ -1731,140 +1792,190 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
 
     private void showFloatingDateView() {
         AndroidUtilities.cancelRunOnUIThread(hideFloatingDateRunnable);
-        AndroidUtilities.runOnUIThread(hideFloatingDateRunnable, 650);
-        if (floatingDateView.getTag() != null) {
-            return;
-        }
-        if (floatingDateAnimation != null) {
-            floatingDateAnimation.cancel();
-        }
-        floatingDateView.setTag(1);
-        floatingDateAnimation = new AnimatorSet();
-        floatingDateAnimation.setDuration(180);
-        floatingDateAnimation.playTogether(
-                ObjectAnimator.ofFloat(floatingDateView, View.ALPHA, 1.0f),
-                ObjectAnimator.ofFloat(floatingDateView, View.TRANSLATION_Y, 0));
-        floatingDateAnimation.setInterpolator(CubicBezierInterpolator.EASE_OUT);
-        floatingDateAnimation.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                floatingDateAnimation = null;
-            }
-        });
-        floatingDateAnimation.start();
+        AndroidUtilities.runOnUIThread(hideFloatingDateRunnable, 1650);
+        animatorFloatingDataVisible.setValue(true, true);
     }
 
-    private void hideFloatingDateView(boolean animated) {
+    private void hideFloatingDateView() {
         AndroidUtilities.cancelRunOnUIThread(hideFloatingDateRunnable);
-        if (floatingDateView.getTag() == null) {
-            return;
+        animatorFloatingDataVisible.setValue(false, true);
+    }
+
+    @Override
+    public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
+        if (id == ANIMATOR_ID_FLOATING_DATE_VISIBLE) {
+            checkUi_floatingDateView();
         }
-        floatingDateView.setTag(null);
-        if (floatingDateAnimation != null) {
-            floatingDateAnimation.cancel();
-            floatingDateAnimation = null;
-        }
-        if (animated) {
-            floatingDateAnimation = new AnimatorSet();
-            floatingDateAnimation.setDuration(180);
-            floatingDateAnimation.playTogether(
-                    ObjectAnimator.ofFloat(floatingDateView, View.ALPHA, 0.0f),
-                    ObjectAnimator.ofFloat(floatingDateView, View.TRANSLATION_Y, -AndroidUtilities.dp(48)));
-            floatingDateAnimation.setInterpolator(CubicBezierInterpolator.EASE_OUT);
-            floatingDateAnimation.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    floatingDateAnimation = null;
-                }
-            });
-            floatingDateAnimation.start();
-        } else {
-            floatingDateView.setAlpha(0.0f);
-        }
+    }
+
+    private void checkUi_floatingDateView() {
+        final float factor = animatorFloatingDataVisible.getFloatValue();
+
+        floatingDateView.setTranslationY(-dp(24) * (1f - factor));
+        floatingDateView.setAlpha(factor);
+        floatingDateView.setVisibility(factor > 0 ? View.VISIBLE : View.INVISIBLE);
     }
 
     public void setChatPreviewDelegate(SearchViewPager.ChatPreviewDelegate chatPreviewDelegate) {
         this.chatPreviewDelegate = chatPreviewDelegate;
     }
 
+    private static class FloatingDateView extends View implements Theme.Colorable {
+        private final AnimatedTextView.AnimatedTextDrawable mDrawable;
+        private BlurredBackgroundDrawable bgDrawable;
+        private String text;
+
+        public FloatingDateView(Context context) {
+            super(context);
+            mDrawable = new AnimatedTextView.AnimatedTextDrawable(true, false, false);
+            mDrawable.setTextColor(Color.WHITE);
+            mDrawable.setGravity(Gravity.CENTER);
+            mDrawable.setTypeface(AndroidUtilities.bold());
+            mDrawable.setTextSize(dp(14));
+            mDrawable.setCallback(this);
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            mDrawable.setBounds(0, 0, w, h);
+        }
+
+        public void setBlurredBackgroundDrawable(BlurredBackgroundDrawable d) {
+            bgDrawable = d;
+            bgDrawable.setRadius(dp(11.5f));
+            bgDrawable.setPadding(dp(5));
+        }
+
+        public void setCustomDate(int date) {
+            setCustomText(LocaleController.formatDateChat(date));
+        }
+
+        public void setCustomText(String text) {
+            if (!TextUtils.equals(this.text, text)) {
+                this.text = text;
+                mDrawable.setText(text, true);
+            }
+        }
+
+        @Override
+        protected void onDraw(@NonNull Canvas canvas) {
+            super.onDraw(canvas);
+            final int w = (int) (mDrawable.getCurrentWidth() + dpf2(30));
+            final int l = (getWidth() - w) / 2;
+            final int r = l + w;
+            if (bgDrawable != null) {
+                bgDrawable.setBounds(l, 0, r, getHeight());
+                bgDrawable.draw(canvas);
+            }
+            mDrawable.draw(canvas);
+        }
+
+        @Override
+        protected boolean verifyDrawable(@NonNull Drawable who) {
+            return super.verifyDrawable(who) || who == mDrawable;
+        }
+
+        @Override
+        public void updateColors() {
+            if (bgDrawable != null) {
+                bgDrawable.updateColors();
+                invalidate();
+            }
+        }
+    }
 
     public ArrayList<ThemeDescription> getThemeDescriptions() {
+        ThemeDescription.ThemeDescriptionDelegate cellDelegate = this::cellDelegateThemeColors;
+
         ArrayList<ThemeDescription> arrayList = new ArrayList<>();
-        arrayList.add(new ThemeDescription(this, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
+
         arrayList.add(new ThemeDescription(this, 0, null, null, null, null, Theme.key_dialogBackground));
         arrayList.add(new ThemeDescription(this, 0, null, null, null, null, Theme.key_windowBackgroundGray));
 
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{SharedDocumentCell.class}, new String[]{"nameTextView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{SharedDocumentCell.class}, new String[]{"dateTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText3));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{SharedDocumentCell.class}, new String[]{"progressView"}, null, null, null, Theme.key_sharedMedia_startStopLoadIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{SharedDocumentCell.class}, new String[]{"statusImageView"}, null, null, null, Theme.key_sharedMedia_startStopLoadIcon));
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOX, new Class[]{SharedDocumentCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkbox));
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOXCHECK, new Class[]{SharedDocumentCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkboxCheck));
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{SharedDocumentCell.class}, new String[]{"thumbImageView"}, null, null, null, Theme.key_files_folderIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{SharedDocumentCell.class}, new String[]{"extTextView"}, null, null, null, Theme.key_files_iconText));
 
         arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{LoadingCell.class}, new String[]{"progressBar"}, null, null, null, Theme.key_progressCircle));
 
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOX, new Class[]{SharedAudioCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkbox));
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOXCHECK, new Class[]{SharedAudioCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkboxCheck));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{SharedAudioCell.class}, Theme.chat_contextResult_titleTextPaint, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{SharedAudioCell.class}, Theme.chat_contextResult_descriptionTextPaint, null, null, Theme.key_windowBackgroundWhiteGrayText2));
 
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOX, new Class[]{SharedLinkCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkbox));
         arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOXCHECK, new Class[]{SharedLinkCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkboxCheck));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{SharedLinkCell.class}, new String[]{"titleTextPaint"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{SharedLinkCell.class}, null, null, null, Theme.key_windowBackgroundWhiteLinkText));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{SharedLinkCell.class}, Theme.linkSelectionPaint, null, null, Theme.key_windowBackgroundWhiteLinkSelection));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{SharedLinkCell.class}, new String[]{"letterDrawable"}, null, null, null, Theme.key_sharedMedia_linkPlaceholderText));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{SharedLinkCell.class}, new String[]{"letterDrawable"}, null, null, null, Theme.key_sharedMedia_linkPlaceholder));
 
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR | ThemeDescription.FLAG_SECTIONS, new Class[]{SharedMediaSectionCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_SECTIONS, new Class[]{SharedMediaSectionCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{SharedMediaSectionCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
 
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, Theme.avatarDrawables, null, Theme.key_avatar_text));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_countPaint, null, null, Theme.key_chats_unreadCounter));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_countGrayPaint, null, null, Theme.key_chats_unreadCounterMuted));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_countTextPaint, null, null, Theme.key_chats_unreadCounterText));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_lockDrawable}, null, Theme.key_chats_secretIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_scamDrawable, Theme.dialogs_fakeDrawable}, null, Theme.key_chats_draft));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_pinnedDrawable, Theme.dialogs_reorderDrawable}, null, Theme.key_chats_pinnedIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Paint[]{Theme.dialogs_namePaint[0], Theme.dialogs_namePaint[1], Theme.dialogs_searchNamePaint}, null, null, Theme.key_chats_name));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Paint[]{Theme.dialogs_nameEncryptedPaint[0], Theme.dialogs_nameEncryptedPaint[1], Theme.dialogs_searchNameEncryptedPaint}, null, null, Theme.key_chats_secretName));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_messagePaint[1], null, null, Theme.key_chats_message_threeLines));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_messagePaint[0], null, null, Theme.key_chats_message));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_messageNamePaint, null, null, Theme.key_chats_nameMessage_threeLines));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, null, null, Theme.key_chats_draft));
 
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, Theme.dialogs_messagePrintingPaint, null, null, Theme.key_chats_actionMessage));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_timePaint, null, null, Theme.key_chats_date));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_pinnedPaint, null, null, Theme.key_chats_pinnedOverlay));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_tabletSeletedPaint, null, null, Theme.key_chats_tabletSelectedOverlay));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_checkDrawable}, null, Theme.key_chats_sentCheck));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_checkReadDrawable, Theme.dialogs_halfCheckDrawable}, null, Theme.key_chats_sentReadCheck));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_clockDrawable}, null, Theme.key_chats_sentClock));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, Theme.dialogs_errorPaint, null, null, Theme.key_chats_sentError));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_errorDrawable}, null, Theme.key_chats_sentErrorIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_verifiedCheckDrawable}, null, Theme.key_chats_verifiedCheck));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class, ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_verifiedDrawable}, null, Theme.key_chats_verifiedBackground));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_muteDrawable}, null, Theme.key_chats_muteIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, new Drawable[]{Theme.dialogs_mentionDrawable}, null, Theme.key_chats_mentionIcon));
 
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, null, null, Theme.key_chats_archivePinBackground));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, null, null, Theme.key_chats_archiveBackground));
 
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, null, null, Theme.key_chats_onlineCircle));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{DialogCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOX, new Class[]{DialogCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_windowBackgroundWhite));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKBOXCHECK, new Class[]{DialogCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_checkboxCheck));
 
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_SECTIONS, new Class[]{GraySectionCell.class}, new String[]{"textView"}, null, null, null, Theme.key_graySectionText));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR | ThemeDescription.FLAG_SECTIONS, new Class[]{GraySectionCell.class}, null, null, null, Theme.key_graySection));
 
         arrayList.add(new ThemeDescription(emptyView.title, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         arrayList.add(new ThemeDescription(emptyView.subtitle, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteGrayText));
 
 
         return arrayList;
+    }
+
+    @Override
+    public void updateColors() {
+        try {
+            cellDelegateThemeColors();
+    
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void cellDelegateThemeColors() {
+        if (floatingDateView != null) {
+            floatingDateView.updateColors();
+        }
+    }
+
+    /** theme editor: colors this view shows (former ThemeDescription keys) */
+    @Override
+    public void addColorKeys(HashSet<Integer> colors) {
+        colors.add(Theme.key_graySection);
+        colors.add(Theme.key_graySectionText);
+        colors.add(Theme.key_checkboxCheck);
+        colors.add(Theme.key_chats_onlineCircle);
+        colors.add(Theme.key_chats_archiveBackground);
+        colors.add(Theme.key_chats_archivePinBackground);
+        colors.add(Theme.key_chats_mentionIcon);
+        colors.add(Theme.key_chats_muteIcon);
+        colors.add(Theme.key_chats_verifiedBackground);
+        colors.add(Theme.key_chats_verifiedCheck);
+        colors.add(Theme.key_chats_sentErrorIcon);
+        colors.add(Theme.key_chats_sentError);
+        colors.add(Theme.key_chats_sentClock);
+        colors.add(Theme.key_chats_sentReadCheck);
+        colors.add(Theme.key_chats_sentCheck);
+        colors.add(Theme.key_chats_tabletSelectedOverlay);
+        colors.add(Theme.key_chats_pinnedOverlay);
+        colors.add(Theme.key_chats_date);
+        colors.add(Theme.key_chats_actionMessage);
+        colors.add(Theme.key_chats_draft);
+        colors.add(Theme.key_chats_nameMessage_threeLines);
+        colors.add(Theme.key_chats_message);
+        colors.add(Theme.key_chats_message_threeLines);
+        colors.add(Theme.key_chats_secretName);
+        colors.add(Theme.key_chats_name);
+        colors.add(Theme.key_chats_pinnedIcon);
+        colors.add(Theme.key_chats_secretIcon);
+        colors.add(Theme.key_chats_unreadCounterText);
+        colors.add(Theme.key_chats_unreadCounterMuted);
+        colors.add(Theme.key_chats_unreadCounter);
+        colors.add(Theme.key_avatar_text);
+        colors.add(Theme.key_windowBackgroundWhiteBlackText);
+        colors.add(Theme.key_sharedMedia_linkPlaceholder);
+        colors.add(Theme.key_sharedMedia_linkPlaceholderText);
+        colors.add(Theme.key_windowBackgroundWhiteLinkSelection);
+        colors.add(Theme.key_windowBackgroundWhiteLinkText);
+        colors.add(Theme.key_windowBackgroundWhiteGrayText2);
+        colors.add(Theme.key_files_iconText);
+        colors.add(Theme.key_sharedMedia_startStopLoadIcon);
+        colors.add(Theme.key_windowBackgroundWhiteGrayText3);
     }
 }

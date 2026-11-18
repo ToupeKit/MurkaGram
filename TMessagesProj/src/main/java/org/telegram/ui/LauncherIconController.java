@@ -15,13 +15,13 @@ public class LauncherIconController {
             }
         }
 
-        setIcon(LauncherIcon.MURKAGRAM); // MurkaGram
+        setIcon(LauncherIcon.DEFAULT);
     }
 
     public static boolean isEnabled(LauncherIcon icon) {
         Context ctx = ApplicationLoader.applicationContext;
         int i = ctx.getPackageManager().getComponentEnabledSetting(icon.getComponentName(ctx));
-        return i == PackageManager.COMPONENT_ENABLED_STATE_ENABLED || i == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && icon == LauncherIcon.MURKAGRAM; // MurkaGram
+        return i == PackageManager.COMPONENT_ENABLED_STATE_ENABLED || i == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && icon == LauncherIcon.DEFAULT;
     }
 
     public static void setIcon(LauncherIcon icon) {
@@ -34,10 +34,7 @@ public class LauncherIconController {
     }
 
     public enum LauncherIcon {
-        // MurkaGram: own icon is default (alias DefaultIcon), official Telegram icon moved to alias TelegramIcon
-        MURKAGRAM("DefaultIcon", R.drawable.icon_murka_background_sa, R.mipmap.icon_murka_foreground_sa, R.string.AppIconMurkaGram),
-        MURKAGRAM_FLAT("MurkaFlatIcon", R.drawable.icon_murka_flat_background_sa, R.mipmap.icon_murka_flat_foreground_sa, R.string.AppIconMurkaGramFlat), // MurkaGram
-        TELEGRAM("TelegramIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconTelegram),
+        DEFAULT("DefaultIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconDefault),
         VINTAGE("VintageIcon", R.drawable.icon_6_background_sa, R.mipmap.icon_6_foreground_sa, R.string.AppIconVintage),
         AQUA("AquaIcon", R.drawable.icon_4_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconAqua),
         PREMIUM("PremiumIcon", R.drawable.icon_3_background_sa, R.mipmap.icon_3_foreground_sa, R.string.AppIconPremium, true),

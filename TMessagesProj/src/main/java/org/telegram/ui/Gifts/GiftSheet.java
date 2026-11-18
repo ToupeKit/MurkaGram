@@ -1,5 +1,6 @@
 package org.telegram.ui.Gifts;
 
+import static android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.AndroidUtilities.lerp;
@@ -8,7 +9,9 @@ import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
 import static org.telegram.ui.Stars.StarsController.findAttribute;
 import static org.telegram.ui.Stars.StarsIntroActivity.StarsTransactionView.getPlatformDrawable;
+import static org.telegram.ui.bots.AffiliateProgramFragment.percents;
 
+import org.telegram.messenger.FileLog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BlendMode;
@@ -24,6 +27,7 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -34,11 +38,14 @@ import android.os.Bundle;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -76,7 +83,8 @@ import org.telegram.messenger.SvgHelper;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.utils.FrameTickScheduler;
+import org.telegram.messenger.utils.Choreographer60FpsContent;
+import org.telegram.messenger.utils.DrawableUtils;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
@@ -87,6 +95,7 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
@@ -120,6 +129,7 @@ import org.telegram.ui.Components.TypefaceSpan;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.Components.blur3.utils.NinePatchBuilder;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.PremiumPreviewFragment;
 import org.telegram.ui.ProfileActivity;
@@ -132,6 +142,7 @@ import org.telegram.ui.Stars.StarsReactionsSheet;
 import org.telegram.ui.Stories.recorder.HintView2;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -143,7 +154,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
     private final int currentAccount;
     private UniversalAdapter adapter;
     private List<TLRPC.TL_premiumGiftCodeOption> options;
-    private final Runnable closeParentSheet;
+    private final Utilities.Callback<Boolean> closeParentSheet;
     private TLRPC.DisallowedGiftsSettings userSettings;
 
     private final long dialogId;
@@ -174,11 +185,16 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
 
     private boolean birthday;
 
-    public GiftSheet(Context context, int currentAccount, long userId, Runnable closeParentSheet) {
+    // the store opened to browse collectibles (from the QR screen): the Collectibles tab, its own text, gold glitter
+    private boolean browseCollectibles, browseTabApplied;
+    private StarParticlesView particlesView;
+    private @Nullable LinkSpanDrawable.LinksTextView subtitleStarsView2;
+
+    public GiftSheet(Context context, int currentAccount, long userId, Utilities.Callback<Boolean> closeParentSheet) {
         this(context, currentAccount, userId, null, closeParentSheet);
     }
 
-    public GiftSheet(Context context, int currentAccount, long dialogId, List<TLRPC.TL_premiumGiftCodeOption> options, Runnable closeParentSheet) {
+    public GiftSheet(Context context, int currentAccount, long dialogId, List<TLRPC.TL_premiumGiftCodeOption> options, Utilities.Callback<Boolean> closeParentSheet) {
         super(context, null, false, false, false, null);
 
         this.currentAccount = currentAccount;
@@ -186,13 +202,14 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         this.self = UserConfig.getInstance(currentAccount).getClientUserId() == dialogId;
         this.options = options;
         this.closeParentSheet = closeParentSheet;
-        setBackgroundColor(Theme.getColor(Theme.key_dialogGiftsBackground));
-        fixNavigationBar(Theme.getColor(Theme.key_dialogGiftsBackground));
+        setBackgroundColorKey(Theme.key_dialogGiftsBackground);
+        fixNavigationBarKey(Theme.key_dialogGiftsBackground);
         myGifts = StarsController.getInstance(currentAccount).getProfileGiftsList(UserConfig.getInstance(currentAccount).getClientUserId());
 
         StarsController.getInstance(currentAccount).loadStarGifts();
 
         final BackupImageView avatarImageView = new BackupImageView(context);
+        avatarImageView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         final AvatarDrawable avatarDrawable = new AvatarDrawable();
 
         if (dialogId > 0) {
@@ -242,7 +259,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         topView.setClipChildren(false);
         topView.setClipToPadding(false);
 
-        final StarParticlesView particlesView = StarsIntroActivity.makeParticlesView(context, 70, 0);
+        particlesView = StarsIntroActivity.makeParticlesView(context, 70, 0);
         topView.addView(particlesView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         avatarImageView.setRoundRadius(dp(42));
@@ -264,15 +281,15 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         final TextView titleView = new TextView(context);
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         titleView.setTypeface(AndroidUtilities.bold());
-        titleView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        ThemeBind.textColor(titleView, Theme.key_dialogTextBlack, resourcesProvider);
         titleView.setGravity(Gravity.CENTER);
         bottomView.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 4, 0, 4, 0));
         titleView.setMaxWidth(HintView2.cutInFancyHalf(titleView.getText(), titleView.getPaint()));
 
         final LinkSpanDrawable.LinksTextView subtitleView = new LinkSpanDrawable.LinksTextView(context, resourcesProvider);
-        subtitleView.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        ThemeBind.linkTextColor(subtitleView, Theme.key_chat_messageLinkIn, resourcesProvider);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        subtitleView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        ThemeBind.textColor(subtitleView, Theme.key_dialogTextBlack, resourcesProvider);
         subtitleView.setGravity(Gravity.CENTER);
         subtitleView.setLineSpacing(dp(2.33f), 1.0f);
         bottomView.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 4, 4, 4, 12));
@@ -301,7 +318,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         final TextView titleStarsView = new TextView(context);
         titleStarsView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         titleStarsView.setTypeface(AndroidUtilities.bold());
-        titleStarsView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        ThemeBind.textColor(titleStarsView, Theme.key_dialogTextBlack, resourcesProvider);
         titleStarsView.setGravity(Gravity.CENTER);
         starsHeaderView.addView(titleStarsView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 4, 0, 4, 0));
 
@@ -312,9 +329,9 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 return super.dispatchTouchEvent(event);
             }
         };
-        subtitleStarsView.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        ThemeBind.linkTextColor(subtitleStarsView, Theme.key_chat_messageLinkIn, resourcesProvider);
         subtitleStarsView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        subtitleStarsView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        ThemeBind.textColor(subtitleStarsView, Theme.key_dialogTextBlack, resourcesProvider);
         subtitleStarsView.setGravity(Gravity.CENTER);
 
         subtitleCollectiblesStarsView = new LinkSpanDrawable.LinksTextView(context, resourcesProvider) {
@@ -324,9 +341,9 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 return super.dispatchTouchEvent(event);
             }
         };
-        subtitleCollectiblesStarsView.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+        ThemeBind.linkTextColor(subtitleCollectiblesStarsView, Theme.key_chat_messageLinkIn, resourcesProvider);
         subtitleCollectiblesStarsView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        subtitleCollectiblesStarsView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+        ThemeBind.textColor(subtitleCollectiblesStarsView, Theme.key_dialogTextBlack, resourcesProvider);
         subtitleCollectiblesStarsView.setGravity(Gravity.CENTER);
         subtitleCollectiblesStarsView.setAlpha(0.0f);
         subtitleCollectiblesStarsView.setScaleX(0.85f);
@@ -341,14 +358,15 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             starsHeaderView.addView(subtitleLayout, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 9, 0, 4));
 
             final LinkSpanDrawable.LinksTextView subtitleStarsView2 = new LinkSpanDrawable.LinksTextView(context, resourcesProvider);
-            subtitleStarsView2.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
+            ThemeBind.linkTextColor(subtitleStarsView2, Theme.key_chat_messageLinkIn, resourcesProvider);
             subtitleStarsView2.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            subtitleStarsView2.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
+            ThemeBind.textColor(subtitleStarsView2, Theme.key_dialogTextBlack, resourcesProvider);
             subtitleStarsView2.setGravity(Gravity.CENTER);
             starsHeaderView.addView(subtitleStarsView2, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 26, 4, 26, 6));
 
             subtitleStarsView.setText(getString(R.string.Gift2StarsSelfInfo1));
             subtitleStarsView2.setText(getString(R.string.Gift2StarsSelfInfo2));
+            this.subtitleStarsView2 = subtitleStarsView2;
         } else if (dialogId < 0) {
             starsHeaderView.addView(subtitleLayout, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 9, 0, 4));
             NotificationCenter.listenEmojiLoading(subtitleStarsView);
@@ -388,7 +406,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                             if (lastFragment == null) return;
                             dismiss();
                             if (closeParentSheet != null) {
-                                closeParentSheet.run();
+                                closeParentSheet.run(false);
                             }
                             final Bundle args = new Bundle();
                             args.putLong("user_id", dialogId);
@@ -465,7 +483,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     final GiftPremiumBottomSheet.GiftTier premiumTier = (GiftPremiumBottomSheet.GiftTier) item.object;
                     new SendGiftSheet(context, currentAccount, premiumTier, this.dialogId, () -> {
                         if (closeParentSheet != null) {
-                            closeParentSheet.run();
+                            closeParentSheet.run(false);
                         }
                         dismiss();
                     }) {
@@ -499,7 +517,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                             sheet.doTransfer(dialogId, err -> {
                                 progress.end();
                                 if (closeParentSheet != null) {
-                                    closeParentSheet.run();
+                                    closeParentSheet.run(false);
                                 }
                                 GiftSheet.this.dismiss();
                                 if (err != null) {
@@ -517,6 +535,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                         final BaseFragment.BottomSheetParams bottomSheetParams = new BaseFragment.BottomSheetParams();
                         bottomSheetParams.transitionFromLeft = true;
                         bottomSheetParams.allowNestedScroll = false;
+                        bottomSheetParams.occupyNavigationBar = true;
 
                         ViewTreeObserver observer = container.getViewTreeObserver();
                         ViewTreeObserver.OnPreDrawListener onPreDrawListener = () -> false;
@@ -534,9 +553,12 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                                 observer.addOnPreDrawListener(onPreDrawListener);
                             }
                         };
-                        fragment.setCloseParentSheet(() -> {
+                        fragment.setCloseParentSheet((fragmentsImmediately) -> {
                             if (closeParentSheet != null) {
-                                closeParentSheet.run();
+                                closeParentSheet.run(fragmentsImmediately);
+                            }
+                            if (fragmentsImmediately) {
+                                skipDismissAnimation();
                             }
                             dismiss();
                         });
@@ -546,7 +568,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     if (gift.auction) {
                         AuctionJoinSheet.show(context, resourcesProvider, currentAccount, dialogId, gift.id, () -> {
                             if (closeParentSheet != null) {
-                                closeParentSheet.run();
+                                closeParentSheet.run(false);
                             }
                             dismiss();
                         });
@@ -566,7 +588,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     final Runnable openSendSheet = () -> {
                         new SendGiftSheet(context, currentAccount, gift, this.dialogId, () -> {
                             if (closeParentSheet != null) {
-                                closeParentSheet.run();
+                                closeParentSheet.run(false);
                             }
                             dismiss();
                         }, gift.limited && userSettings != null && userSettings.disallow_limited_stargifts, gift.limited && userSettings != null && userSettings.disallow_unique_stargifts) {
@@ -600,7 +622,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                                     ((EffectsTextView) textView).setOnLinkPressListener(link -> {
                                         dialog.dismiss();
                                         if (closeParentSheet != null) {
-                                            closeParentSheet.run();
+                                            closeParentSheet.run(false);
                                         }
                                         dismiss();
                                         link.onClick(textView);
@@ -650,11 +672,11 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             setBirthday();
         }
 
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.billingProductDetailsUpdated);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.starGiftsLoaded);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.userInfoDidLoad);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.starGiftSoldOut);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.starUserGiftsLoaded);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.billingProductDetailsUpdated);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starGiftsLoaded);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.userInfoDidLoad);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starGiftSoldOut);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.starUserGiftsLoaded);
 
         actionBar.setTitle(getTitle());
         NotificationCenter.listenEmojiLoading(actionBar.getTitleTextView());
@@ -749,7 +771,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
 
         dismiss();
         if (closeParentSheet != null) {
-            closeParentSheet.run();
+            closeParentSheet.run(false);
         }
     }
 
@@ -987,6 +1009,10 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             }
             TAB_COLLECTIBLES = tabs.size();
             tabs.add(getString(R.string.Gift2TabCollectibles));
+            if (browseCollectibles && !browseTabApplied) {
+                browseTabApplied = true;
+                selectedTab = TAB_COLLECTIBLES;
+            }
 
             items.add(Tabs.Factory.asTabs(1, tabs, selectedTab, this::selectTab));
             setShowCollectiblesInfo(selectedTab == TAB_COLLECTIBLES && !self && dialogId >= 0);
@@ -1011,10 +1037,10 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     selectedTab == TAB_COLLECTIBLES && (gift.availability_resale > 0 || gift.require_premium || gift.locked_until_date != 0)
                 ) {
                     if (!gift.sold_out && gift.availability_resale > 0 && selectedTab != TAB_COLLECTIBLES) {
-                        items.add(GiftCell.Factory.asStarGift(selectedTab, gift, selectedTab == TAB_MY_GIFTS, gift.limited && userSettings != null && userSettings.disallow_limited_stargifts, false, false));
+                        items.add(GiftCell.Factory.asStarGift(selectedTab, gift, selectedTab == TAB_MY_GIFTS, gift.limited && userSettings != null && userSettings.disallow_limited_stargifts, false, false, false));
                         giftsCount++;
                     }
-                    items.add(GiftCell.Factory.asStarGift(selectedTab, gift, selectedTab == TAB_MY_GIFTS, gift.limited && userSettings != null && userSettings.disallow_limited_stargifts, true, false));
+                    items.add(GiftCell.Factory.asStarGift(selectedTab, gift, selectedTab == TAB_MY_GIFTS, gift.limited && userSettings != null && userSettings.disallow_limited_stargifts, true, false, false));
                     giftsCount++;
                 }
             }
@@ -1034,6 +1060,25 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         }
     }
 
+    /** Opens on the Collectibles tab with gold glitter and a single centred paragraph (the QR screen's "Browse Gifts"). */
+    public void setBrowseCollectibles() {
+        if (browseCollectibles) return;
+        browseCollectibles = true;
+        if (particlesView != null && particlesView.getParent() instanceof ViewGroup) {
+            final ViewGroup parent = (ViewGroup) particlesView.getParent();
+            final int index = parent.indexOfChild(particlesView);
+            parent.removeView(particlesView);
+            particlesView = StarsIntroActivity.makeParticlesView(getContext(), 250, 2);
+            parent.addView(particlesView, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
+        if (subtitleStarsView2 != null) {
+            subtitleStarsView.setText(getString(R.string.Gift2BrowseCollectiblesInfo));
+            if (Build.VERSION.SDK_INT >= 23) subtitleStarsView.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_BALANCED);
+            subtitleStarsView2.setVisibility(View.GONE);
+        }
+        adapter.update(false);
+    }
+
     private void selectTab(int tab) {
         if (selectedTab == tab) return;
         selectedTab = tab;
@@ -1041,7 +1086,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         adapter.update(true);
     }
 
-    public static class GiftCell extends FrameLayout {
+    public static class GiftCell extends FrameLayout implements Theme.Colorable {
 
         private final int currentAccount;
         private final Theme.ResourcesProvider resourcesProvider;
@@ -1058,8 +1103,9 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         private final FrameLayout pinnedView;
         private final ImageView pinnedImageView;
         private final ImageView tonOnlySaleView;
+        public final TextView chanceTextView;
         public final BackupImageView imageView;
-        private final FrameLayout.LayoutParams imageViewLayoutParams;
+        public FrameLayout.LayoutParams imageViewLayoutParams;
         private final PremiumLockIconView lockView;
         private final PremiumLockIconView pinView;
 
@@ -1105,14 +1151,14 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             pinView.setVisibility(View.GONE);
 
             titleView = new TextView(context);
-            titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            ThemeBind.textColor(titleView, Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
             titleView.setGravity(Gravity.CENTER);
             titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             titleView.setTypeface(AndroidUtilities.bold());
             card.addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 93 - 4, 0, 0));
 
             subtitleView = new TextView(context);
-            subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
+            ThemeBind.textColor(subtitleView, Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
             subtitleView.setGravity(Gravity.CENTER);
             subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             card.addView(subtitleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 111 - 4, 0, 0));
@@ -1172,10 +1218,137 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             card.addView(pinnedView, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.LEFT, 2, 2, 2, 2));
 
             tonOnlySaleView = new ImageView(context);
-            tonOnlySaleView.setImageResource(R.drawable.ton_16);
+            tonOnlySaleView.setImageResource(R.drawable.mini_gram_14);
+            tonOnlySaleView.setPadding(0, dp(2), 0, 0);
             tonOnlySaleView.setVisibility(GONE);
             tonOnlySaleView.setScaleType(ImageView.ScaleType.CENTER);
             card.addView(tonOnlySaleView, LayoutHelper.createFrame(20, 20, Gravity.TOP | Gravity.LEFT, 3, 3, 3, 3));
+
+            chanceTextView = new TextView(context);
+            chanceTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10);
+            chanceTextView.setTypeface(AndroidUtilities.bold());
+            chanceTextView.setPadding(dp(5), 0, dp(5), 0);
+            chanceTextView.setGravity(Gravity.CENTER);
+            chanceTextView.setTextColor(0xFFFFFFFF);
+            card.addView(chanceTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 17, Gravity.TOP | Gravity.LEFT, 4, 4, 0, 0));
+            chanceTextView.setVisibility(View.GONE);
+
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+            card.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            ribbon.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+
+        @Override
+        public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+            super.onInitializeAccessibilityNodeInfo(info);
+            info.setClassName("android.widget.Button");
+            info.setClickable(true);
+            if (isEnabled()) {
+                info.addAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+            try {
+                final StringBuilder sb = new StringBuilder();
+                CharSequence name = null;
+                if (premiumTier != null) {
+                    if (titleView != null && titleView.getVisibility() == View.VISIBLE && !TextUtils.isEmpty(titleView.getText())) {
+                        name = titleView.getText();
+                    }
+                } else if (userGift != null && userGift.gift != null) {
+                    if (userGift.gift instanceof TL_stars.TL_starGiftUnique && !TextUtils.isEmpty(userGift.gift.title)) {
+                        name = userGift.gift.title;
+                    }
+                } else if (gift != null) {
+                    if (gift instanceof TL_stars.TL_starGiftUnique && !TextUtils.isEmpty(gift.title)) {
+                        name = gift.title;
+                    }
+                }
+                if (TextUtils.isEmpty(name)) {
+                    name = getString(R.string.Gift2Gift);
+                }
+                sb.append(name);
+                if (subtitleView != null && subtitleView.getVisibility() == View.VISIBLE && !TextUtils.isEmpty(subtitleView.getText())) {
+                    sb.append(", ").append(subtitleView.getText());
+                }
+                if (ribbon != null && ribbon.getVisibility() == View.VISIBLE) {
+                    final CharSequence ribbonText = ribbon.getText();
+                    if (!TextUtils.isEmpty(ribbonText)) {
+                        sb.append(", ").append(ribbonText);
+                    }
+                }
+                if (priceLayout != null && priceLayout.getVisibility() == View.VISIBLE
+                        && priceView != null && priceView.getVisibility() == View.VISIBLE
+                        && !TextUtils.isEmpty(priceView.getText())) {
+                    sb.append(", ").append(priceView.getText());
+                }
+                if (userGift != null && userGift.unsaved) {
+                    sb.append(", ").append(getString(R.string.Gift2FilterHidden));
+                }
+                if (userGift != null && !(userGift.gift instanceof TL_stars.TL_starGiftUnique) && !userGift.name_hidden && avatarView != null && avatarView.getVisibility() == View.VISIBLE) {
+                    final long fromDialogId = DialogObject.getPeerDialogId(userGift.from_id);
+                    if (fromDialogId != 0) {
+                        CharSequence fromName = null;
+                        if (fromDialogId > 0) {
+                            final TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(fromDialogId);
+                            if (user != null) {
+                                fromName = UserObject.getUserName(user);
+                            }
+                        } else {
+                            final TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-fromDialogId);
+                            if (chat != null) {
+                                fromName = chat.title;
+                            }
+                        }
+                        if (!TextUtils.isEmpty(fromName)) {
+                            sb.append(", ").append(fromName);
+                        }
+                    }
+                }
+                if (checkBox != null && checkBox.isChecked()) {
+                    info.setCheckable(true);
+                    info.setChecked(true);
+                }
+                info.setContentDescription(sb.toString());
+            } catch (Exception ignored) {}
+        }
+
+        private boolean walletOnCard;
+        private float walletSilhouette = -1;
+
+        public void setWalletStickerState(float silhouette, boolean onCard) {
+            setWalletStickerState(silhouette, onCard, true);
+        }
+
+        public void setWalletStickerState(float silhouette, boolean onCard, boolean animated) {
+            if (walletSilhouette != silhouette) {
+                walletSilhouette = silhouette;
+                final TL_stars.TL_starGiftUnique gift = getUniqueStarGift();
+                final TL_stars.starGiftAttributeBackdrop backdrop = gift == null ? null
+                        : findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class);
+                int color = backdrop == null ? 0xFF555555 : backdrop.pattern_color | 0xFF000000;
+                float k = 1 - silhouette;
+                imageView.setColorFilter(silhouette <= 0 ? null : new android.graphics.ColorMatrixColorFilter(new float[]{
+                        k, 0, 0, 0, Color.red(color) * silhouette,
+                        0, k, 0, 0, Color.green(color) * silhouette,
+                        0, 0, k, 0, Color.blue(color) * silhouette,
+                        0, 0, 0, 1 - silhouette * (1 - 110f / 255f), 0
+                }));
+                imageView.getImageReceiver().setAllowStartLottieAnimation(silhouette == 0);
+                if (silhouette > 0) {
+                    imageView.getImageReceiver().stopAnimation();
+                    org.telegram.ui.Components.RLottieDrawable animation = imageView.getImageReceiver().getLottieAnimation();
+                    if (animation != null) animation.setCurrentFrame(0, false);
+                }
+                imageView.invalidate();
+            }
+            if (walletOnCard != onCard) {
+                walletOnCard = onCard;
+                TL_stars.TL_starGiftUnique gift = getUniqueStarGift();
+                if (gift != null) {
+                    final CharSequence text = onCard ? getString(R.string.WalletGiftOnCard) : "#" + LocaleController.formatNumber(gift.num, ',');
+                    if (animated) ribbon.setTextAnimated(text, true);
+                    else ribbon.setText(text, true);
+                }
+            }
         }
 
         public void removeImage() {
@@ -1329,6 +1502,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 pinnedView.setScaleX(pin ? 1.0f : 0.3f);
                 pinnedView.setScaleY(pin ? 1.0f : 0.3f);
             }
+
             setShowPinIcon(!pinned && reordering && !inCollection && (userGift != null && userGift.gift instanceof TL_stars.TL_starGiftUnique), animated);
             updateRibbonText();
         }
@@ -1387,15 +1561,6 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             canvas.restore();
         }
 
-        @Override
-        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-//            if (getMeasuredHeight() < getMeasuredWidth()) {
-//                heightMeasureSpec = MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY);
-//                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-//            }
-        }
-
         private GiftPremiumBottomSheet.GiftTier premiumTier;
         private TL_stars.StarGift gift;
         private boolean priotityAuction;
@@ -1403,6 +1568,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         private TL_stars.SavedStarGift userGift;
         public boolean allowResaleInGifts, inResalePage;
         public boolean inCollection;
+        public boolean inCrafting;
 
         public GiftPremiumBottomSheet.GiftTier getPremiumTier() {
             return premiumTier;
@@ -1458,6 +1624,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             priceView.setPadding(dp(10), 0, dp(10), 0);
             priceView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             priceView.setText(tier.getFormattedPrice());
+            goldPriceStyle = 0;
             priceBackground.setBackground(Theme.createRoundRectDrawable(dp(13), 0x193391D4));
             priceView.setTextColor(0xFF3391D4);
             ((MarginLayoutParams) priceLayout.getLayoutParams()).topMargin = dp(130);
@@ -1500,15 +1667,22 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             SvgHelper.SvgDrawable svgThumb = DocumentObject.getSvgThumb(document, Theme.key_windowBackgroundGray, 0.3f);
 
             imageView.setImage(
-                ImageLocation.getForDocument(document), "100_100",
-                ImageLocation.getForDocument(photoSize, document), "100_100",
+                ImageLocation.getForDocument(document), "80_80_nolimit_pcache",
+                ImageLocation.getForDocument(photoSize, document), "80_80_nolimit_pcache",
                 svgThumb,
                 parentObject
             );
         }
 
         public static final int[] PREMIUM_STROKE = new int[] { 0xFFD58F25, 0xFFC8851D };
-        public boolean setStarsGift(TL_stars.StarGift gift, boolean mine, boolean includeUpgradeInPrice, boolean allowResaleInGifts, boolean inResalePage) {
+        public boolean setStarsGift(
+            TL_stars.StarGift gift,
+            boolean mine,
+            boolean includeUpgradeInPrice,
+            boolean allowResaleInGifts,
+            boolean inResalePage,
+            boolean inCrafting
+        ) {
             if (cancel != null) {
                 cancel.run();
                 cancel = null;
@@ -1520,7 +1694,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             cardBackground.setPattern(findAttribute(gift.attributes, TL_stars.starGiftAttributePattern.class));
             if (gift.auction && (!gift.sold_out || priotityAuction) && !(allowResaleInGifts && gift.availability_resale > 0)) {
                 if (gift.sold_out) {
-                    cardBackground.setStrokeColors(new int[] {
+                    cardBackground.setStrokeColors(soldOutStrokeColors = new int[] {
                         Theme.getColor(Theme.key_gift_ribbon_soldout, resourcesProvider),
                         Theme.getColor(Theme.key_gift_ribbon_soldout, resourcesProvider)
                     });
@@ -1534,7 +1708,13 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             subtitleView.setVisibility(View.GONE);
             imageView.setTranslationY(0);
             lockView.setVisibility(View.GONE);
-            tonOnlySaleView.setVisibility(gift.resale_ton_only ? View.VISIBLE: View.GONE);
+            tonOnlySaleView.setVisibility(gift.resale_ton_only ? View.VISIBLE : View.GONE);
+            chanceTextView.setVisibility(inCrafting ? View.VISIBLE : View.GONE);
+            chanceTextView.setTranslationX(gift.resale_ton_only ? dp(3 + 20) : 0);
+            chanceTextView.setTranslationY(gift.resale_ton_only ? dp(1) : 0);
+            if (inCrafting) {
+                chanceTextView.setText("+" + (gift.craft_chance_permille <= 0 ? "<0.1%" : percents(gift.craft_chance_permille)));
+            }
 
             imageViewLayoutParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
             imageView.setLayoutParams(imageViewLayoutParams);
@@ -1542,13 +1722,16 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             if (!inResalePage && !(allowResaleInGifts && gift.availability_resale > 0) && gift.locked_until_date > ConnectionsManager.getInstance(currentAccount).getCurrentTime()) {
                 avatarView.setVisibility(View.VISIBLE);
                 avatarView.setLayoutParams(avatarViewLayout2);
-                avatarView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_color_red, resourcesProvider), PorterDuff.Mode.SRC_IN));
+                avatarView.setColorFilter(new PorterDuffColorFilter(avatarLockColor = Theme.getColor(Theme.key_color_red, resourcesProvider), PorterDuff.Mode.SRC_IN));
+                avatarLockThemed = true;
                 avatarView.setImageResource(R.drawable.mini_gift_lock);
             } else {
                 avatarView.setColorFilter(null);
+                avatarLockThemed = false;
                 avatarView.setVisibility(View.GONE);
             }
 
+            priceView.setVisibility(inCrafting && !inResalePage ? View.GONE : View.VISIBLE);
             priceView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             if (mine) {
                 priceView.setPadding(dp(10), 0, dp(10), 0);
@@ -1559,21 +1742,25 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 } else {
                     backgroundColor = 0x40FFFFFF;
                 }
+                goldPriceStyle = 0;
                 priceBackground.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(13), backgroundColor, Theme.blendOver(backgroundColor, 0x30FFFFFF)));
                 priceView.setTextColor(0xFFFFFFFF);
 
                 tonOnlySaleView.setColorFilter(0xFFFFFFFF);
-                tonOnlySaleView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(13), backgroundColor, Theme.blendOver(backgroundColor, 0x30FFFFFF)));
+                tonOnlySaleView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(10), backgroundColor, Theme.blendOver(backgroundColor, 0x30FFFFFF)));
             } else if (inResalePage) {
                 priceView.setPadding(dp(8), 0, dp(10), 0);
                 final long stars = gift.getResellStars();
                 final int backgroundColor = Theme.blendOver(backdrop.center_color | 0xFF000000, Theme.multAlpha(backdrop.pattern_color | 0xFF000000, .55f));
                 priceView.setText(StarsIntroActivity.replaceStars("XTR " + LocaleController.formatNumber(stars, ',')));
+                goldPriceStyle = 0;
                 priceBackground.setBackground(new StarsBackground(0x70FFFFFF, backgroundColor));
                 priceView.setTextColor(0xFFFFFFFF);
 
                 tonOnlySaleView.setColorFilter(0xFFFFFFFF);
-                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(13), backgroundColor));
+                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(10), backgroundColor));
+
+                chanceTextView.setBackground(Theme.createRoundRectDrawable(dp(9), backgroundColor));
             } else {
                 priceView.setPadding(dp(8), 0, dp(10), 0);
                 boolean plus = false;
@@ -1593,11 +1780,12 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     priceView.setText(StarsIntroActivity.replaceStarsWithPlain("XTR " + LocaleController.formatNumber(stars, ',') + (plus ? "+" : ""), .71f));
                 }
 
-                priceBackground.setBackground(new StarsBackground(gift instanceof TL_stars.TL_starGiftUnique ? 0x40FFFFFF : (Theme.isCurrentThemeDark() ? 0x1EEBA52D : 0x40E8AB02)));
-                priceView.setTextColor(Theme.isCurrentThemeDark() ? 0xFFEBA52D : 0xFFD67722);
+                goldPriceStyle = 1;
+                goldPriceUniqueBackground = gift instanceof TL_stars.TL_starGiftUnique;
+                applyGoldPriceColors();
 
-                tonOnlySaleView.setColorFilter(Theme.isCurrentThemeDark() ? 0xFFEBA52D : 0xFFD67722);
-                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(13), gift instanceof TL_stars.TL_starGiftUnique ? 0x40FFFFFF : (Theme.isCurrentThemeDark() ? 0x1EEBA52D : 0x40E8AB02)));
+                final int backgroundColor = backdrop != null ? Theme.blendOver(backdrop.center_color | 0xFF000000, Theme.multAlpha(backdrop.pattern_color | 0xFF000000, .55f)) : 0;
+                chanceTextView.setBackground(Theme.createRoundRectDrawable(dp(9), backgroundColor));
             }
             ((MarginLayoutParams) priceLayout.getLayoutParams()).topMargin = dp(103);
             ((FrameLayout.LayoutParams) priceLayout.getLayoutParams()).gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
@@ -1612,6 +1800,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             this.allowResaleInGifts = allowResaleInGifts;
             this.inResalePage = inResalePage;
             this.inCollection = false;
+            this.inCrafting = inCrafting;
             title = null;
             subtitle = null;
 
@@ -1652,31 +1841,38 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             if (backdrop != null) {
                 pinnedView.setBackground(Theme.createCircleDrawable(dp(20), Theme.adaptHSV(backdrop.center_color | 0xFF000000, +0.1f, -0.2f)));
             } else {
-                pinnedView.setBackground(Theme.createCircleDrawable(dp(20), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
+                ThemeBind.fillBackground(pinnedView, Theme.createCircleDrawable(dp(20), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), ThemeBind.of(Theme.key_featuredStickers_addButton), resourcesProvider);
             }
 
             imageViewLayoutParams.gravity = Gravity.CENTER;
             imageView.setLayoutParams(imageViewLayoutParams);
 
-            lockView.setVisibility(View.VISIBLE);
             if (lastUserGift == userGift) {
+                lockView.setVisibility(View.VISIBLE);
                 lockView.animate()
                     .alpha(userGift.unsaved ? 1f : 0f)
                     .scaleX(userGift.unsaved ? 1f : .4f)
                     .scaleY(userGift.unsaved ? 1f : .4f)
                     .setDuration(350)
                     .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
+                    .withEndAction(() -> {
+                        if (!userGift.unsaved) {
+                            lockView.setVisibility(GONE);
+                        }
+                    })
                     .start();
             } else {
                 lockView.setAlpha(userGift.unsaved ? 1f : 0f);
                 lockView.setScaleX(userGift.unsaved ? 1f : 0.4f);
                 lockView.setScaleY(userGift.unsaved ? 1f : 0.4f);
+                lockView.setVisibility(userGift.unsaved ? View.VISIBLE : View.GONE);
             }
 
             final boolean unique = userGift.gift instanceof TL_stars.TL_starGiftUnique;
             avatarView.setColorFilter(null);
+            avatarLockThemed = false;
             avatarView.setLayoutParams(avatarViewLayout1);
-            if (unique) {
+            if (unique && userGift.name_hidden) {
                 avatarView.setVisibility(View.GONE);
             } else if (userGift.name_hidden) {
                 avatarView.setVisibility(View.VISIBLE);
@@ -1714,7 +1910,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 priceView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
                 ColoredImageSpan[] spans = new ColoredImageSpan[1];
                 if (userGift.gift.resale_ton_only && DialogObject.getPeerDialogId(userGift.gift.owner_id) == UserConfig.getInstance(currentAccount).getClientUserId()) {
-                    priceView.setText(StarsIntroActivity.replaceStars(true, "XTR " + StarsIntroActivity.formatStarsAmount(userGift.gift.getResellAmount(AmountUtils.Currency.TON).toTl(), 1, ','), .95f, spans));
+                    priceView.setText(StarsIntroActivity.whiteGram(true, StarsIntroActivity.replaceStars(true, "XTR " + StarsIntroActivity.formatStarsAmount(userGift.gift.getResellAmount(AmountUtils.Currency.TON).toTl(), 1, ','), .95f, spans)));
                 } else {
                     priceView.setText(StarsIntroActivity.replaceStars("XTR " + LocaleController.formatNumber(userGift.gift.getResellStars(), ','), .95f, spans));
                 }
@@ -1722,9 +1918,10 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     spans[0].translate(0, dp(0.5f));
                 }
                 final int backgroundColor = Theme.blendOver(backdrop.center_color | 0xFF000000, Theme.multAlpha(backdrop.pattern_color | 0xFF000000, .55f));
+                goldPriceStyle = 0;
                 priceBackground.setBackground(new StarsBackground(0x70FFFFFF, backgroundColor));
                 priceView.setTextColor(0xFFFFFFFF);
-                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(13), backgroundColor));
+                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(10), backgroundColor));
                 tonOnlySaleView.setColorFilter(0xFFFFFFFF);
                 ((FrameLayout.LayoutParams) priceLayout.getLayoutParams()).gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
                 ((MarginLayoutParams) priceLayout.getLayoutParams()).topMargin = dp(79);
@@ -1747,10 +1944,17 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     priceView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
                     priceView.setText(StarsIntroActivity.replaceStarsWithPlain("XTR " + LocaleController.formatNumber(Math.max(userGift.gift.stars, userGift.convert_stars > 0 ? userGift.convert_stars : userGift.gift.convert_stars), ','), .66f));
                 }
-                priceView.setTextColor(unique ? 0xFFFFFFFF : (Theme.isCurrentThemeDark() ? 0xFFEBA52D : 0xFFBF7600));
-                priceBackground.setBackground(new StarsBackground(unique ? 0x40FFFFFF : (Theme.isCurrentThemeDark() ? 0x1EEBA52D : 0x40E8AB02)));
-                tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(13), (unique ? 0x40FFFFFF : (Theme.isCurrentThemeDark() ? 0x1EEBA52D : 0x40E8AB02))));
-                tonOnlySaleView.setColorFilter(unique ? 0xFFFFFFFF : (Theme.isCurrentThemeDark() ? 0xFFEBA52D : 0xFFBF7600));
+                if (unique) {
+                    goldPriceStyle = 0;
+                    priceView.setTextColor(0xFFFFFFFF);
+                    priceBackground.setBackground(new StarsBackground(0x40FFFFFF));
+                    tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(10), 0x40FFFFFF));
+                    tonOnlySaleView.setColorFilter(0xFFFFFFFF);
+                } else {
+                    goldPriceStyle = 2;
+                    goldPriceUniqueBackground = false;
+                    applyGoldPriceColors();
+                }
                 ((FrameLayout.LayoutParams) priceLayout.getLayoutParams()).gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
                 ((MarginLayoutParams) priceLayout.getLayoutParams()).topMargin = dp(103);
             }
@@ -1769,7 +1973,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             this.inCollection = inCollection;
             title = null;
             subtitle = null;
-            setPinned(userGift.pinned_to_top, oldUserGift == userGift);
+            setPinned(userGift.pinned_to_top && !(unique && !userGift.name_hidden), oldUserGift == userGift);
             updateRibbonText();
 
             return oldUserGift == userGift;
@@ -1796,24 +2000,27 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                             Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
                             Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.04f)
                         );
-                        ribbon.setColor(Theme.getColor(Theme.key_color_green, resourcesProvider));
+                        setRibbonColorKey(Theme.key_color_green);
                         ribbon.setStrokeColor(backgroundColor);
+                        ribbonStrokeThemed = true;
                         ribbon.setBackdrop(null);
                         ribbon.setText(getString(R.string.Gift2OnSale), false);
                     } else {
-                        ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+                        setRibbonColorKey(Theme.key_gift_ribbon);
                         ribbon.setStrokeColor(0);
+                        ribbonStrokeThemed = false;
                         ribbon.setBackdrop(findAttribute(userGift.gift.attributes, TL_stars.starGiftAttributeBackdrop.class));
-                        if (pinned) {
+//                        if (pinned) {
                             ribbon.setText("#" + LocaleController.formatNumber(userGift.gift.num, ','), true);
-                        } else {
-                            ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(userGift.gift.availability_issued, 0)), true);
-                        }
+//                        } else {
+//                            ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(userGift.gift.availability_issued, 0)), true);
+//                        }
                     }
                 } else if (userGift.gift.limited) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+                    setRibbonColorKey(Theme.key_gift_ribbon);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setBackdrop(null);
                     ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(userGift.gift.availability_total, 0)), true);
                 } else {
@@ -1821,35 +2028,41 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     ribbon.setVisibility(View.GONE);
                 }
             } else if (gift != null) {
-                if (inResalePage) {
+                if (inResalePage || inCrafting) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+                    setRibbonColorKey(Theme.key_gift_ribbon);
                     ribbon.setBackdrop(findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class));
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setText("#" + LocaleController.formatNumber(gift.num, ','), true);
                 } else if (allowResaleInGifts && gift.availability_resale > 0) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_color_green, resourcesProvider));
+                    setRibbonColorKey(Theme.key_color_green);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setBackdrop(null);
                     ribbon.setText(getString(R.string.Gift2Resale), false);
                 } else if (giftMine) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+                    setRibbonColorKey(Theme.key_gift_ribbon);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setBackdrop(findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class));
                     ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(gift.availability_issued, 0)), true);
                 } else if (gift.limited && gift.availability_remains <= 0) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon_soldout, resourcesProvider));
+                    setRibbonColorKey(Theme.key_gift_ribbon_soldout);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setBackdrop(null);
                     ribbon.setText(LocaleController.getString(R.string.Gift2SoldOut), true);
                 } else if (gift.auction) {
                     ribbon.setVisibility(View.VISIBLE);
                     ribbon.setBackdrop(null);
+                    ribbonColorKey = -1;
                     ribbon.setColors(0xFFD79023, 0xFFBF7D16);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     if (gift.auction_start_date > ConnectionsManager.getInstance(currentAccount).getCurrentTime()) {
                         ribbon.setText(getString(R.string.Gift2LimitedAuctionSoon), true);
                     } else {
@@ -1858,36 +2071,44 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 } else if (gift.require_premium) {
                     ribbon.setVisibility(View.VISIBLE);
                     ribbon.setBackdrop(null);
+                    ribbonColorKey = -1;
                     ribbon.setColors(0xFFD79023, 0xFFBF7D16);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setText(getString(R.string.Gift2LimitedPremium), true);
                 } else if (gift.limited) {
                     ribbon.setVisibility(View.VISIBLE);
-                    ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+                    setRibbonColorKey(Theme.key_gift_ribbon);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setBackdrop(null);
                     ribbon.setText(getString(R.string.Gift2LimitedRibbon), true);
                 } else {
                     ribbon.setBackdrop(null);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setVisibility(View.GONE);
                 }
             } else if (premiumTier != null) {
                 if (premiumTier.getDiscount() > 0) {
                     ribbon.setVisibility(View.VISIBLE);
                     ribbon.setBackdrop(null);
+                    ribbonColorKey = -1;
                     ribbon.setColors(0xFFD94FFF, 0xFF826DFF);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                     ribbon.setText(12, formatString(R.string.GiftPremiumOptionDiscount, premiumTier.getDiscount()), true);
                 } else {
                     ribbon.setVisibility(View.GONE);
                     ribbon.setBackdrop(null);
                     ribbon.setStrokeColor(0);
+                    ribbonStrokeThemed = false;
                 }
             }
         }
 
         public void setRibbonColor(int color) {
+            ribbonColorKey = -1;
             ribbon.setColor(color);
             ribbon.invalidate();
         }
@@ -1896,10 +2117,93 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             ribbon.setText(text, true);
         }
 
+        private int ribbonColorKey = -1;
+        private boolean ribbonStrokeThemed, avatarLockThemed;
+        private int avatarLockColor;
+        private int[] soldOutStrokeColors;
+        // price colors that depend on Theme.isCurrentThemeDark(): 0 = none, 1 = star gift price, 2 = saved gift price
+        private int goldPriceStyle;
+        private boolean goldPriceUniqueBackground;
+        private boolean goldPriceDark = Theme.isCurrentThemeDark();
+
+        private void applyGoldPriceColors() {
+            final boolean dark = goldPriceDark = Theme.isCurrentThemeDark();
+            final int backgroundColor = goldPriceUniqueBackground ? 0x40FFFFFF : (dark ? 0x1EEBA52D : 0x40E8AB02);
+            final int textColor = dark ? 0xFFEBA52D : (goldPriceStyle == 2 ? 0xFFBF7600 : 0xFFD67722);
+            priceBackground.setBackground(new StarsBackground(backgroundColor));
+            priceView.setTextColor(textColor);
+            tonOnlySaleView.setColorFilter(textColor);
+            tonOnlySaleView.setBackground(Theme.createRoundRectDrawable(dp(10), backgroundColor));
+        }
+
+        private void setRibbonColorKey(int key) {
+            ribbon.setColor(Theme.getColor(key, resourcesProvider));
+            ribbonColorKey = key;
+        }
+
+        @Override
+        public void updateColors() {
+            try {
+                final boolean dark = Theme.isCurrentThemeDark();
+                if (dark != goldPriceDark) {
+                    // day/night switch: re-apply the price colors chosen by the last set(...) (once per switch)
+                    goldPriceDark = dark;
+                    if (goldPriceStyle != 0 && priceBackground != null && priceView != null && tonOnlySaleView != null) {
+                        applyGoldPriceColors();
+                    }
+                    if (starsPriceView != null) {
+                        starsPriceView.setTextColor(dark ? 0xFFEBA52D : 0xFFD67722);
+                    }
+                }
+                if (ribbon != null) {
+                    if (ribbonColorKey >= 0) {
+                        ribbon.drawable.setColorKeepShader(Theme.getColor(ribbonColorKey, resourcesProvider));
+                    }
+                    if (ribbonStrokeThemed) {
+                        ribbon.setStrokeColor(Theme.blendOver(
+                            Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
+                            Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.04f)
+                        ));
+                    }
+                    ribbon.invalidate();
+                }
+                if (avatarLockThemed && avatarView != null) {
+                    final int lockColor = Theme.getColor(Theme.key_color_red, resourcesProvider);
+                    if (lockColor != avatarLockColor) {
+                        avatarLockColor = lockColor;
+                        avatarView.setColorFilter(new PorterDuffColorFilter(lockColor, PorterDuff.Mode.SRC_IN));
+                    }
+                }
+                if (cardBackground != null) {
+                    final int[] stroke = soldOutStrokeColors;
+                    if (stroke != null && cardBackground.strokeColors == stroke) {
+                        final int color = Theme.getColor(Theme.key_gift_ribbon_soldout, resourcesProvider);
+                        if (stroke[0] != color || stroke[1] != color) {
+                            stroke[0] = stroke[1] = color;
+                            cardBackground.strokeGradient = null;
+                        }
+                    }
+                    cardBackground.invalidateSelf();
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_gift_ribbon);
+            colors.add(Theme.key_gift_ribbon_soldout);
+            colors.add(Theme.key_color_green);
+            colors.add(Theme.key_color_red);
+            colors.add(Theme.key_windowBackgroundWhite);
+        }
+
         public void setRibbonTextOneOf(int total) {
             ribbon.setVisibility(View.VISIBLE);
-            ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
+            setRibbonColorKey(Theme.key_gift_ribbon);
             ribbon.setStrokeColor(0);
+            ribbonStrokeThemed = false;
             ribbon.setBackdrop(findAttribute(gift.attributes, TL_stars.starGiftAttributeBackdrop.class));
             ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(total, 0)), true);
         }
@@ -1908,30 +2212,33 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             static { setup(new Factory()); }
 
             @Override
-            public GiftCell createView(Context context, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            public GiftCell createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
                 return new GiftCell(context, currentAccount, resourcesProvider);
             }
 
             @Override
             public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
+                final GiftCell cell = (GiftCell) view;
                 boolean animated = false;
                 if (item.object instanceof GiftPremiumBottomSheet.GiftTier) {
-                    animated = ((GiftCell) view).setPremiumGift((GiftPremiumBottomSheet.GiftTier) item.object);
+                    animated = cell.setPremiumGift((GiftPremiumBottomSheet.GiftTier) item.object);
                 } else if (item.object instanceof TL_stars.StarGift) {
                     TL_stars.StarGift gift = (TL_stars.StarGift) item.object;
-                    animated = ((GiftCell) view).setStarsGift(gift, item.checked, item.object2 instanceof Boolean ? (Boolean) item.object2 : false, item.accent, item.red);
+                    animated = cell.setStarsGift(gift, item.checked, item.object2 instanceof Boolean ? (Boolean) item.object2 : false, item.accent, item.red, item.locked);
                 } else if (item.object instanceof TL_stars.SavedStarGift) {
                     TL_stars.SavedStarGift gift = (TL_stars.SavedStarGift) item.object;
-                    animated = ((GiftCell) view).setStarsGift(gift, item.accent, item.red);
+                    animated = cell.setStarsGift(gift, item.accent, item.red);
                 }
                 if (item.collapsed) { // checkable
-                    ((GiftCell) view).setChecked(item.checked, animated);
+                    cell.setChecked(item.checked, animated);
                 }
-                ((GiftCell) view).setReordering(item.reordering, animated);
+                cell.setReordering(item.reordering, animated);
+                cell.card.setAlpha(item.enabled ? 1.0f : 0.65f);
+                cell.ribbon.setAlpha(item.enabled ? 1.0f : 0.5f);
             }
 
             @Override
-            public void attachedView(View view, UItem item) {
+            public void attachedView(RecyclerListView listView, View view, UItem item) {
                 ((GiftCell) view).setReordering(item.reordering, false);
             }
 
@@ -1941,7 +2248,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 return item;
             }
 
-            public static UItem asStarGift(int tab, TL_stars.StarGift gift, boolean mine, boolean includeUpgradeInPrice, boolean allowResaleInGifts, boolean inResalePage) {
+            public static UItem asStarGift(int tab, TL_stars.StarGift gift, boolean mine, boolean includeUpgradeInPrice, boolean allowResaleInGifts, boolean inResalePage, boolean inCrafting) {
                 final UItem item = UItem.ofFactory(Factory.class).setSpanCount(1);
                 item.intValue = tab;
                 item.object = gift;
@@ -1949,6 +2256,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 item.object2 = includeUpgradeInPrice;
                 item.red = inResalePage;
                 item.accent = allowResaleInGifts;
+                item.locked = inCrafting;
                 return item;
             }
 
@@ -1997,26 +2305,34 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
     public static class RibbonDrawable extends CompatDrawable {
 
         private Text text;
+        private Text oldText;
+        private final AnimatedFloat textAnimation = new AnimatedFloat(this::invalidateSelf, 0, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
         private Path path = new Path();
+        private final Path particleMaskPath = new Path();
+        private final Paint particleMaskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float scale;
+        private StarsReactionsSheet.Particles particles;
 
-        public static void fillRibbonPath(Path path, float s) {
+        public static void fillRibbonPath(Path path, float s, boolean left) {
+            final Utilities.CallbackReturn<Float, Float> x = v -> left ? 48.0f - v : v;
             path.rewind();
-            path.moveTo(dp(s * 46.83f), dp(s * 24.5f));
-            path.lineTo(dp(s * 23.5f), dp(s * 1.17f));
-            path.cubicTo(dp(s * 22.75f), dp(s * 0.42f), dp(s * 21.73f), 0f, dp(s * 20.68f), 0f);
-            path.cubicTo(dp(s * 19.62f), 0f, dp(s * 2.73f), dp(s * 0.05f), dp(s * 1.55f), dp(s * 0.05f));
-            path.cubicTo(dp(s * 0.36f), dp(s * 0.05f), dp(s * -0.23f), dp(s * 1.4885f), dp(s * 0.6f), dp(s * 2.32f));
-            path.lineTo(dp(s * 45.72f), dp(s * 47.44f));
-            path.cubicTo(dp(s * 46.56f), dp(s * 48.28f), dp(s * 48f), dp(s * 47.68f), dp(s * 48f), dp(s * 46.5f));
-            path.cubicTo(dp(s * 48f), dp(s * 45.31f), dp(s * 48f), dp(s * 28.38f), dp(s * 48f), dp(s * 27.32f));
-            path.cubicTo(dp(s * 48f), dp(s * 26.26f), dp(s * 47.5f), dp(s * 25.24f), dp(s * 46.82f), dp(s * 24.5f));
+            path.moveTo(dp(s * x.run(46.83f)), dp(s * 24.5f));
+            path.lineTo(dp(s * x.run(23.5f)), dp(s * 1.17f));
+            path.cubicTo(dp(s * x.run(22.75f)), dp(s * 0.42f), dp(s * x.run(21.73f)), 0f, dp(s * x.run(20.68f)), 0f);
+            path.cubicTo(dp(s * x.run(19.62f)), 0f, dp(s * x.run(2.73f)), dp(s * 0.05f), dp(s * x.run(1.55f)), dp(s * 0.05f));
+            path.cubicTo(dp(s * x.run(0.36f)), dp(s * 0.05f), dp(s * x.run(-0.23f)), dp(s * 1.4885f), dp(s * x.run(0.6f)), dp(s * 2.32f));
+            path.lineTo(dp(s * x.run(45.72f)), dp(s * 47.44f));
+            path.cubicTo(dp(s * x.run(46.56f)), dp(s * 48.28f), dp(s * x.run(48f)), dp(s * 47.68f), dp(s * x.run(48f)), dp(s * 46.5f));
+            path.cubicTo(dp(s * x.run(48.0f)), dp(s * 45.31f), dp(s * x.run(48f)), dp(s * 28.38f), dp(s * x.run(48f)), dp(s * 27.32f));
+            path.cubicTo(dp(s * x.run(48.0f)), dp(s * 26.26f), dp(s * x.run(47.5f)), dp(s * 25.24f), dp(s * x.run(46.82f)), dp(s * 24.5f));
             path.close();
         }
 
         public RibbonDrawable(View view, float scale) {
             super(view);
-            fillRibbonPath(path, scale);
+            fillRibbonPath(path, this.scale = scale, false);
+            particleMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
 
             paint.setColor(0xFFF55951);
             paint.setPathEffect(new CornerPathEffect(dp(2.33f)));
@@ -2024,6 +2340,16 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             strokePaint.setStyle(Paint.Style.STROKE);
             strokePaint.setStrokeJoin(Paint.Join.ROUND);
             strokePaint.setStrokeCap(Paint.Cap.ROUND);
+        }
+
+        public void setParticles(boolean p) {
+            if (p == (particles != null)) return;
+            if (p) {
+                particles = new StarsReactionsSheet.Particles(StarsReactionsSheet.Particles.TYPE_RADIAL_INSIDE, 12);
+                particles.setSpeed(5.0f);
+            } else {
+                particles = null;
+            }
         }
 
         public void setColor(int color) {
@@ -2035,23 +2361,52 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             strokePaint.setColor(color);
         }
 
+        /** recolors a plain ribbon in place (keeps a backdrop / gradient shader) */
+        public void setColorKeepShader(int color) {
+            paint.setColor(color);
+            invalidateSelf();
+        }
+
         public void setColors(int color1, int color2) {
             paint.setShader(new LinearGradient(0, 0, dp(48), dp(48), new int[]{ color1, color2 }, new float[] { 0, 1 }, Shader.TileMode.CLAMP));
         }
 
-        public void setBackdrop(TL_stars.starGiftAttributeBackdrop backdrop, boolean swap) {
+        public void setBackdrop(TL_stars.starGiftAttributeBackdrop backdrop, boolean swap, boolean darken) {
             if (backdrop == null) {
                 paint.setShader(null);
             } else {
+                if (left) swap = !swap;
                 paint.setShader(new LinearGradient(0, 0, dp(48), dp(48), new int[]{
-                    Theme.adaptHSV(backdrop.center_color | 0xFF000000, swap ? +0.07f : +0.05f, swap ? -0.15f : -0.1f),
-                    Theme.adaptHSV(backdrop.edge_color | 0xFF000000, swap ? +0.07f : +0.05f, swap ? -0.15f : -0.1f)
+                    Theme.adaptHSV(backdrop.center_color | 0xFF000000, swap ? +0.07f : +0.05f, (swap ? -0.15f : -0.1f) - (darken ? 0.125f : 0)),
+                    Theme.adaptHSV(backdrop.edge_color | 0xFF000000, swap ? +0.07f : +0.05f, (swap ? -0.15f : -0.1f) - (darken ? 0.125f : 0))
                 }, new float[] { swap ? 1 : 0, swap ? 0 : 1 }, Shader.TileMode.CLAMP));
             }
         }
 
         public void setText(int textSizeDp, CharSequence text, boolean bold) {
+            oldText = null;
+            textAnimation.force(1);
             this.text = new Text(text, textSizeDp, bold ? AndroidUtilities.bold() : null);
+            invalidateSelf();
+        }
+
+        public void setTextAnimated(int textSizeDp, CharSequence text, boolean bold) {
+            if (this.text == null) {
+                setText(textSizeDp, text, bold);
+                return;
+            }
+            if (TextUtils.equals(this.text.getText(), text)) {
+                return;
+            }
+            oldText = this.text;
+            this.text = new Text(text, textSizeDp, bold ? AndroidUtilities.bold() : null);
+            textAnimation.force(0);
+            invalidateSelf();
+        }
+
+        private boolean left;
+        public void setLeft(boolean left) {
+            fillRibbonPath(path, scale, this.left = left);
         }
 
         private int textColor = 0xFFFFFFFF;
@@ -2068,32 +2423,80 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 canvas.drawPath(path, strokePaint);
             }
             canvas.drawPath(path, paint);
+            if (particles != null) {
+                canvas.saveLayer(0, 0, dp(48 * scale), dp(48 * scale), null);
+                particles.setBounds(0, 0, dp(48), dp(48));
+                particles.process();
+                particles.draw(canvas, 0xFFFFFFFF);
+                particleMaskPath.set(path);
+                particleMaskPath.toggleInverseFillType();
+                canvas.drawPath(particleMaskPath, particleMaskPaint);
+                canvas.restore();
+                invalidateSelf();
+            }
             if (text != null) {
+                final float progress = textAnimation.set(1);
+                if (!textAnimation.isInProgress()) {
+                    oldText = null;
+                }
                 canvas.save();
-                canvas.rotate(45, getBounds().width() / 2f + dp(6), getBounds().height() / 2f - dp(6));
-                final float scale = Math.min(1, dp(40) / text.getCurrentWidth());
-                canvas.scale(scale, scale, getBounds().width() / 2f + dp(6), getBounds().height() / 2f - dp(6));
-                text.draw(canvas, getBounds().width() / 2f + dp(6) - text.getWidth() / 2f, getBounds().height() / 2f - dp(5), textColor, 1f);
+                if (oldText != null && textAnimation.isInProgress()) {
+                    canvas.clipPath(path);
+                    final float distance = dp(64 * scale);
+                    drawText(canvas, oldText, distance * progress);
+                    drawText(canvas, text, -distance * (1 - progress));
+                } else {
+                    drawText(canvas, text, 0);
+                }
                 canvas.restore();
             }
+            canvas.restore();
+        }
+
+        private void drawText(Canvas canvas, Text text, float offset) {
+            canvas.save();
+            canvas.translate(offset, offset);
+            final float cx = getBounds().width() / 2f + dp(left ? -7 : 6);
+            final float cy = getBounds().height() / 2f - dp(left ? 5 : 6);
+            canvas.rotate(left ? -45 : 45, cx, cy);
+            final float textScale = Math.min(1, dp(40) / text.getCurrentWidth());
+            canvas.scale(textScale, textScale, cx, cy);
+            text.draw(canvas, cx - text.getWidth() / 2f, cy + dp(1), textColor, 1f);
             canvas.restore();
         }
     }
 
     public static class Ribbon extends View {
 
-        private RibbonDrawable drawable = new RibbonDrawable(this, 1.0f);
+        public final RibbonDrawable drawable = new RibbonDrawable(this, 1.0f);
+        private CharSequence currentText;
 
         public Ribbon(Context context) {
             super(context);
+            drawable.setCallback(this);
+        }
+
+        public CharSequence getText() {
+            return currentText;
         }
 
         public void setText(CharSequence text, boolean bold) {
+            currentText = text;
             drawable.setText(bold ? 10 : 11, text, bold);
         }
 
         public void setText(int textSizeDp, CharSequence text, boolean bold) {
+            currentText = text;
             drawable.setText(textSizeDp, text, bold);
+        }
+
+        public void setTextAnimated(CharSequence text, boolean bold) {
+            setTextAnimated(bold ? 10 : 11, text, bold);
+        }
+
+        public void setTextAnimated(int textSizeDp, CharSequence text, boolean bold) {
+            currentText = text;
+            drawable.setTextAnimated(textSizeDp, text, bold);
         }
 
         public void setColor(int color) {
@@ -2109,8 +2512,13 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         }
 
         public void setBackdrop(TL_stars.starGiftAttributeBackdrop backdrop) {
-            drawable.setBackdrop(backdrop, false);
+            drawable.setBackdrop(backdrop, false, false);
             invalidate();
+        }
+
+        @Override
+        protected boolean verifyDrawable(@NonNull Drawable who) {
+            return drawable == who || super.verifyDrawable(who);
         }
 
         @Override
@@ -2229,10 +2637,9 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             this.particlesAllowed = particlesAllowed;
 
             if (particlesAllowed) {
-                final int sparse = FrameTickScheduler.getFrameSparseness(15);
-                FrameTickScheduler.subscribe(invalidateRunnable = this::invalidateParticles, sparse, 0/*(tickIndex++) % sparse*/);
+                Choreographer60FpsContent.getInstance().addFrameCallback(invalidateRunnable = this::invalidateParticles, 15);
             } else {
-                FrameTickScheduler.unsubscribe(invalidateRunnable);
+                Choreographer60FpsContent.getInstance().removeFrameCallback(invalidateRunnable);
             }
             invalidateSelf();
         }
@@ -2382,7 +2789,59 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         };
     }
 
+    private static class SharedBackgroundDrawables {
+        private final Bitmap[] shadowNinePatchBitmap = new Bitmap[1];
+        private Drawable shadowNinePatch;
+
+        private final Bitmap[] filledNinePatchBitmap = new Bitmap[1];
+        private Drawable filledNinePatch;
+
+        private final Bitmap[] filledWithShadowNinePatchBitmap = new Bitmap[1];
+        private Drawable filledWithShadowNinePatch;
+
+        private final float[] radii = new float[8];
+
+        public SharedBackgroundDrawables() {
+            Arrays.fill(radii, dp(11));
+        }
+
+        private int lastShadowColor;
+        private int lastFillingColor;
+        private int lastFillingWithShadowFillingColor;
+        private int lastFillingWithShadowShadowColor;
+
+        public Drawable getOrCreateShadowNinePatch(int shadowColor) {
+            if (shadowNinePatch == null || lastShadowColor != shadowColor) {
+                lastShadowColor = shadowColor;
+                shadowNinePatch = NinePatchBuilder.createNinePatch(shadowNinePatchBitmap, 0, radii,
+                    dp(1.66f), shadowColor, 0, dp(.33f),
+                    NinePatchBuilder.TRANSPARENT_COLOR);
+            }
+            return shadowNinePatch;
+        }
+
+        public Drawable getOrCreateFilledNinePatch(int fillingColor) {
+            if (filledNinePatch == null || lastFillingColor != fillingColor) {
+                lastFillingColor = fillingColor;
+                filledNinePatch = NinePatchBuilder.createNinePatch(filledNinePatchBitmap, fillingColor,
+                    radii, 0, 0, 0, 0, fillingColor);
+            }
+            return filledNinePatch;
+        }
+
+        public Drawable getOrCreateFilledWithShadowNinePatch(int fillingColor, int shadowColor) {
+            if (filledWithShadowNinePatch == null || lastFillingWithShadowFillingColor != fillingColor && lastFillingWithShadowShadowColor != shadowColor) {
+                lastFillingWithShadowFillingColor = fillingColor;
+                lastFillingWithShadowShadowColor = shadowColor;
+                filledWithShadowNinePatch = NinePatchBuilder.createNinePatch(filledWithShadowNinePatchBitmap,
+                    fillingColor, radii, dp(1.66f), shadowColor, 0, dp(.33f), fillingColor);
+            }
+            return filledWithShadowNinePatch;
+        }
+    }
+
     public static class CardBackground extends Drawable {
+        private static SharedBackgroundDrawables staticSharedBackgroundDrawables = new SharedBackgroundDrawables();
 
         private final View view;
         private final Theme.ResourcesProvider resourcesProvider;
@@ -2390,6 +2849,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         public final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
         private final Path clipPath = new Path();
+        private final boolean withShadow;
 
         private TL_stars.starGiftAttributeBackdrop backdrop;
 
@@ -2407,6 +2867,11 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         private boolean selected;
         private final Paint selectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private AnimatedFloat animatedSelected = new AnimatedFloat(this::invalidate, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
+        private float r = dp(11);
+
+        public void setRoundRadius(float r) {
+            this.r = r;
+        }
 
         public CardBackground(View view, Theme.ResourcesProvider resourcesProvider, boolean withShadow) {
             this.view = view;
@@ -2431,12 +2896,26 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 }
             });
             if (view.isAttachedToWindow()) pattern.attach();
-            paint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
-            if (withShadow) {
-                paint.setShadowLayer(dp(1.66f), 0, dp(.33f), Theme.getColor(Theme.key_dialogCardShadow, resourcesProvider));
-            }
+            this.withShadow = withShadow;
+            paint.setColor(themedPaintColor = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+            checkShadow(withShadow);
             selectedPaint.setStyle(Paint.Style.STROKE);
             strokePaint.setStyle(Paint.Style.STROKE);
+        }
+
+        private boolean lastNeedShadow;
+        private int lastShadowColor;
+
+        private void checkShadow(boolean needShadow) {
+            final int shadowColor = needShadow ? Theme.getColor(Theme.key_dialogCardShadow, resourcesProvider) : 0;
+            if (lastNeedShadow != needShadow || needShadow && lastShadowColor != shadowColor) {
+                lastNeedShadow = needShadow;
+                if (needShadow) {
+                    paint.setShadowLayer(dp(1.66f), 0, dp(.33f), lastShadowColor = shadowColor);
+                } else {
+                    paint.setShadowLayer(0, 0, 0, 0);
+                }
+            }
         }
 
         @Override
@@ -2447,11 +2926,27 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         public static final float PADDING_HORIZONTAL_DP = 3.33f;
         public static final float PADDING_VERTICAL_DP = 4;
 
+        public boolean withPadding = true;
+        public void setPadding(boolean pad) {
+            withPadding = pad;
+        }
+
+        public int selectionStyle = 0;
+
+        private int themedPaintColor;
+
         public void draw(@NonNull Canvas canvas, float largerParticlesAlpha) {
+            if (paint.getColor() == themedPaintColor) {
+                // follow theme changes while the fill still is the theme color set in the constructor
+                final int color = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+                if (color != themedPaintColor) {
+                    paint.setColor(themedPaintColor = color);
+                }
+            }
             Rect bounds = getBounds();
             final float selected = animatedSelected.set(this.selected);
             rect.set(bounds);
-            rect.inset(dp(PADDING_HORIZONTAL_DP), dp(PADDING_VERTICAL_DP));
+            if (withPadding) rect.inset(dp(PADDING_HORIZONTAL_DP), dp(PADDING_VERTICAL_DP));
             if (backdrop != null) {
                 final int radius = lerp(Math.min(bounds.width(), bounds.height()), Math.max(bounds.width(), bounds.height()), 0.35f) / 2;
                 if (gradient == null || gradientRadius != radius) {
@@ -2464,12 +2959,46 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             } else {
                 paint.setShader(null);
             }
-            canvas.drawRoundRect(rect, dp(11), dp(11), paint);
+
+            final int shadowColor = Theme.getColor(Theme.key_dialogCardShadow, resourcesProvider);
+            final int filledColor = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            final boolean canUseShared = r == dp(11)
+                && shadowColor == Theme.getColor(Theme.key_dialogCardShadow)
+                && filledColor == Theme.getColor(Theme.key_windowBackgroundWhite);
+
+            checkShadow(withShadow && !canUseShared);
+            if (canUseShared) {
+                if (staticSharedBackgroundDrawables == null) {
+                    staticSharedBackgroundDrawables = new SharedBackgroundDrawables();
+                }
+
+                rect.round(AndroidUtilities.rectTmp2);
+                if (backdrop != null) {
+                    if (withShadow) {
+                        final Drawable d = staticSharedBackgroundDrawables.getOrCreateShadowNinePatch(shadowColor);
+                        DrawableUtils.setBoundsIncreasePadding(d, AndroidUtilities.rectTmp2);
+                        d.draw(canvas);
+                    }
+                    canvas.drawRoundRect(rect, r, r, paint);
+                } else {
+                    final Drawable d;
+                    if (withShadow) {
+                        d = staticSharedBackgroundDrawables.getOrCreateFilledWithShadowNinePatch(filledColor, shadowColor);
+                    } else {
+                        d = staticSharedBackgroundDrawables.getOrCreateFilledNinePatch(filledColor);
+                    }
+                    DrawableUtils.setBoundsIncreasePadding(d, AndroidUtilities.rectTmp2);
+                    d.draw(canvas);
+                }
+            } else {
+                canvas.drawRoundRect(rect, r, r, paint);
+            }
+
             final boolean clip = strokeColors != null || backdrop != null && !pattern.isEmpty();
             if (clip) {
                 canvas.save();
                 clipPath.rewind();
-                clipPath.addRoundRect(rect, dp(11), dp(11), Path.Direction.CW);
+                clipPath.addRoundRect(rect, r, r, Path.Direction.CW);
                 canvas.clipPath(clipPath);
             }
             if (strokeColors != null) {
@@ -2484,7 +3013,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                 strokeGradient.setLocalMatrix(strokeGradientMatrix);
                 strokePaint.setShader(strokeGradient);
                 strokePaint.setStrokeWidth(dp(4.66f));
-                canvas.drawRoundRect(rect, dp(11), dp(11), strokePaint);
+                canvas.drawRoundRect(rect, r, r, strokePaint);
             }
             if (backdrop != null && !pattern.isEmpty()) {
                 int color = backdrop.pattern_color | 0xFF000000;
@@ -2541,15 +3070,28 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             }
 
             if (selected > 0) {
-                selectedPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
-                selectedPaint.setStrokeWidth(lerp(0, dpf2(1.667f), selected));
-                AndroidUtilities.rectTmp.set(rect);
-                final float b = lerp(-dpf2(2.33f), dpf2(3.33f), selected);
-                AndroidUtilities.rectTmp.inset(b, b);
-                final float r = lerp(dpf2(11), dpf2(7.33f), selected);
-                canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, selectedPaint);
+                if (selectionStyle == 0) {
+                    selectedPaint.setColor(selectedColor != null ? selectedColor : Theme.getColor(selectedColorKey, resourcesProvider));
+                    selectedPaint.setStrokeWidth(lerp(0, dpf2(1.667f), selected));
+                    AndroidUtilities.rectTmp.set(rect);
+                    final float b = lerp(-dpf2(2.33f), dpf2(3.33f), selected);
+                    AndroidUtilities.rectTmp.inset(b, b);
+                    final float r = lerp(this.r, dpf2(7.33f), selected);
+                    canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, selectedPaint);
+                } else if (selectionStyle == 1) {
+                    selectedPaint.setColor(selectedColor != null ? selectedColor : Theme.getColor(selectedColorKey, resourcesProvider));
+                    selectedPaint.setStrokeWidth(lerp(0, dpf2(3), selected));
+                    AndroidUtilities.rectTmp.set(rect);
+                    final float b = lerp(0, dpf2(3) / 2.0f, selected);
+                    AndroidUtilities.rectTmp.inset(b, b);
+                    final float r = lerp(this.r, dpf2(10), selected);
+                    canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, selectedPaint);
+                }
             }
         }
+
+        public int selectedColorKey = Theme.key_windowBackgroundWhite;
+        public Integer selectedColor;
 
         @Override
         public boolean getPadding(@NonNull Rect padding) {
@@ -2643,7 +3185,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
         }
     }
 
-    public static class Tabs extends FrameLayout {
+    public static class Tabs extends FrameLayout implements Theme.Colorable {
 
         private final Theme.ResourcesProvider resourcesProvider;
 
@@ -2752,7 +3294,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
                     tab.setGravity(Gravity.CENTER);
                     tab.setText(tabs.get(a));
                     tab.setTypeface(AndroidUtilities.bold());
-                    tab.setTextColor(Theme.blendOver(Theme.getColor(Theme.key_dialogGiftsBackground), Theme.getColor(Theme.key_dialogGiftsTabText)));
+                    ThemeBind.textColor(tab, ThemeBind.blendOver(Theme.key_dialogGiftsBackground, Theme.key_dialogGiftsTabText));
                     tab.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
                     tab.setPadding(dp(12), 0, dp(12), 0);
                     tab.setEllipsize(TextUtils.TruncateAt.END);
@@ -2790,6 +3332,8 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             );
         }
 
+        /** also called on every theme update (Theme.Colorable) */
+        @Override
         public void updateColors() {
             for (int i = 0; i < this.tabs.size(); ++i) {
                 final TextView textView = this.tabs.get(i);
@@ -2802,7 +3346,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             static { setup(new Factory()); }
 
             @Override
-            public Tabs createView(Context context, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            public Tabs createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
                 return new Tabs(context, true, resourcesProvider);
             }
 
@@ -2848,4 +3392,14 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
 
     }
 
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            super.onThemeColorsChanged(); // background / navigation bar: setBackgroundColorKey / fixNavigationBarKey
+    
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
 }

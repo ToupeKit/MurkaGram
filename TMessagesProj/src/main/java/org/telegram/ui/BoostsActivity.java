@@ -44,6 +44,7 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.FixedHeightEmptyCell;
 import org.telegram.ui.Cells.ManageChatTextCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
@@ -142,7 +143,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
                             super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(Math.max(0, lastItemHeight), MeasureSpec.EXACTLY));
                         }
                     };
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+                    view.setTag(RecyclerListView.TAG_NOT_SECTION);
                     break;
                 case HEADER_PADDING:
                     view = getHeader(getContext());
@@ -151,7 +152,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
                     view = new TextInfoPrivacyCell(parent.getContext(), 20, resourceProvider);
                     break;
                 case DIVIDER_VIEW_TYPE:
-                    view = new ShadowSectionCell(parent.getContext(), 12, Theme.getColor(Theme.key_windowBackgroundGray));
+                    view = new ShadowSectionCell(parent.getContext(), 12, 0);
                     break;
                 case OVERVIEW_TYPE:
                     view = new StatisticActivity.OverviewCell(getContext());
@@ -200,7 +201,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
                     break;
                 case SHOW_BOOST_BY_GIFTS:
                     TextCell textCell = new TextCell(getContext());
-                    textCell.setTextAndIcon(LocaleController.formatString("BoostingGetBoostsViaGifts", R.string.BoostingGetBoostsViaGifts), R.drawable.msg_gift_premium, false);
+                    textCell.setTextAndIcon(LocaleController.formatString(R.string.BoostingGetBoostsViaGifts), R.drawable.msg_gift_premium, false);
                     textCell.offsetFromImage = 64;
                     textCell.setColors(Theme.key_windowBackgroundWhiteBlueText4, Theme.key_windowBackgroundWhiteBlueText4);
                     view = textCell;
@@ -230,7 +231,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
                     TextView textView = new TextView(getContext());
                     textView.setText(LocaleController.getString(isChannel() ? R.string.NoBoostersHint : R.string.NoBoostersGroupHint));
                     textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-                    textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+                    ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteGrayText);
                     textView.setGravity(Gravity.CENTER);
                     frameLayout.addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 16, 0, 0));
                     view = frameLayout;
@@ -263,9 +264,6 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
                 if (holder.getItemViewType() == HEADER_VIEW_TYPE_SMALL) {
                     headerCell.setPadding(dp(3), headerCell.getPaddingTop(), headerCell.getPaddingRight(), headerCell.getPaddingBottom());
                 }
-                if (holder.getItemViewType() == HEADER_VIEW_TYPE_OVERVIEW) {
-                    headerCell.setPadding(dp(6), 0, dp(6), headerCell.getPaddingBottom());
-                }
             } else if (holder.getItemViewType() == OVERVIEW_TYPE) {
                 StatisticActivity.OverviewCell overviewCell = (StatisticActivity.OverviewCell) holder.itemView;
                 overviewCell.setData(0, Integer.toString(boostsStatus.level), null, LocaleController.getString(R.string.BoostsLevel2));
@@ -291,12 +289,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
             } else if (holder.getItemViewType() == DIVIDER_TEXT_VIEW_TYPE) {
                 TextInfoPrivacyCell privacyCell = (TextInfoPrivacyCell) holder.itemView;
                 privacyCell.setText(items.get(position).title);
-                boolean isLast = position == items.size() - 2;
-                Drawable shadowDrawable = Theme.getThemedDrawable(getContext(), isLast ? R.drawable.greydivider_bottom : R.drawable.greydivider, Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourceProvider));
-                Drawable background = new ColorDrawable(Theme.getColor(Theme.key_windowBackgroundGray));
-                CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
-                combinedDrawable.setFullsize(true);
-                privacyCell.setBackground(combinedDrawable);
+                privacyCell.setTextColor(Theme.multAlpha(0xFFFFFFFF, 0.875f));
             } else if (holder.getItemViewType() == SHOW_MORE_VIEW_TYPE) {
                 ManageChatTextCell actionCell = (ManageChatTextCell) holder.itemView;
                 if (selectedTab == TAB_BOOSTS) {
@@ -602,8 +595,8 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
 
     @Override
     public boolean onFragmentCreate() {
-        getNotificationCenter().addObserver(this, NotificationCenter.boostByChannelCreated);
-        getNotificationCenter().addObserver(this, NotificationCenter.chatWasBoostedByUser);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.boostByChannelCreated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.chatWasBoostedByUser);
         return super.onFragmentCreate();
     }
 
@@ -678,6 +671,7 @@ public class BoostsActivity extends GradientHeaderActivity implements Notificati
             @Override
             protected void onDraw(Canvas canvas) {
                 drawable.setBounds(0, 0, getWidth(), getHeight());
+                drawable.setColor(Theme.getColor(Theme.key_dialogTextBlue));
                 drawable.setAlpha(255);
                 drawable.draw(canvas);
                 invalidate();

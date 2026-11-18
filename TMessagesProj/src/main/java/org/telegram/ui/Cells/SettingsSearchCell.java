@@ -12,15 +12,23 @@ import android.text.TextUtils;
 import android.text.style.ImageSpan;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.UItem;
+import org.telegram.ui.Components.UniversalAdapter;
+import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.ProfileActivity;
 
 public class SettingsSearchCell extends FrameLayout {
 
@@ -75,7 +83,7 @@ public class SettingsSearchCell extends FrameLayout {
         super(context);
 
         textView = new TextView(context);
-        textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteBlackText);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         textView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         textView.setLines(1);
@@ -85,7 +93,7 @@ public class SettingsSearchCell extends FrameLayout {
         addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, LocaleController.isRTL ? 16 : 71, 10, LocaleController.isRTL ? 71 : 16, 0));
 
         valueTextView = new TextView(context);
-        valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        ThemeBind.textColor(valueTextView, Theme.key_windowBackgroundWhiteGrayText2);
         valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         valueTextView.setLines(1);
         valueTextView.setMaxLines(1);
@@ -95,7 +103,7 @@ public class SettingsSearchCell extends FrameLayout {
 
         imageView = new ImageView(context);
         imageView.setScaleType(ImageView.ScaleType.CENTER);
-        imageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon), PorterDuff.Mode.MULTIPLY));
+        ThemeBind.colorFilter(imageView, Theme.key_windowBackgroundWhiteGrayIcon, PorterDuff.Mode.MULTIPLY);
         addView(imageView, LayoutHelper.createFrame(48, 48, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, 10, 8, 10, 0));
     }
 
@@ -117,7 +125,7 @@ public class SettingsSearchCell extends FrameLayout {
                     builder.append(" > ");
                     Drawable drawable = getContext().getResources().getDrawable(R.drawable.settings_arrow).mutate();
                     drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
-                    drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), PorterDuff.Mode.MULTIPLY));
+                    ThemeBind.drawableColorFilter(this, drawable, Theme.key_windowBackgroundWhiteGrayText2, PorterDuff.Mode.MULTIPLY);
                     builder.setSpan(new VerticalImageSpan(drawable), builder.length() - 2, builder.length() - 1, SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 builder.append(value[a]);
@@ -154,7 +162,7 @@ public class SettingsSearchCell extends FrameLayout {
                     builder.append(" > ");
                     Drawable drawable = getContext().getResources().getDrawable(R.drawable.settings_arrow).mutate();
                     drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
-                    drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.MULTIPLY));
+                    ThemeBind.drawableColorFilter(this, drawable, Theme.key_windowBackgroundWhiteBlackText, PorterDuff.Mode.MULTIPLY);
                     builder.setSpan(new VerticalImageSpan(drawable), builder.length() - 2, builder.length() - 1, SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 builder.append(value[a]);
@@ -171,7 +179,7 @@ public class SettingsSearchCell extends FrameLayout {
                         builder.append(" > ");
                         Drawable drawable = getContext().getResources().getDrawable(R.drawable.settings_arrow).mutate();
                         drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
-                        drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), PorterDuff.Mode.MULTIPLY));
+                        ThemeBind.drawableColorFilter(this, drawable, Theme.key_windowBackgroundWhiteGrayText2, PorterDuff.Mode.MULTIPLY);
                         builder.setSpan(new VerticalImageSpan(drawable), builder.length() - 2, builder.length() - 1, SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE);
                     }
                     builder.append(value[a]);
@@ -202,4 +210,46 @@ public class SettingsSearchCell extends FrameLayout {
             canvas.drawLine(LocaleController.isRTL ? 0 : AndroidUtilities.dp(left), getMeasuredHeight() - 1, getMeasuredWidth() - (LocaleController.isRTL ? AndroidUtilities.dp(left) : 0), getMeasuredHeight() - 1, Theme.dividerPaint);
         }
     }
+
+    public static class Factory extends UItem.UItemFactory<SettingsSearchCell> {
+        static { setup(new Factory()); }
+
+        @Override
+        public SettingsSearchCell createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            return new SettingsSearchCell(context);
+        }
+
+        @Override
+        public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
+            if (item.object instanceof ProfileActivity.SearchAdapter.SearchResult) {
+                final ProfileActivity.SearchAdapter.SearchResult r = (ProfileActivity.SearchAdapter.SearchResult) item.object;
+                ((SettingsSearchCell) view).setTextAndValueAndIcon(item.text, r.path, r.iconResId, divider);
+            } else if (item.object instanceof MessagesController.FaqSearchResult) {
+                final MessagesController.FaqSearchResult r = (MessagesController.FaqSearchResult) item.object;
+                ((SettingsSearchCell) view).setTextAndValue(item.text, r.path, true, divider);
+            }
+        }
+
+        public static UItem of(CharSequence text, Object obj) {
+            UItem item = UItem.ofFactory(Factory.class);
+            item.text = text;
+            item.object = obj;
+            return item;
+        }
+
+        public static UItem of(CharSequence text, ProfileActivity.SearchAdapter.SearchResult r) {
+            UItem item = UItem.ofFactory(Factory.class);
+            item.text = text;
+            item.object = r;
+            return item;
+        }
+
+        public static UItem of(CharSequence text, MessagesController.FaqSearchResult faq) {
+            UItem item = UItem.ofFactory(Factory.class);
+            item.text = text;
+            item.object = faq;
+            return item;
+        }
+    }
+
 }

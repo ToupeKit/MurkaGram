@@ -21,6 +21,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ScaleStateListAnimator;
@@ -46,13 +47,15 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         super(context);
         this.resourcesProvider = resourcesProvider;
 
-        replyButton.button = ChatActivityBlurredRoundButton.create(context, blurredBackgroundDrawableViewFactory,
-            colorProvider, resourcesProvider, 0);
+        replyButton.button = ChatActivityBlurredRoundButton.create(
+            context, blurredBackgroundDrawableViewFactory, colorProvider, resourcesProvider
+        );
         replyButton.button.setOnClickListener(v -> {});
         ScaleStateListAnimator.apply(replyButton.button, .065f, 2f);
 
-        forwardButton.button = ChatActivityBlurredRoundButton.create(context, blurredBackgroundDrawableViewFactory,
-            colorProvider, resourcesProvider, 0);
+        forwardButton.button = ChatActivityBlurredRoundButton.create(
+            context, blurredBackgroundDrawableViewFactory, colorProvider, resourcesProvider
+        );
         forwardButton.button.setOnClickListener(v -> {});
         ScaleStateListAnimator.apply(forwardButton.button, .065f, 2f);
 
@@ -85,10 +88,10 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         forwardButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         forwardButton.setPadding(AndroidUtilities.dp(21), 0, AndroidUtilities.dp(21), 0);
         forwardButton.setCompoundDrawablePadding(AndroidUtilities.dp(6));
-        forwardButton.setTextColor(Theme.getColor(Theme.key_glass_defaultText, resourcesProvider));
+        ThemeBind.textColor(forwardButton, Theme.key_glass_defaultText, resourcesProvider);
         forwardButton.setTypeface(AndroidUtilities.bold());
         Drawable image = getContext().getResources().getDrawable(iconRes).mutate();
-        image.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_glass_defaultIcon, resourcesProvider), PorterDuff.Mode.MULTIPLY));
+        ThemeBind.drawableColorFilter(this, image, Theme.key_glass_defaultIcon, resourcesProvider, PorterDuff.Mode.MULTIPLY);
         forwardButton.setCompoundDrawablesWithIntrinsicBounds(iconLeft ? image : null, null, iconLeft ? null : image, null);
 
         button.textView = forwardButton;
@@ -148,7 +151,7 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
 
     private void checkHolderPositionsAndVisibility(ButtonHolder holder) {
         final float visibility = totalVisibilityFactor * holder.visibilityAnimator.getFloatValue();
-        final float offsetY = dp(54) * (1f - visibility);
+        final float offsetY = -dp(54) * (1f - visibility);
         float offsetX = getMeasuredWidth() / 2f * (1f - AnimatorUtils.DECELERATE_INTERPOLATOR.getInterpolation(visibility));
         if (holder == replyButton) {
             offsetX *= -1;
@@ -164,8 +167,8 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         public ChatActivityBlurredRoundButton button;
         public TextView textView;
 
-        public BoolAnimator visibilityAnimator = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 350, true);
-        public BoolAnimator enabledAnimator = new BoolAnimator(1, this, CubicBezierInterpolator.EASE_OUT_QUINT, 350, true);
+        public BoolAnimator visibilityAnimator = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320, true);
+        public BoolAnimator enabledAnimator = new BoolAnimator(1, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320, true);
 
         @Override
         public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {

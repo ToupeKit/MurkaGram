@@ -21,7 +21,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
@@ -53,15 +52,14 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
-import org.telegram.messenger.MurkaCustomIcon;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -70,13 +68,14 @@ import org.telegram.messenger.time.SunDate;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.SimpleActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.EmojiThemes;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeColors;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.AppIconsSelectorCell;
@@ -108,18 +107,21 @@ import org.telegram.ui.Components.SimpleThemeDescription;
 import org.telegram.ui.Components.SwipeGestureSettingsView;
 import org.telegram.ui.Components.TextHelper;
 import org.telegram.ui.Components.ThemeEditorView;
+import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
 import org.telegram.ui.web.SearchEngine;
 import org.telegram.ui.web.WebBrowserSettings;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -149,13 +151,17 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
     boolean hasThemeAccents;
 
+    @Keep
     private int backgroundRow;
     private int textSizeHeaderRow;
+    @Keep
     private int textSizeRow;
     private int settingsRow;
     private int directShareRow;
+    @Keep
     private int sensitiveContentRow;
     private int raiseToSpeakRow;
+    @Keep
     private int raiseToListenRow;
     private int nextMediaTapRow;
     private int sendByEnterRow;
@@ -167,12 +173,15 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     private int bluetoothScoRow;
     private int enableAnimationsRow;
     private int settings2Row;
+    @Keep
     private int changeUserColor;
 
     private int contactsReimportRow;
     private int contactsSortRow;
 
+    @Keep
     private int nightThemeRow;
+    @Keep
     private int browserRow;
     private int nightDisabledRow;
     private int nightScheduledRow;
@@ -193,6 +202,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     private int newThemeInfoRow;
     private int themeHeaderRow;
     private int bubbleRadiusHeaderRow;
+    @Keep
     private int bubbleRadiusRow;
     private int bubbleRadiusInfoRow;
     private int chatListHeaderRow;
@@ -203,7 +213,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     private int themeAccentListRow;
     private int themeInfoRow;
     private int chatBlurRow;
+    @Keep
     private int pauseOnRecordRow;
+    @Keep
     private int pauseOnMediaRow;
 
     private int swipeGestureHeaderRow;
@@ -213,21 +225,22 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     private int selectThemeHeaderRow;
     private int themePreviewRow;
     private int editThemeRow;
+    @Keep
     private int createNewThemeRow;
     private int lastShadowRow;
+    @Keep
     private int stickersRow;
     private int stickersInfoRow;
     private int stickersSectionRow, mediaSoundSectionRow, otherSectionRow;
     private int mediaSoundHeaderRow, otherHeaderRow;
+    @Keep
     private int liteModeRow;
     private int liteModeInfoRow;
 
     private int appIconHeaderRow;
+    @Keep
     private int appIconSelectorRow;
     private int appIconShadowRow;
-
-    private static final int REQUEST_CUSTOM_ICON = 7703; // MurkaGram: «Своя иконка» (7701/7702 — MurkaDesignActivity)
-    private AppIconsSelectorCell murkaAppIconsCell; // MurkaGram
 
     private int rowCount;
 
@@ -288,10 +301,11 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         void onSizeChanged();
     }
 
-    private class TextSizeCell extends FrameLayout {
+    private class TextSizeCell extends FrameLayout implements Theme.Colorable {
 
         private ThemePreviewMessagesCell messagesCell;
         private SeekBarView sizeBar;
+        private TextCheckCell compactModeCell;
         private int startFontSize = 12;
         private int endFontSize = 30;
 
@@ -332,11 +346,32 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             sizeBar.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             addView(sizeBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.LEFT | Gravity.TOP, 5, 5, 39, 0));
 
+            final boolean showCompactMode = BuildVars.DEBUG_PRIVATE_VERSION;
+            compactModeCell = new TextCheckCell(context);
+            compactModeCell.setBackground(Theme.getSelectorDrawable(false));
+            compactModeCell.setTextAndCheck(getString(R.string.CompactMode), SharedConfig.compactMode, false);
+            compactModeCell.setOnClickListener(v -> {
+                SharedConfig.toggleCompactMode();
+                Theme.applyChatTheme(false, false);
+                compactModeCell.setChecked(SharedConfig.compactMode);
+                for (ChatMessageCell cell : messagesCell.getCells()) {
+                    cell.getMessageObject().resetLayout();
+                    cell.forceResetMessageObject();
+                    cell.requestLayout();
+                }
+                messagesCell.invalidate();
+                // e.g. the tablet background follows compact mode
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.didSetNewWallpapper);
+            });
+            if (showCompactMode) {
+                addView(compactModeCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.LEFT | Gravity.TOP, 0, 48, 0, 0));
+            }
+
             messagesCell = new ThemePreviewMessagesCell(context, parentLayout, 0);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 messagesCell.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             }
-            addView(messagesCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 53, 0, 0));
+            addView(messagesCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 53 + (showCompactMode ? 50 : 0), 0, 0));
         }
 
         @Override
@@ -372,9 +407,33 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         public boolean performAccessibilityAction(int action, Bundle arguments) {
             return super.performAccessibilityAction(action, arguments) || sizeBar.getSeekBarAccessibilityDelegate().performAccessibilityActionInternal(this, action, arguments);
         }
+
+        private int themedOuterColor;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (sizeBar == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    sizeBar.setOuterColor(color);
+                }
+                invalidate();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
+        }
     }
 
-    private class BubbleRadiusCell extends FrameLayout {
+    private class BubbleRadiusCell extends FrameLayout implements Theme.Colorable {
 
         private SeekBarView sizeBar;
         private int startRadius = 0;
@@ -444,6 +503,61 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         @Override
         public boolean performAccessibilityAction(int action, Bundle arguments) {
             return super.performAccessibilityAction(action, arguments) || sizeBar.getSeekBarAccessibilityDelegate().performAccessibilityActionInternal(this, action, arguments);
+        }
+
+        private int themedOuterColor;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (sizeBar == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    sizeBar.setOuterColor(color);
+                }
+                invalidate();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
+        }
+    }
+
+    private static class ThemedBrightnessControlCell extends BrightnessControlCell implements Theme.Colorable {
+
+        private int themedOuterColor;
+
+        public ThemedBrightnessControlCell(Context context, int type) {
+            super(context, type);
+        }
+
+        @Override
+        public void updateColors() {
+            try {
+                if (seekBarView == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    seekBarView.setOuterColor(color);
+                    seekBarView.invalidate();
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
         }
     }
 
@@ -622,7 +736,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         Collections.sort(defaultThemes, (o1, o2) -> Integer.compare(o1.sortIndex, o2.sortIndex));
 
         if (currentType == THEME_TYPE_THEMES_BROWSER) {
-            selectThemeHeaderRow = rowCount++;
+            selectThemeHeaderRow = rowCount++; // TYPE_HEADER
             themeListRow2 = rowCount++;
             chatListInfoRow = rowCount++;
 
@@ -699,8 +813,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             distanceRow = rowCount++;
             otherSectionRow = rowCount++;
         } else {
-            nightDisabledRow = rowCount++;
-            nightScheduledRow = rowCount++;
+            nightDisabledRow = rowCount++;  // TYPE_THEME_TYPE
+            nightScheduledRow = rowCount++; // TYPE_THEME_TYPE
             nightAutomaticRow = rowCount++;
             if (Build.VERSION.SDK_INT >= 29) {
                 nightSystemDefaultRow = rowCount++;
@@ -825,18 +939,19 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.locationPermissionGranted);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetNewWallpapper);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.themeListUpdated);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.themeAccentListUpdated);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.needShareTheme);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.needSetDayNightTheme);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiPreviewThemesChanged);
-        getNotificationCenter().addObserver(this, NotificationCenter.appConfigUpdated);
-        getNotificationCenter().addObserver(this, NotificationCenter.contentSettingsLoaded);
-        getNotificationCenter().addObserver(this, NotificationCenter.themeUploadedToServer);
-        getNotificationCenter().addObserver(this, NotificationCenter.themeUploadError);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.locationPermissionGranted);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.didSetNewWallpapper);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.themeListUpdated);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.themeAccentListUpdated);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.needShareTheme);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.needSetDayNightTheme);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.emojiPreviewThemesChanged);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.appConfigUpdated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.contentSettingsLoaded);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.themeUploadedToServer);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.themeUploadError);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.webBrowserSettingsUpdate);
         if (currentType == THEME_TYPE_BASIC) {
             Theme.loadRemoteThemes(currentAccount, true);
             Theme.checkCurrentRemoteTheme(true);
@@ -860,6 +975,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         getNotificationCenter().removeObserver(this, NotificationCenter.contentSettingsLoaded);
         getNotificationCenter().removeObserver(this, NotificationCenter.themeUploadedToServer);
         getNotificationCenter().removeObserver(this, NotificationCenter.themeUploadError);
+        getNotificationCenter().removeObserver(this, NotificationCenter.webBrowserSettingsUpdate);
         Theme.saveAutoNightThemeConfig();
     }
 
@@ -872,6 +988,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 listView.invalidateViews();
             }
             updateMenuItem();
+        } else if (id == NotificationCenter.webBrowserSettingsUpdate) {
+            if (listAdapter != null && browserRow != -1) {
+                listAdapter.notifyItemChanged(browserRow);
+            }
         } else if (id == NotificationCenter.themeAccentListUpdated) {
             if (listAdapter != null && themeAccentListRow != -1) {
                 listAdapter.notifyItemChanged(themeAccentListRow, new Object());
@@ -922,18 +1042,20 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     }
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
+        setHasOwnBackground(true);
         lastIsDarkTheme = !Theme.isCurrentThemeDay();
 
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(false);
-        if (AndroidUtilities.isTablet()) {
-            actionBar.setOccupyStatusBar(false);
-        }
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
         if (currentType == THEME_TYPE_THEMES_BROWSER) {
-            actionBar.setTitle(getString("BrowseThemes", R.string.BrowseThemes));
-            ActionBarMenu menu = actionBar.createMenu();
-            sunDrawable = new RLottieDrawable(R.raw.sun, "" + R.raw.sun, dp(28), dp(28), true, null);
+            simpleActionBar.setTitle(getString("BrowseThemes", R.string.BrowseThemes));
+            SimpleActionBarMenu menu = simpleActionBar.createMenu();
+            sunDrawable = new RLottieDrawable(R.raw.sun, dp(28), dp(28), true, null);
             if (lastIsDarkTheme) {
                 sunDrawable.setCurrentFrame(sunDrawable.getFramesCount() - 1);
             } else {
@@ -942,8 +1064,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             sunDrawable.setPlayInDirectionOfCustomEndFrame(true);
             menuItem = menu.addItem(day_night_switch, sunDrawable);
         } else if (currentType == THEME_TYPE_BASIC) {
-            actionBar.setTitle(getString("ChatSettings", R.string.ChatSettings));
-            ActionBarMenu menu = actionBar.createMenu();
+            simpleActionBar.setTitle(getString("ChatSettings", R.string.ChatSettings));
+            SimpleActionBarMenu menu = simpleActionBar.createMenu();
             menuItem = menu.addItem(0, R.drawable.ic_ab_other);
             menuItem.setContentDescription(getString("AccDescrMoreOptions", R.string.AccDescrMoreOptions));
             menuItem.addSubItem(share_theme, R.drawable.msg_share, getString("ShareTheme", R.string.ShareTheme));
@@ -963,10 +1085,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 });
             }
         } else {
-            actionBar.setTitle(getString("AutoNightTheme", R.string.AutoNightTheme));
+            simpleActionBar.setTitle(getString(R.string.AutoNightTheme));
+        }
+        if (parentLayout != null && parentLayout.isRightLayout()) {
+            simpleActionBar.setBackButtonImage(R.drawable.ic_ab_close);
         }
 
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -1022,7 +1147,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                 themesHorizontalListCell.selectTheme(themeInfo);
                                 themesHorizontalListCell.smoothScrollToPosition(0);
                             } else if (themeInfo.currentAccentId != Theme.DEFALT_THEME_ACCENT_ID) {
-                                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, currentType == THEME_TYPE_NIGHT, null, Theme.DEFALT_THEME_ACCENT_ID);
+                                Theme.switchThemeWithReveal(currentTheme, currentType == THEME_TYPE_NIGHT, Theme.DEFALT_THEME_ACCENT_ID, null);
                                 listAdapter.notifyItemChanged(themeAccentListRow);
                             } else {
                                 Theme.reloadWallpaper(true);
@@ -1034,7 +1159,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     showDialog(alertDialog);
                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                     }
                 } else if (id == day_night_switch) {
                     SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
@@ -1078,14 +1203,14 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         listAdapter = new ListAdapter(context);
 
         FrameLayout frameLayout = new FrameLayout(context);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         fragmentView = frameLayout;
 
         listView = new RecyclerListView(context);
+        listView.setSections();
+        listView.setSectionsDrawBackground(true);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
         listView.setAdapter(listAdapter);
-        org.telegram.ui.Components.MurkaMD3.apply(listView); // MurkaGram: MD3 — карточки секций
         ((DefaultItemAnimator) listView.getItemAnimator()).setDelayAnimations(false);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         listView.setOnItemClickListener((view, position, x, y) -> {
@@ -1167,7 +1292,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     cell.setPadding(dp(4), 0, dp(4), 0);
                     cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                     cell.setTextAndValue(items[index], index == SharedConfig.distanceSystemType);
-                    cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                    ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                     linearLayout.addView(cell);
                     cell.setOnClickListener(v -> {
                         SharedConfig.setDistanceSystemType(index);
@@ -1208,7 +1333,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     cell.setPadding(dp(4), 0, dp(4), 0);
                     cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                     cell.setTextAndValue(items[index], index == SharedConfig.searchEngineType);
-                    cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                    ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                     linearLayout.addView(cell);
                     cell.setOnClickListener(v -> {
                         SharedConfig.setSearchEngineType(index);
@@ -1241,7 +1366,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 cell.setPadding(dp(4), 0, dp(4), 0);
                 cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                 cell.setTextAndValue(getString(R.string.MicrophoneForVoiceMessagesBuiltIn), !SharedConfig.recordViaSco);
-                cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                 linearLayout.addView(cell);
                 cell.setOnClickListener(v -> {
                     SharedConfig.recordViaSco = false;
@@ -1259,7 +1384,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 cell.setPadding(dp(4), 0, dp(4), 0);
                 cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                 cell.setTextAndText2AndValue(getString(R.string.MicrophoneForVoiceMessagesScoIfConnected), getString(R.string.MicrophoneForVoiceMessagesScoHint), SharedConfig.recordViaSco);
-                cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                 linearLayout.addView(cell);
                 cell.setOnClickListener(v -> {
                     PermissionRequest.ensurePermission(R.raw.permission_request_microphone, R.string.PermissionNoBluetoothWithHint, Manifest.permission.BLUETOOTH_CONNECT, granted -> {
@@ -1386,15 +1511,16 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         }
                         value = type + " " + value;
                     }
-                    checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.msg2_night_auto, enabled, 0, false, true);
+                    checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.menu_night_mode_24, enabled, 0, false, true);
                 } else {
                     presentFragment(new ThemeActivity(THEME_TYPE_NIGHT));
                 }
             } else if (position == browserRow) {
                 if (LocaleController.isRTL && x <= dp(76) || !LocaleController.isRTL && x >= view.getMeasuredWidth() - dp(76)) {
                     NotificationsCheckCell checkCell = (NotificationsCheckCell) view;
-                    SharedConfig.toggleInappBrowser();
-                    checkCell.setChecked(SharedConfig.inappBrowser);
+                    getMessagesController().toggleWebBrowserInAppEnabled();
+                    final boolean inAppBrowserEnabled = getMessagesController().isWebBrowserInAppEnabled();
+                    checkCell.setChecked(inAppBrowserEnabled);
                 } else {
                     presentFragment(new WebBrowserSettings(null));
                 }
@@ -1496,6 +1622,16 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         return fragmentView;
     }
 
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
     private void editTheme() {
         Theme.ThemeInfo currentTheme = Theme.getCurrentTheme();
         Theme.ThemeAccent accent = currentTheme.getAccent(false);
@@ -1519,142 +1655,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         super.onResume();
         if (listAdapter != null) {
             updateRows(true);
-        }
-    }
-
-    // MurkaGram: «Своя иконка» — ярлык на рабочем столе с картинкой пользователя
-    private void murkaOnCustomIconClick() {
-        if (getParentActivity() == null) {
-            return;
-        }
-        if (!MurkaCustomIcon.isSupported(getParentActivity())) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-            builder.setTitle(getString(R.string.MurkaCustomIcon));
-            builder.setMessage(getString(R.string.MurkaCustomIconUnsupported));
-            builder.setPositiveButton(getString(R.string.OK), null);
-            showDialog(builder.create());
-            return;
-        }
-        if (!MurkaCustomIcon.exists()) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-            builder.setTitle(getString(R.string.MurkaCustomIcon));
-            builder.setMessage(getString(R.string.MurkaCustomIconInfo));
-            builder.setPositiveButton(getString(R.string.MurkaCustomIconPick), (dialog, which) -> murkaOpenIconPicker());
-            builder.setNegativeButton(getString(R.string.Cancel), null);
-            showDialog(builder.create());
-            return;
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(getString(R.string.MurkaCustomIcon));
-        builder.setItems(new CharSequence[]{
-                getString(R.string.MurkaCustomIconPin),
-                getString(R.string.MurkaCustomIconReplace),
-                getString(R.string.MurkaCustomIconRemove)
-        }, (dialog, which) -> {
-            if (which == 0) {
-                murkaPinCustomIcon();
-            } else if (which == 1) {
-                murkaOpenIconPicker();
-            } else if (which == 2) {
-                MurkaCustomIcon.remove(ApplicationLoader.applicationContext);
-                murkaRefreshCustomIcon();
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.MurkaCustomIconRemoved)).show();
-            }
-        });
-        AlertDialog alertDialog = builder.create();
-        showDialog(alertDialog);
-        alertDialog.setItemColor(alertDialog.getItemsCount() - 1, Theme.getColor(Theme.key_text_RedBold), Theme.getColor(Theme.key_text_RedRegular));
-    }
-
-    private void murkaOpenIconPicker() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("image/*");
-            startActivityForResult(intent, REQUEST_CUSTOM_ICON);
-        } catch (Exception e) {
-            FileLog.e(e);
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
-        }
-    }
-
-    @Override
-    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
-        if (requestCode != REQUEST_CUSTOM_ICON) { // MurkaGram: на планшетах результат приходит во все 3 layout'а
-            return;
-        }
-        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
-            return;
-        }
-        final Uri uri = data.getData();
-        AndroidUtilities.runOnUIThread(() -> {
-            boolean presented = false;
-            try {
-                Bundle args = new Bundle();
-                args.putParcelable("photoUri", uri);
-                PhotoCropActivity crop = new PhotoCropActivity(args);
-                crop.setDelegate(this::murkaOnCustomIconCropped);
-                presented = presentFragment(crop);
-            } catch (Exception e) {
-                FileLog.e(e);
-            }
-            if (!presented) {
-                // MurkaGram: декодирование картинки — не в UI-потоке
-                Utilities.globalQueue.postRunnable(() -> {
-                    Bitmap loaded = null;
-                    try {
-                        loaded = ImageLoader.loadBitmap(null, uri, 800, 800, true);
-                    } catch (Throwable e) {
-                        FileLog.e(e);
-                    }
-                    final Bitmap bitmap = loaded;
-                    AndroidUtilities.runOnUIThread(() -> {
-                        if (bitmap == null) {
-                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
-                            return;
-                        }
-                        murkaOnCustomIconCropped(bitmap);
-                        bitmap.recycle();
-                    });
-                });
-            }
-        });
-    }
-
-    // Вызывается синхронно из PhotoCropActivity до finishFragment — копируем bitmap сразу.
-    private void murkaOnCustomIconCropped(Bitmap bitmap) {
-        final Bitmap square = MurkaCustomIcon.makeSquare(bitmap);
-        if (square == null) {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
-            return;
-        }
-        Utilities.globalQueue.postRunnable(() -> {
-            final boolean saved = MurkaCustomIcon.save(square);
-            AndroidUtilities.runOnUIThread(() -> {
-                if (!saved) {
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
-                    return;
-                }
-                murkaRefreshCustomIcon();
-                murkaPinCustomIcon();
-            });
-        });
-    }
-
-    private void murkaPinCustomIcon() {
-        int result = MurkaCustomIcon.pin(ApplicationLoader.applicationContext);
-        if (result == MurkaCustomIcon.PIN_UPDATED) {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.MurkaCustomIconUpdated)).show();
-        } else if (result == MurkaCustomIcon.PIN_REQUESTED) {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.MurkaCustomIconAdded)).show();
-        } else {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconUnsupported)).show();
-        }
-    }
-
-    private void murkaRefreshCustomIcon() {
-        if (murkaAppIconsCell != null) {
-            murkaAppIconsCell.murkaRefreshCustom();
         }
     }
 
@@ -1687,7 +1687,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         b.setCustomView(layout);
 
         FrameLayout topView = new FrameLayout(context);
-        topView.setBackground(Theme.createCircleDrawable(dp(80), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
+        ThemeBind.fillBackground(topView, Theme.createCircleDrawable(dp(80), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), ThemeBind.of(Theme.key_featuredStickers_addButton), resourcesProvider);
         ImageView imageView = new ImageView(context);
         imageView.setScaleType(ImageView.ScaleType.CENTER);
         imageView.setImageResource(R.drawable.filled_verify_age);
@@ -1811,7 +1811,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 LocationManager lm = (LocationManager) ApplicationLoader.applicationContext.getSystemService(Context.LOCATION_SERVICE);
                 if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                     AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-                    builder.setTopAnimation(R.raw.permission_request_location, AlertsCreator.PERMISSIONS_REQUEST_TOP_ICON_SIZE, false, Theme.getColor(Theme.key_dialogTopBackground));
+                    builder.setTopAnimation(R.raw.permission_request_location, AlertsCreator.PERMISSIONS_REQUEST_TOP_ICON_SIZE, false, Theme.getColor(Theme.key_dialogTopBackground)); builder.setTopBackgroundColorKey(Theme.key_dialogTopBackground, null);
                     builder.setMessage(getString("GpsDisabledAlertText", R.string.GpsDisabledAlertText));
                     builder.setPositiveButton(getString("ConnectingToProxyEnable", R.string.ConnectingToProxyEnable), (dialog, id) -> {
                         if (getParentActivity() == null) {
@@ -2323,7 +2323,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     showDialog(alertDialog);
                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                     }
                 }
             });
@@ -2341,25 +2341,21 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             switch (viewType) {
                 case TYPE_TEXT_SETTING:
                     view = new TextSettingsCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_TEXT_INFO_PRIVACY:
                     view = new TextInfoPrivacyCell(mContext);
-                    view.setBackground(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow));
                     break;
                 case TYPE_SHADOW:
                     view = new ShadowSectionCell(mContext);
                     break;
                 case TYPE_THEME_TYPE:
                     view = new ThemeTypeCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_HEADER:
                     view = new HeaderCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_BRIGHTNESS:
-                    view = new BrightnessControlCell(mContext, BrightnessControlCell.TYPE_DEFAULT) {
+                    view = new ThemedBrightnessControlCell(mContext, BrightnessControlCell.TYPE_DEFAULT) {
                         @Override
                         protected void didChangedValue(float value) {
                             int oldValue = (int) (Theme.autoNightBrighnessThreshold * 100);
@@ -2375,15 +2371,12 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             }
                         }
                     };
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_TEXT_CHECK:
                     view = new TextCheckCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_TEXT_SIZE:
                     view = new TextSizeCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_CHAT_LIST:
                     view = new ChatListCell(mContext) {
@@ -2392,11 +2385,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             SharedConfig.setUseThreeLinesLayout(threeLines);
                         }
                     };
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_NIGHT_THEME:
                     view = new NotificationsCheckCell(mContext, 21, 60, true);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_THEME_LIST:
                     first = true;
@@ -2427,7 +2418,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         }
                     };
                     accentsListView.setFocusable(false);
-                    accentsListView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     accentsListView.setItemAnimator(null);
                     accentsListView.setLayoutAnimation(null);
                     accentsListView.setPadding(dp(11), 0, dp(11), 0);
@@ -2449,7 +2439,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             }
 
                             if (currentTheme.currentAccentId != accent.id) {
-                                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, currentType == THEME_TYPE_NIGHT, null, accent.id);
+                                Theme.switchThemeWithReveal(currentTheme, currentType == THEME_TYPE_NIGHT, accent.id, view1);
                                 EmojiThemes.saveCustomTheme(currentTheme, accent.id);
                                 Theme.turnOffAutoNight(ThemeActivity.this);
                             } else {
@@ -2519,7 +2509,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                     builder1.setPositiveButton(getString("Delete", R.string.Delete), (dialogInterface, i) -> {
                                         if (Theme.deleteThemeAccent(accentsAdapter.currentTheme, accent, true)) {
                                             Theme.refreshThemeColors();
-                                            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, Theme.getActiveTheme(), currentType == THEME_TYPE_NIGHT, null, -1);
+                                            Theme.switchThemeWithReveal(Theme.getActiveTheme(), currentType == THEME_TYPE_NIGHT, -1, null);
                                         }
                                     });
                                     builder1.setNegativeButton(getString("Cancel", R.string.Cancel), null);
@@ -2527,7 +2517,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                     showDialog(alertDialog);
                                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                                     if (button != null) {
-                                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                                     }
                                 }
                             });
@@ -2545,12 +2535,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 }
                 case TYPE_BUBBLE_RADIUS:
                     view = new BubbleRadiusCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_TEXT_PREFERENCE:
                 default:
                     view = new TextCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case TYPE_SWIPE_GESTURE:
                     view = new SwipeGestureSettingsView(mContext, currentAccount);
@@ -2580,10 +2568,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     view = new RadioButtonCell(mContext);
                     break;
                 case TYPE_APP_ICON:
-                    AppIconsSelectorCell appIconsCell = new AppIconsSelectorCell(mContext, ThemeActivity.this, currentAccount);
-                    appIconsCell.onCustomIconClick = ThemeActivity.this::murkaOnCustomIconClick; // MurkaGram: «Своя иконка»
-                    murkaAppIconsCell = appIconsCell; // MurkaGram
-                    view = appIconsCell;
+                    view = new AppIconsSelectorCell(mContext, ThemeActivity.this, currentAccount);
                     break;
                 case TYPE_CHOOSE_COLOR:
                     view = new PeerColorActivity.ChangeNameColorCell(currentAccount, 0, mContext, getResourceProvider());
@@ -2636,7 +2621,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         } else {
                             value = getString("DistanceUnitsMiles", R.string.DistanceUnitsMiles);
                         }
-                        cell.setTextAndValue(getString("DistanceUnits", R.string.DistanceUnits), value, updateDistance, true);
+                        cell.setTextAndValue(getString("DistanceUnits", R.string.DistanceUnits), value, updateDistance, otherSectionRow >= 0);
                         updateDistance = false;
                     } else if (position == searchEngineRow) {
                         cell.setTextAndValue(getString(R.string.SearchEngine), SearchEngine.getCurrent().name, updateSearchEngine, false);
@@ -2664,11 +2649,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     break;
                 }
                 case TYPE_SHADOW: {
-                    if (position == nightTypeInfoRow && themeInfoRow == -1 || position == lastShadowRow || position == themeInfoRow && nightTypeInfoRow != -1 || position == saveToGallerySectionRow || position == settings2Row) {
-                        holder.itemView.setBackground(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
-                    } else {
-                        holder.itemView.setBackground(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow));
-                    }
                     break;
                 }
                 case TYPE_THEME_TYPE: {
@@ -2769,9 +2749,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             }
                             value = type + " " + value;
                         }
-                        checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.msg2_night_auto, enabled, 0, false, true);
+                        checkCell.setTextAndValueAndIconAndCheck(getString("AutoNightTheme", R.string.AutoNightTheme), value, R.drawable.menu_night_mode_24, enabled, 0, false, true);
                     } else if (position == browserRow) {
-                        checkCell.setTextAndValueAndIconAndCheck(getString(R.string.InappBrowser), getString(R.string.InappBrowserInfo), R.drawable.msg2_language, SharedConfig.inappBrowser, 0, false, true);
+                        checkCell.setTextAndValueAndIconAndCheck(getString(R.string.InappBrowser), getString(R.string.InappBrowserInfo), R.drawable.msg2_language, getMessagesController().isWebBrowserInAppEnabled(), 0, false, true);
                     }
                     break;
                 }
@@ -2855,9 +2835,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             if (type == TYPE_THEME_TYPE) {
                 ((ThemeTypeCell) holder.itemView).setTypeChecked(holder.getAdapterPosition() == Theme.selectedAutoNightType);
             }
-            if (type != TYPE_TEXT_INFO_PRIVACY && type != TYPE_SHADOW) {
-                holder.itemView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-            }
         }
 
         @Override
@@ -2931,77 +2908,30 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextSettingsCell.class, TextCheckCell.class, HeaderCell.class, BrightnessControlCell.class, ThemeTypeCell.class, TextSizeCell.class, BubbleRadiusCell.class, ChatListCell.class, NotificationsCheckCell.class, ThemesHorizontalListCell.class, TintRecyclerListView.class, TextCell.class, PeerColorActivity.ChangeNameColorCell.class, SwipeGestureSettingsView.class, DefaultThemesPreviewCell.class, AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
 
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUBACKGROUND, null, null, null, null, Theme.key_actionBarDefaultSubmenuBackground));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM, null, null, null, null, Theme.key_actionBarDefaultSubmenuItem));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM | ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarDefaultSubmenuItemIcon));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ShadowSectionCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextInfoPrivacyCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
 
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueText4));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueText4));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{BrightnessControlCell.class}, new String[]{"leftImageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{BrightnessControlCell.class}, new String[]{"rightImageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{BrightnessControlCell.class}, new String[]{"seekBarView"}, null, null, null, Theme.key_player_progressBackground));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{BrightnessControlCell.class}, new String[]{"seekBarView"}, null, null, null, Theme.key_player_progress));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ThemeTypeCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ThemeTypeCell.class}, new String[]{"checkImage"}, null, null, null, Theme.key_featuredStickers_addedIcon));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{TextSizeCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progress));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progressBackground));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{BubbleRadiusCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progress));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{BubbleRadiusCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progressBackground));
 
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ChatListCell.class}, null, null, null, Theme.key_radioBackground));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ChatListCell.class}, null, null, null, Theme.key_radioBackgroundChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInDrawable, Theme.chat_msgInMediaDrawable}, null, Theme.key_chat_inBubble));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInSelectedDrawable, Theme.chat_msgInMediaSelectedDrawable}, null, Theme.key_chat_inBubbleSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, Theme.chat_msgInDrawable.getShadowDrawables(), null, Theme.key_chat_inBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, Theme.chat_msgInMediaDrawable.getShadowDrawables(), null, Theme.key_chat_inBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubble));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient1));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient2));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient3));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutSelectedDrawable, Theme.chat_msgOutMediaSelectedDrawable}, null, Theme.key_chat_outBubbleSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInDrawable, Theme.chat_msgInMediaDrawable}, null, Theme.key_chat_inBubbleShadow));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_messageTextIn));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_messageTextOut));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckDrawable}, null, Theme.key_chat_outSentCheck));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckSelectedDrawable}, null, Theme.key_chat_outSentCheckSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckReadDrawable, Theme.chat_msgOutHalfCheckDrawable}, null, Theme.key_chat_outSentCheckRead));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckReadSelectedDrawable, Theme.chat_msgOutHalfCheckSelectedDrawable}, null, Theme.key_chat_outSentCheckReadSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgMediaCheckDrawable, Theme.chat_msgMediaHalfCheckDrawable}, null, Theme.key_chat_mediaSentCheck));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inReplyLine));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_outReplyLine));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inReplyNameText));
@@ -3015,8 +2945,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inTimeSelectedText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_outTimeSelectedText));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteHintText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
         themeDescriptions.addAll(SimpleThemeDescription.createThemeDescriptions(() -> {
@@ -3077,5 +3005,41 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 }
             }
         }
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_windowBackgroundWhiteBlackText);
+        keys.add(Theme.key_windowBackgroundWhite);
+        keys.add(Theme.key_chat_mediaSentCheck);
+        keys.add(Theme.key_chat_outSentCheckReadSelected);
+        keys.add(Theme.key_chat_outSentCheckRead);
+        keys.add(Theme.key_chat_outSentCheckSelected);
+        keys.add(Theme.key_chat_outSentCheck);
+        keys.add(Theme.key_chat_messageTextOut);
+        keys.add(Theme.key_chat_inBubbleShadow);
+        keys.add(Theme.key_chat_outBubbleShadow);
+        keys.add(Theme.key_chat_outBubbleSelected);
+        keys.add(Theme.key_chat_outBubbleGradient3);
+        keys.add(Theme.key_chat_outBubbleGradient2);
+        keys.add(Theme.key_chat_outBubbleGradient1);
+        keys.add(Theme.key_chat_outBubble);
+        keys.add(Theme.key_chat_inBubbleSelected);
+        keys.add(Theme.key_chat_inBubble);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText2);
+        keys.add(Theme.key_player_progressBackground);
+        keys.add(Theme.key_player_progress);
+        keys.add(Theme.key_featuredStickers_addedIcon);
+        keys.add(Theme.key_windowBackgroundWhiteGrayIcon);
+        keys.add(Theme.key_windowBackgroundWhiteBlueHeader);
+        keys.add(Theme.key_windowBackgroundWhiteValueText);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText4);
+        keys.add(Theme.key_divider);
+        keys.add(Theme.key_actionBarDefaultSelector);
+        keys.add(Theme.key_actionBarDefaultTitle);
+        keys.add(Theme.key_actionBarDefaultIcon);
+        keys.add(Theme.key_actionBarDefault);
     }
 }

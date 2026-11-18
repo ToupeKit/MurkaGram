@@ -36,18 +36,17 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
 import org.json.JSONObject;
+import org.telegram.messenger.utils.Choreographer60FpsContent;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.Adapters.DrawerLayoutAdapter;
 import org.telegram.ui.Components.ForegroundDetector;
-import org.telegram.ui.IUpdateButton;
+import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.IUpdateLayout;
 import org.telegram.ui.LauncherIconController;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Locale;
 
 public class ApplicationLoader extends Application {
@@ -235,6 +234,8 @@ public class ApplicationLoader extends Application {
             e.printStackTrace();
         }
 
+        LiteMode.registerBatteryReceiver();
+
         try {
             PowerManager pm = (PowerManager) ApplicationLoader.applicationContext.getSystemService(Context.POWER_SERVICE);
             isScreenOn = pm.isScreenOn();
@@ -264,7 +265,6 @@ public class ApplicationLoader extends Application {
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();
-        Utilities.globalQueue.postRunnable(MurkaBadges::fetch, 2000); // MurkaGram: «Бейджики» из Remote Config
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("app initied");
         }
@@ -275,6 +275,10 @@ public class ApplicationLoader extends Application {
             DownloadController.getInstance(a);
         }
         BillingController.getInstance().startConnection();
+        // HTML widgets: the isolated engine's process up front, after the app's own start, so that a widget's first
+        // frame does not wait for it.
+        AndroidUtilities.runOnUIThread(() -> Utilities.globalQueue.postRunnable(
+                () -> org.telegram.utils.twidget.WidgetSandboxSession.prewarmEngine(applicationContext)), 3000);
     }
 
     public ApplicationLoader() {
@@ -292,7 +296,16 @@ public class ApplicationLoader extends Application {
 
         super.onCreate();
 
+        // The widget engine's isolated process has no files, network or accounts: none of the client starts there.
+        if (org.telegram.utils.twidget.WidgetEngineService.isEngineProcess()) {
+            return;
+        }
+
+        // AndroidUtilities must be initialized before FileLog
+        final String helloWorld = AndroidUtilities.getHelloWorld();
+
         if (BuildVars.LOGS_ENABLED) {
+            FileLog.d(helloWorld);
             FileLog.d("app start time = " + (startTime = SystemClock.elapsedRealtime()));
             try {
                 final PackageInfo info = ApplicationLoader.applicationContext.getPackageManager().getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
@@ -321,14 +334,8 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
 
-        // MurkaGram: загрузить настройки MurkaGram до первого использования
-        try {
-            MurkaConfig.loadConfig();
-        } catch (Throwable ignore) {
-
-        }
-
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
+
         try {
             ConnectionsManager.native_setJava(false);
         } catch (UnsatisfiedLinkError error) {
@@ -344,26 +351,29 @@ public class ApplicationLoader extends Application {
                 }
             }
         };
+        if (BuildConfig.DEBUG_VERSION) {
+            new ANRDetector(FileLog::dumpANR);
+        }
+
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("load libs time = " + (SystemClock.elapsedRealtime() - startTime));
         }
 
         applicationHandler = new Handler(applicationContext.getMainLooper());
 
-        // MurkaGram: свой шрифт (раздел «Дизайн») — best effort глобальная подмена, только в режиме «Свой»
-        try {
-            if (MurkaConfig.fontMode == MurkaConfig.FONT_CUSTOM) {
-                AndroidUtilities.murkaApplyGlobalFont();
-            }
-        } catch (Throwable ignore) {
-
-        }
-
         AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
         ProxyRotationController.init();
+
+        //if (BuildConfig.DEBUG_PRIVATE_VERSION) {
+        //    Choreographer60FpsContent.getInstance().addFrameCallback(debugEverySecondChecks, 1);
+        //}
     }
+
+    private final Runnable debugEverySecondChecks = () -> AndroidUtilities.runOnUIThread(() -> {
+        NotificationCenter.sanitize();
+    });
 
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
@@ -660,11 +670,7 @@ public class ApplicationLoader extends Application {
         return false;
     }
 
-    public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenu, ViewGroup sideMenuContainer) {
-        return null;
-    }
-
-    public IUpdateButton takeUpdateButton(Context context) {
+    public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenuContainer) {
         return null;
     }
 
@@ -684,8 +690,8 @@ public class ApplicationLoader extends Application {
         return false;
     }
 
-    public boolean extendDrawer(ArrayList<DrawerLayoutAdapter.Item> items) {
-        return false;
+    public void addItemOptions(ItemOptions itemOptions) {
+
     }
 
     public boolean checkRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) {

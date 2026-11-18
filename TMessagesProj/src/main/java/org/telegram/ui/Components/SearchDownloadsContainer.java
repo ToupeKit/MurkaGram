@@ -1,5 +1,6 @@
 package org.telegram.ui.Components;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -35,6 +36,7 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.SharedAudioCell;
 import org.telegram.ui.Cells.SharedDocumentCell;
@@ -44,11 +46,12 @@ import org.telegram.ui.PremiumPreviewFragment;
 
 import java.util.ArrayList;
 
+@SuppressLint("ViewConstructor")
 public class SearchDownloadsContainer extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
 
     private final FlickerLoadingView loadingView;
     StickerEmptyView emptyView;
-    public RecyclerListView recyclerListView;
+    public final @NonNull RecyclerListView recyclerListView;
     DownloadsAdapter adapter = new DownloadsAdapter();
     private final int currentAccount;
 
@@ -84,7 +87,7 @@ public class SearchDownloadsContainer extends FrameLayout implements Notificatio
         this.parentFragment = fragment;
         this.parentActivity = fragment.getParentActivity();
         this.currentAccount = currentAccount;
-        recyclerListView = new BlurredRecyclerView(getContext()) {
+        recyclerListView = new RecyclerListView(getContext()) {
             @Override
             protected void onLayout(boolean changed, int l, int t, int r, int b) {
                 super.onLayout(changed, l, t, r, b);
@@ -208,6 +211,35 @@ public class SearchDownloadsContainer extends FrameLayout implements Notificatio
         recyclerListView.setEmptyView(emptyView);
 
         FileLoader.getInstance(currentAccount).getCurrentLoadingFiles(currentLoadingFiles);
+    }
+
+    public void setPagesPaddings(int top, int bottom) {
+        setPagesPaddings(top, bottom, false);
+    }
+
+    public void setPagesPaddings(int top, int bottom, boolean doNotRequestLayout) {
+        setClipToPadding(false);
+        ignoreRequestLayout = doNotRequestLayout;
+
+        setPadding(0, top, 0, bottom);
+        recyclerListView.setPadding(0, top, 0, bottom, doNotRequestLayout);
+
+        MarginLayoutParams lp = null;
+        lp = (MarginLayoutParams) recyclerListView.getLayoutParams();
+        lp.topMargin = -top;
+        lp.bottomMargin = -bottom;
+
+        ignoreRequestLayout = false;
+    }
+
+    private boolean ignoreRequestLayout;
+
+    @Override
+    public void requestLayout() {
+        if (ignoreRequestLayout) {
+            return;
+        }
+        super.requestLayout();
     }
 
     private void checkFilesExist() {
@@ -543,7 +575,7 @@ public class SearchDownloadsContainer extends FrameLayout implements Notificatio
                     boolean showReorder = uiCallback.actionModeShowing() && position >= downloadingFilesStartRow && position < downloadingFilesEndRow;
                     if (type == 1) {
                         Cell view = (Cell) holder.itemView;
-                        view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                        ThemeBind.backgroundColor(view, Theme.key_windowBackgroundWhite);
                         int oldId = view.sharedDocumentCell.getMessage() == null ? 0 : view.sharedDocumentCell.getMessage().getId();
                         view.sharedDocumentCell.setDocument(messageObject, true);
                         messageHashIdTmp.set(view.sharedDocumentCell.getMessage().getId(), view.sharedDocumentCell.getMessage().getDialogId());
@@ -599,8 +631,8 @@ public class SearchDownloadsContainer extends FrameLayout implements Notificatio
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.onDownloadingFilesChanged);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.premiumFloodWaitReceived);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.onDownloadingFilesChanged);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.premiumFloodWaitReceived);
         if (getVisibility() == View.VISIBLE) {
             DownloadController.getInstance(currentAccount).clearUnviewedDownloads();
         }

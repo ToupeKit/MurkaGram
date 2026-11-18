@@ -11,6 +11,7 @@ package org.telegram.ui;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
+import org.telegram.messenger.FileLog;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
@@ -65,6 +66,7 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.EmptyCell;
 import org.telegram.ui.Cells.HeaderCell;
@@ -86,6 +88,7 @@ import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import org.telegram.ui.Stories.StoriesUtilities;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public class MessageStatisticActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
@@ -235,7 +238,7 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         } else {
             MessagesController.getInstance(currentAccount).loadFullChat(chatId, classGuid, true);
         }
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.chatInfoDidLoad);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.chatInfoDidLoad);
         return true;
     }
 
@@ -275,7 +278,7 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
 
         fragmentView = new FrameLayout(context);
-        fragmentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider()));
+        ThemeBind.backgroundColor(fragmentView, Theme.key_windowBackgroundGray, getResourceProvider());
         FrameLayout frameLayout = (FrameLayout) fragmentView;
 
         emptyView = new EmptyTextProgressView(context);
@@ -293,14 +296,14 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         TextView loadingTitle = new TextView(context);
         loadingTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         loadingTitle.setTypeface(AndroidUtilities.bold());
-        loadingTitle.setTextColor(Theme.getColor(Theme.key_player_actionBarTitle, getResourceProvider()));
+        ThemeBind.textColor(loadingTitle, Theme.key_player_actionBarTitle, getResourceProvider());
         loadingTitle.setTag(Theme.key_player_actionBarTitle);
         loadingTitle.setText(LocaleController.getString(R.string.LoadingStats));
         loadingTitle.setGravity(Gravity.CENTER_HORIZONTAL);
 
         TextView loadingSubtitle = new TextView(context);
         loadingSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        loadingSubtitle.setTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle, getResourceProvider()));
+        ThemeBind.textColor(loadingSubtitle, Theme.key_player_actionBarSubtitle, getResourceProvider());
         loadingSubtitle.setTag(Theme.key_player_actionBarSubtitle);
         loadingSubtitle.setText(LocaleController.getString(R.string.LoadingStatsDescription));
         loadingSubtitle.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -313,10 +316,12 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         frameLayout.addView(progressLayout, LayoutHelper.createFrame(240, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 0, 0, 30));
 
         listView = new RecyclerListView(context, getResourceProvider());
+        listView.setSections();
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         ((SimpleItemAnimator) listView.getItemAnimator()).setSupportsChangeAnimations(false);
         listView.setAdapter(listViewAdapter = new ListAdapter(context));
         listView.setVerticalScrollbarPosition(LocaleController.isRTL ? RecyclerListView.SCROLLBAR_POSITION_LEFT : RecyclerListView.SCROLLBAR_POSITION_RIGHT);
+        actionBar.setAdaptiveBackground(listView);
 
         listView.setOnItemClickListener((view, position) -> {
             if (position >= startRow && position < endRow) {
@@ -520,9 +525,8 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         if (subtitleTextView instanceof SimpleTextView) {
             ((SimpleTextView) subtitleTextView).setLinkTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle, getResourceProvider()));
         }
-        actionBar.setItemsColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()), false);
-        actionBar.setItemsBackgroundColor(Theme.getColor(Theme.key_actionBarActionModeDefaultSelector, getResourceProvider()), false);
-        actionBar.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        ThemeBind.actionBarItemsColor(actionBar, Theme.key_windowBackgroundWhiteBlackText, getResourceProvider(), false);
+        ThemeBind.actionBarItemsBackgroundColor(actionBar, Theme.key_actionBarActionModeDefaultSelector, getResourceProvider(), false);
 
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -831,14 +835,12 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
                     ManageChatUserCell cell = new ManageChatUserCell(mContext, 6, 2, false, getResourceProvider());
                     cell.setDividerColor(Theme.key_divider);
                     view = cell;
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
                     break;
                 case 1:
                     view = new ShadowSectionCell(mContext, getResourceProvider());
                     break;
                 case 2:
                     HeaderCell headerCell = new HeaderCell(mContext, Theme.key_windowBackgroundWhiteBlackText, 16, 11, false, getResourceProvider());
-                    headerCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
                     headerCell.setHeight(43);
                     view = headerCell;
                     break;
@@ -938,17 +940,14 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
                             //  viewData.load(currentAccount, classGuid, );
                         }
                     };
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
                     break;
                 case 5:
                     view = new OverviewCell(mContext);
                     view.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
                     break;
                 case 6:
                     view = new EmptyCell(mContext, 16);
                     view.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 16));
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
                     break;
                 case 3:
                 default:
@@ -998,7 +997,7 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
                     }
                     break;
                 case 1:
-                    holder.itemView.setBackgroundDrawable(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
+                    ThemeBind.themedBackground(holder.itemView, mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow);
                     break;
                 case 2:
                     HeaderCell headerCell = (HeaderCell) holder.itemView;
@@ -1158,63 +1157,18 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
-        ThemeDescription.ThemeDescriptionDelegate cellDelegate = () -> {
-            if (listView != null) {
-                int count = listView.getChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(listView.getChildAt(a));
-                }
-                count = listView.getHiddenChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(listView.getHiddenChildAt(a));
-                }
-                count = listView.getCachedChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(listView.getCachedChildAt(a));
-                }
-                count = listView.getAttachedScrapChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(listView.getAttachedScrapChildAt(a));
-                }
-                listView.getRecycledViewPool().clear();
-            }
-            if (sharedUi != null) {
-                sharedUi.invalidate();
-            }
+        ThemeDescription.ThemeDescriptionDelegate cellDelegate = this::cellDelegateThemeColors;
 
-            View subtitle = avatarContainer.getSubtitleTextView();
-            if (subtitle instanceof SimpleTextView) {
-                ((SimpleTextView) subtitle).setLinkTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle, getResourceProvider()));
-            }
-        };
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{HeaderCell.class, ManageChatUserCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
+//        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
         themeDescriptions.add(new ThemeDescription(avatarContainer != null ? avatarContainer.getTitleTextView() : null, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_player_actionBarTitle));
         themeDescriptions.add(new ThemeDescription(avatarContainer != null ? avatarContainer.getSubtitleTextView() : null, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_player_actionBarSubtitle, null));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_statisticChartLineEmpty));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ShadowSectionCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ManageChatUserCell.class}, new String[]{"nameTextView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ManageChatUserCell.class}, new String[]{"statusColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteGrayText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ManageChatUserCell.class}, new String[]{"statusOnlineColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteBlueText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ManageChatUserCell.class}, null, Theme.avatarDrawables, null, Theme.key_avatar_text));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundRed));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundOrange));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundViolet));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundGreen));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundCyan));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundBlue));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundPink));
 
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUBACKGROUND, null, null, null, null, Theme.key_actionBarDefaultSubmenuBackground));
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM, null, null, null, null, Theme.key_actionBarDefaultSubmenuItem));
@@ -1227,10 +1181,14 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
 
     private void recolorRecyclerItem(View child) {
         if (child instanceof ManageChatUserCell) {
+            ((ManageChatUserCell) child).setStatusColors(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()), Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
             ((ManageChatUserCell) child).update(0);
         } else if (child instanceof StatisticActivity.BaseChartCell) {
             ((StatisticActivity.BaseChartCell) child).recolor();
-            child.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            ThemeBind.backgroundColor(child, Theme.key_windowBackgroundWhite, getResourceProvider());
+        } else if (child instanceof ShadowSectionCell && child.getBackground() instanceof CombinedDrawable && ((CombinedDrawable) child.getBackground()).getBackground() instanceof ColorDrawable) {
+            ((ColorDrawable) ((CombinedDrawable) child.getBackground()).getBackground()).setColor(Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider()));
+            child.invalidate();
         } else if (child instanceof ShadowSectionCell) {
             Drawable shadowDrawable = Theme.getThemedDrawableByKey(ApplicationLoader.applicationContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
             Drawable background = new ColorDrawable(Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider()));
@@ -1241,10 +1199,10 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
             ((ChartHeaderView) child).recolor();
         } else if (child instanceof OverviewCell) {
             ((OverviewCell) child).updateColors();
-            child.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            ThemeBind.backgroundColor(child, Theme.key_windowBackgroundWhite, getResourceProvider());
         }
         if (child instanceof EmptyCell) {
-            child.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            ThemeBind.backgroundColor(child, Theme.key_windowBackgroundWhite, getResourceProvider());
         }
     }
 
@@ -1252,5 +1210,67 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
     public boolean isLightStatusBar() {
         int color = Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider());
         return ColorUtils.calculateLuminance(color) > 0.7f;
+    }
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            super.onThemeColorsChanged();
+            if (avatarContainer != null) avatarContainer.setTitleColors(Theme.getColor(Theme.key_player_actionBarTitle, getResourceProvider()), Theme.getColor(Theme.key_player_actionBarSubtitle, getResourceProvider()));
+            cellDelegateThemeColors();
+    
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void cellDelegateThemeColors() {
+        if (listView != null) {
+            int count = listView.getChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(listView.getChildAt(a));
+            }
+            count = listView.getHiddenChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(listView.getHiddenChildAt(a));
+            }
+            count = listView.getCachedChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(listView.getCachedChildAt(a));
+            }
+            count = listView.getAttachedScrapChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(listView.getAttachedScrapChildAt(a));
+            }
+            listView.getRecycledViewPool().clear();
+        }
+        if (sharedUi != null) {
+            sharedUi.invalidate();
+        }
+
+        View subtitle = avatarContainer == null ? null : avatarContainer.getSubtitleTextView();
+        if (subtitle instanceof SimpleTextView) {
+            ((SimpleTextView) subtitle).setLinkTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle, getResourceProvider()));
+        }
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_avatar_backgroundPink);
+        keys.add(Theme.key_avatar_backgroundBlue);
+        keys.add(Theme.key_avatar_backgroundCyan);
+        keys.add(Theme.key_avatar_backgroundGreen);
+        keys.add(Theme.key_avatar_backgroundViolet);
+        keys.add(Theme.key_avatar_backgroundOrange);
+        keys.add(Theme.key_avatar_backgroundRed);
+        keys.add(Theme.key_avatar_text);
+        keys.add(Theme.key_windowBackgroundWhiteBlueHeader);
+        keys.add(Theme.key_windowBackgroundGrayShadow);
+        keys.add(Theme.key_divider);
+        keys.add(Theme.key_listSelector);
+        keys.add(Theme.key_actionBarDefault);
+        keys.add(Theme.key_statisticChartLineEmpty);
     }
 }

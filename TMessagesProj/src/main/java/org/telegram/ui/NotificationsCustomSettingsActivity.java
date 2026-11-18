@@ -25,7 +25,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.media.Ringtone;
@@ -46,6 +45,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Keep;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -67,18 +67,18 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.SimpleActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Adapters.SearchAdapterHelper;
 import org.telegram.ui.Cells.GraySectionCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.NotificationsCheckCell;
 import org.telegram.ui.Cells.RadioColorCell;
-import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextColorCell;
@@ -94,6 +94,7 @@ import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -349,18 +350,23 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
     }
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
+        setHasOwnBackground(true);
         searching = false;
         searchWas = false;
 
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
         if (currentType == -1) {
-            actionBar.setTitle(getString("NotificationsExceptions", R.string.NotificationsExceptions));
+            simpleActionBar.setTitle(getString("NotificationsExceptions", R.string.NotificationsExceptions));
         } else {
-            actionBar.setTitle(getString("Notifications", R.string.Notifications));
+            simpleActionBar.setTitle(getString("Notifications", R.string.Notifications));
         }
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -369,8 +375,8 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
             }
         });
         if (exceptions != null && !exceptions.isEmpty()) {
-            ActionBarMenu menu = actionBar.createMenu();
-            ActionBarMenuItem searchItem = menu.addItem(search_button, R.drawable.ic_ab_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+            SimpleActionBarMenu menu = simpleActionBar.createMenu();
+            ActionBarMenuItem searchItem = menu.addItem(search_button, R.drawable.outline_header_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
                 @Override
                 public void onSearchExpand() {
                     searching = true;
@@ -417,33 +423,21 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
 
         fragmentView = new FrameLayout(context);
         FrameLayout frameLayout = (FrameLayout) fragmentView;
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         emptyView = new EmptyTextProgressView(context);
         emptyView.setTextSize(18);
         emptyView.setText(getString("NoExceptions", R.string.NoExceptions));
         emptyView.showTextView();
-        frameLayout.addView(emptyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        listView = new RecyclerListView(context) {
-            @Override
-            protected void dispatchDraw(Canvas canvas) {
-                if (currentType != -1) {
-                    if (exceptionsStart >= 0) {
-                        drawSectionBackground(canvas, exceptionsStart, exceptionsEnd, getThemedColor(Theme.key_windowBackgroundWhite));
-                    }
-                    if (currentType != TYPE_REACTIONS_MESSAGES && currentType != TYPE_REACTIONS_STORIES) {
-                        drawSectionBackground(canvas, settingsStart, settingsEnd, getThemedColor(Theme.key_windowBackgroundWhite));
-                    }
-                }
-                super.dispatchDraw(canvas);
-            }
-        };
+        listView = new RecyclerListView(context);
+        listView.setSections();
 //        listView.setTranslateSelector(true);
         listView.setEmptyView(emptyView);
+        listView.setSectionsDrawBackground(true);
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        frameLayout.addView(emptyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         listView.setAdapter(adapter = new ListAdapter(context));
         listView.setOnItemClickListener((view, position, x, y) -> {
             boolean enabled = false;
@@ -472,6 +466,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                     .addIf(!exception.auto, R.drawable.msg_delete, getString("DeleteException", R.string.DeleteException), true, () -> {
                         deleteException(exception, view, position);
                     })
+                    .setScrimViewBackground(listView.getClipBackground(view))
                     .show();
                 return;
             }
@@ -515,16 +510,17 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                 ItemOptions.makeOptions(NotificationsCustomSettingsActivity.this, view)
                     .setGravity(Gravity.LEFT)
                     .addIf(exception.notify <= 0 || exception.auto, R.drawable.msg_mute, getString(R.string.NotificationsStoryMute), false, () -> {
-                        actionBar.closeSearchField();
+                        simpleActionBar.closeSearchField();
                         updateMute(exception, view, -1, newException, true);
                     })
                     .addIf(exception.notify > 0 || exception.auto, R.drawable.msg_unmute, getString(R.string.NotificationsStoryUnmute), false, () -> {
-                        actionBar.closeSearchField();
+                        simpleActionBar.closeSearchField();
                         updateMute(exception, view, -1, newException, false);
                     })
                     .addIf(!newException && !exception.auto, R.drawable.msg_delete, getString("DeleteException", R.string.DeleteException), true, () -> {
                         deleteException(exception, view, position);
                     })
+                    .setScrimViewBackground(listView.getClipBackground(view))
                     .show();
                 return;
             }
@@ -660,7 +656,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                         } else {
                             listView.getAdapter().notifyItemChanged(position);
                         }
-                        actionBar.closeSearchField();
+                        simpleActionBar.closeSearchField();
                     }
 
                     private void setDefault() {
@@ -682,7 +678,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                             updateRows(true);
                             searchAdapter.notifyItemChanged(position);
                         }
-                        actionBar.closeSearchField();
+                        simpleActionBar.closeSearchField();
                     }
                 }, getResourceProvider());
                 chatNotificationsPopupWrapper.update(did, topicId, null);
@@ -705,7 +701,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                     args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_USERS_ONLY);
                 }
                 DialogsActivity activity = new DialogsActivity(args);
-                activity.setDelegate((fragment, dids, message, param, notify, scheduleDate, topicsFragment) -> {
+                activity.setDelegate((fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
                     long did = dids.get(0).dialogId;
                     if (currentType == TYPE_STORIES) {
                         if (autoExceptions != null) {
@@ -785,7 +781,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                 showDialog(alertDialog);
                 TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                 if (button != null) {
-                    button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                    ThemeBind.textColor(button, Theme.key_text_RedBold);
                 }
             } else if (item.id == BUTTON_ENABLE || item.id == BUTTON_NEW_STORIES) {
                 enabled = getNotificationsController().isGlobalNotificationsEnabled(currentType);
@@ -979,7 +975,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                         cells[a].setPadding(dp(4), 0, dp(4), 0);
                         cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                         cells[a].setTextAndValue(getString(a == 0 ? R.string.NotifyAboutReactionsFromEveryone : R.string.NotifyAboutReactionsFromContacts), a == 0 ? !contacts[0] : contacts[0]);
-                        cells[a].setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                        ThemeBind.selectorBackground(cells[a], Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                         linearLayout.addView(cells[a]);
                         final int finalA = a;
                         cells[a].setOnClickListener(v -> {
@@ -1038,6 +1034,11 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
         });
 
         return fragmentView;
+    }
+
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
     }
 
     private void checkRowsEnabled() {
@@ -1348,23 +1349,71 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
     private static final int BUTTON_MESSAGES_REACTIONS = 103;
     private static final int BUTTON_STORIES_REACTIONS = 104;
 
-    boolean expanded;
+    @Keep
+    public int newRow = -1;
+    @Keep
+    public int showRow = -1;
+    @Keep
+    public int importantRow = -1;
+    @Keep
+    public int messagesRow = -1;
+    @Keep
+    public int storiesRow = -1;
+    @Keep
+    public int previewRow = -1;
+    @Keep
+    public int showSenderRow = -1;
+    @Keep
+    public int soundRow = -1;
+    @Keep
+    public int addExceptionRow = -1;
+    @Keep
+    public int deleteExceptionsRow = -1;
+    @Keep
+    public int lightColorRow = -1;
+    @Keep
+    public int vibrateRow = -1;
+    @Keep
+    public int popupRow = -1;
+    @Keep
+    public int priorityRow = -1;
 
-    private void updateRows(boolean animated) {
+    public boolean expanded;
+
+    public void updateRows(boolean animated) {
+        newRow = -1;
+        showRow = -1;
+        importantRow = -1;
+        messagesRow = -1;
+        storiesRow = -1;
+        previewRow = -1;
+        showSenderRow = -1;
+        soundRow = -1;
+        addExceptionRow = -1;
+        deleteExceptionsRow = -1;
+        lightColorRow = -1;
+        popupRow = -1;
+        vibrateRow = -1;
+        priorityRow = -1;
+
         oldItems.clear();
         oldItems.addAll(items);
         items.clear();
+
         SharedPreferences prefs = getNotificationsSettings();
         boolean enabled = false;
         if (currentType != -1) {
             items.add(ItemInner.asHeader(getString(R.string.NotifyMeAbout)));
             if (currentType == TYPE_STORIES) {
+                newRow = items.size();
                 items.add(ItemInner.asCheck(BUTTON_NEW_STORIES, getString(R.string.NotifyMeAboutNewStories), prefs.getBoolean("EnableAllStories", false)));
                 if (!prefs.getBoolean("EnableAllStories", false)) {
+                    importantRow = items.size();
                     items.add(ItemInner.asCheck(BUTTON_IMPORTANT_STORIES, getString(R.string.NotifyMeAboutImportantStories), storiesAuto && (storiesEnabled == null || !storiesEnabled)));
                 }
                 items.add(ItemInner.asShadow(-1, getString(R.string.StoryAutoExceptionsInfo)));
             } else if (currentType == TYPE_REACTIONS_MESSAGES || currentType == TYPE_REACTIONS_STORIES) {
+                messagesRow = items.size();
                 items.add(ItemInner.asCheck2(
                     BUTTON_MESSAGES_REACTIONS,
                     R.drawable.msg_markunread,
@@ -1378,6 +1427,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                     ),
                     prefs.getBoolean("EnableReactionsMessages", true)
                 ));
+                storiesRow = items.size();
                 items.add(ItemInner.asCheck2(
                     BUTTON_STORIES_REACTIONS,
                     R.drawable.msg_stories_saved,
@@ -1401,6 +1451,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                 } else {
                     text = R.string.NotifyMeAboutChannels;
                 }
+                showRow = items.size();
                 items.add(ItemInner.asCheck(BUTTON_ENABLE, getString(text), getNotificationsController().isGlobalNotificationsEnabled(currentType)));
                 items.add(ItemInner.asShadow(-1, null));
             }
@@ -1408,8 +1459,10 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
             settingsStart = items.size() - 1;
 
             if (currentType == TYPE_STORIES) {
+                showSenderRow = items.size();
                 items.add(ItemInner.asCheck(0, getString(R.string.NotificationShowSenderNames), !prefs.getBoolean("EnableHideStoriesSenders", false)));
             } else if (currentType == TYPE_REACTIONS_MESSAGES || currentType == TYPE_REACTIONS_STORIES) {
+                showSenderRow = items.size();
                 items.add(ItemInner.asCheck(0, getString(R.string.NotificationShowSenderNames), prefs.getBoolean("EnableReactionsPreview", true)));
             } else {
                 switch (currentType) {
@@ -1417,13 +1470,16 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                     case TYPE_GROUP:   enabled = prefs.getBoolean("EnablePreviewGroup", true); break;
                     case TYPE_CHANNEL: enabled = prefs.getBoolean("EnablePreviewChannel", true); break;
                 }
+                previewRow = items.size();
                 items.add(ItemInner.asCheck(0, getString(R.string.MessagePreview), enabled));
             }
 
+            soundRow = items.size();
             items.add(ItemInner.asSetting(3, getString("Sound", R.string.Sound), getSound()));
 
             if (expanded) {
 
+                lightColorRow = items.size();
                 items.add(ItemInner.asColor(getString("LedColor", R.string.LedColor), getLedColor()));
 
                 int vibrate = 0;
@@ -1445,13 +1501,17 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                         vibrate = prefs.getInt("vibrate_react", 0);
                         break;
                 }
+
+                vibrateRow = items.size();
                 items.add(ItemInner.asSetting(1, getString("Vibrate", R.string.Vibrate), getString(vibrateLabels[Utilities.clamp(vibrate, vibrateLabels.length - 1, 0)])));
 
                 if (currentType == TYPE_PRIVATE || currentType == TYPE_GROUP) {
+                    popupRow = items.size();
                     items.add(ItemInner.asSetting(2, getString("PopupNotification", R.string.PopupNotification), getPopupOption()));
                 }
 
                 if (Build.VERSION.SDK_INT >= 21) {
+                    priorityRow = items.size();
                     items.add(ItemInner.asSetting(4, getString("NotificationsImportance", R.string.NotificationsImportance), getPriorityOption()));
                 }
 
@@ -1465,6 +1525,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
         }
         if (currentType != TYPE_REACTIONS_MESSAGES && currentType != TYPE_REACTIONS_STORIES) {
             if (currentType != -1) {
+                addExceptionRow = items.size();
                 items.add(ItemInner.asButton(6, R.drawable.msg_contact_add, getString("NotificationsAddAnException", R.string.NotificationsAddAnException)));
             }
             exceptionsStart = items.size() - 1;
@@ -1483,6 +1544,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                 items.add(ItemInner.asShadow(-3, null));
             }
             if (exceptions != null && !exceptions.isEmpty()) {
+                deleteExceptionsRow = items.size();
                 items.add(ItemInner.asButton(7, 0, getString("NotificationsDeleteAllException", R.string.NotificationsDeleteAllException)));
             }
         } else {
@@ -1573,8 +1635,8 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
-        getNotificationCenter().addObserver(this, NotificationCenter.notificationsSettingsUpdated);
-        getNotificationCenter().addObserver(this, NotificationCenter.reloadHints);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.notificationsSettingsUpdated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.reloadHints);
     }
 
     @Override
@@ -1774,12 +1836,13 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
             switch (viewType) {
                 case 0: {
                     view = new UserCell(mContext, 4, 0, false, true);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 }
                 case 1:
                 default: {
                     view = new GraySectionCell(mContext);
+                    view.setBackgroundColor(0);
+                    view.setTag(RecyclerListView.TAG_NOT_SECTION);
                     break;
                 }
             }
@@ -1948,39 +2011,31 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
             switch (viewType) {
                 case VIEW_TYPE_HEADER:
                     view = new HeaderCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_CHECK:
                     view = new TextCheckCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_USER:
                     view = new UserCell(mContext, 6, 0, false);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_COLOR:
                     view = new TextColorCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_SHADOW:
                     view = new TextInfoPrivacyCell(mContext);
                     break;
                 case VIEW_TYPE_SETTING:
                     view = new TextSettingsCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_CHECK2:
                     view = new NotificationsCheckCell(mContext, 21, 64, true, resourceProvider);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_BUTTON:
                 default:
                     view = new TextCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_EXPAND:
                     view = new ExpandView(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
             }
             return new RecyclerListView.Holder(view);
@@ -2022,11 +2077,6 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
                     } else {
                         cell.setFixedSize(0);
                         cell.setText(item.text);
-                    }
-                    if (!divider) {
-                        holder.itemView.setBackground(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
-                    } else {
-                        holder.itemView.setBackground(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow));
                     }
                     break;
                 }
@@ -2125,7 +2175,7 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
 
             imageView = new ImageView(context);
             imageView.setScaleType(ImageView.ScaleType.CENTER);
-            imageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlueIcon), PorterDuff.Mode.SRC_IN));
+            ThemeBind.colorFilter(imageView, Theme.key_windowBackgroundWhiteBlueIcon, NotificationsCustomSettingsActivity.this.getResourceProvider(), PorterDuff.Mode.SRC_IN);
             imageView.setImageResource(R.drawable.msg_expand);
             addView(imageView, LayoutHelper.createFrame(24, 24, Gravity.CENTER_VERTICAL | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 17, 0, 17,0));
         }
@@ -2165,70 +2215,100 @@ public class NotificationsCustomSettingsActivity extends BaseFragment implements
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
-        ThemeDescription.ThemeDescriptionDelegate cellDelegate = () -> {
-            if (listView != null) {
-                int count = listView.getChildCount();
-                for (int a = 0; a < count; a++) {
-                    View child = listView.getChildAt(a);
-                    if (child instanceof UserCell) {
-                        ((UserCell) child).update(0);
-                    }
-                }
-            }
-        };
+        ThemeDescription.ThemeDescriptionDelegate cellDelegate = this::cellDelegateThemeColors;
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{HeaderCell.class, TextCheckCell.class, TextColorCell.class, TextSettingsCell.class, UserCell.class, NotificationsCheckCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
 
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
+//        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"nameTextView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"statusColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteGrayText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{UserCell.class}, new String[]{"statusOnlineColor"}, null, null, cellDelegate, Theme.key_windowBackgroundWhiteBlueText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{UserCell.class}, null, Theme.avatarDrawables, null, Theme.key_avatar_text));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundRed));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundOrange));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundViolet));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundGreen));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundCyan));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundBlue));
-        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundPink));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{GraySectionCell.class}, new String[]{"textView"}, null, null, null, Theme.key_graySectionText));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{GraySectionCell.class}, null, null, null, Theme.key_graySection));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextColorCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ShadowSectionCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueButton));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_text_RedRegular));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueIcon));
 
         return themeDescriptions;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            super.onThemeColorsChanged();
+            updateUserCellStatusColors();
+            cellDelegateThemeColors();
+
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void updateUserCellStatusColors() {
+        try {
+            if (listView == null) {
+                return;
+            }
+            final int statusColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText);
+            final int statusOnlineColor = Theme.getColor(Theme.key_telegram_color_text);
+            for (int list = 0; list < 4; list++) {
+                final int count = list == 0 ? listView.getChildCount() : list == 1 ? listView.getHiddenChildCount() : list == 2 ? listView.getCachedChildCount() : listView.getAttachedScrapChildCount();
+                for (int a = 0; a < count; a++) {
+                    final View child = list == 0 ? listView.getChildAt(a) : list == 1 ? listView.getHiddenChildAt(a) : list == 2 ? listView.getCachedChildAt(a) : listView.getAttachedScrapChildAt(a);
+                    if (child instanceof UserCell) {
+                        ((UserCell) child).setStatusColors(statusColor, statusOnlineColor);
+                        if (list != 0) {
+                            ((UserCell) child).update(0);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void cellDelegateThemeColors() {
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_windowBackgroundWhiteValueText);
+        keys.add(Theme.key_windowBackgroundWhiteBlackText);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText2);
+        keys.add(Theme.key_graySectionText);
+        keys.add(Theme.key_avatar_backgroundPink);
+        keys.add(Theme.key_avatar_backgroundBlue);
+        keys.add(Theme.key_avatar_backgroundCyan);
+        keys.add(Theme.key_avatar_backgroundGreen);
+        keys.add(Theme.key_avatar_backgroundViolet);
+        keys.add(Theme.key_avatar_backgroundOrange);
+        keys.add(Theme.key_avatar_backgroundRed);
+        keys.add(Theme.key_avatar_text);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText);
+        keys.add(Theme.key_windowBackgroundWhiteGrayIcon);
+        keys.add(Theme.key_windowBackgroundWhiteBlueHeader);
+        keys.add(Theme.key_divider);
+        keys.add(Theme.key_actionBarDefaultSelector);
+        keys.add(Theme.key_actionBarDefaultTitle);
+        keys.add(Theme.key_actionBarDefaultIcon);
+        keys.add(Theme.key_actionBarDefault);
     }
 }

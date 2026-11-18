@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
 
+import org.telegram.messenger.FileLog;
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -24,8 +25,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
+
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -36,36 +38,36 @@ import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.SimpleActionBarDoneButton;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Adapters.SearchAdapterHelper;
 import org.telegram.ui.Cells.CheckBoxCell;
-import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextCheckCell2;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CircularProgressDrawable;
 import org.telegram.ui.Components.ColoredImageSpan;
-import org.telegram.ui.Components.CrossfadeDrawable;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
+import org.telegram.ui.LaunchActivity;
 
 import java.util.ArrayList;
 
 public class ChatbotsActivity extends BaseFragment {
 
     private static final int done_button = 1;
-    private CrossfadeDrawable doneButtonDrawable;
-    private ActionBarMenuItem doneButton;
+    private SimpleActionBarDoneButton doneButton;
+    private CircularProgressDrawable emptyLoadingProgressDrawable;
 
     private UniversalRecyclerView listView;
-
-    private SpannableStringBuilder introText;
 
     private SearchAdapterHelper searchHelper;
 
@@ -80,15 +82,20 @@ public class ChatbotsActivity extends BaseFragment {
     private BusinessRecipientsHelper recipientsHelper;
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(getString(R.string.BusinessBots));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        setHasOwnBackground(true);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        simpleActionBar.setTitle(getString(R.string.BusinessBots2));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
-                    if (onBackPressed()) {
+                    if (onBackPressed(true)) {
                         finishFragment();
                     }
                 } else if (id == done_button) {
@@ -97,21 +104,17 @@ public class ChatbotsActivity extends BaseFragment {
             }
         });
 
-        Drawable checkmark = context.getResources().getDrawable(R.drawable.ic_ab_done).mutate();
-        checkmark.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_actionBarDefaultIcon), PorterDuff.Mode.MULTIPLY));
-        doneButtonDrawable = new CrossfadeDrawable(checkmark, new CircularProgressDrawable(Theme.getColor(Theme.key_actionBarDefaultIcon)));
-        doneButton = actionBar.createMenu().addItemWithWidth(done_button, doneButtonDrawable, AndroidUtilities.dp(56), LocaleController.getString(R.string.Done));
+        doneButton = simpleActionBar.createDoneButton(done_button, LocaleController.getString(R.string.Save));
         checkDone(false);
 
         FrameLayout contentView = new FrameLayout(context);
-        contentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         LinearLayout content = new LinearLayout(getContext());
         content.setOrientation(LinearLayout.HORIZONTAL);
         editText = new EditTextBoldCursor(getContext());
         editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
-        editText.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
-        editText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        ThemeBind.hintTextColor(editText, Theme.key_windowBackgroundWhiteHintText);
+        ThemeBind.textColor(editText, Theme.key_windowBackgroundWhiteBlackText);
         editText.setBackgroundDrawable(null);
         editText.setMaxLines(1);
         editText.setLines(1);
@@ -121,7 +124,7 @@ public class ChatbotsActivity extends BaseFragment {
         editText.setInputType(InputType.TYPE_TEXT_FLAG_CAP_SENTENCES | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
         editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
         editText.setHint(getString(R.string.BusinessBotLink));
-        editText.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        ThemeBind.cursorColor(editText, Theme.key_windowBackgroundWhiteBlackText);
         editText.setCursorSize(dp(19));
         editText.setCursorWidth(1.5f);
         editText.setOnEditorActionListener((textView, i, keyEvent) -> {
@@ -158,9 +161,9 @@ public class ChatbotsActivity extends BaseFragment {
         });
         editTextContainer = new FrameLayout(context);
         editTextContainer.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 21, 15, 21, 15));
-        editTextContainer.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        ThemeBind.backgroundColor(editTextContainer, Theme.key_windowBackgroundWhite, getResourceProvider());
         editTextDivider = new View(context);
-        editTextDivider.setBackgroundColor(getThemedColor(Theme.key_divider));
+        ThemeBind.backgroundColor(editTextDivider, Theme.key_divider, getResourceProvider());
         editTextContainer.addView(editTextDivider, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, (LocaleController.isRTL ? 0 : 21), 0, (LocaleController.isRTL ? 21 : 0), 0));
 
         emptyView = new FrameLayout(context) {
@@ -169,12 +172,12 @@ public class ChatbotsActivity extends BaseFragment {
                 super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(58), MeasureSpec.EXACTLY));
             }
         };
-        emptyView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        ThemeBind.backgroundColor(emptyView, Theme.key_windowBackgroundWhite, getResourceProvider());
 
         emptyViewText = new TextView(context);
         emptyViewText.setText(getString(R.string.BusinessBotNotFound));
         emptyViewText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        emptyViewText.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText2));
+        ThemeBind.textColor(emptyViewText, Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider());
         emptyView.addView(emptyViewText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
 
         emptyViewLoading = new ImageView(context);
@@ -190,19 +193,10 @@ public class ChatbotsActivity extends BaseFragment {
         };
         emptyViewLoading.setScaleType(ImageView.ScaleType.CENTER);
         emptyViewLoading.setImageDrawable(progressDrawable);
+        emptyLoadingProgressDrawable = progressDrawable;
         emptyView.addView(emptyViewLoading, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         emptyViewLoading.setAlpha(0f);
         emptyViewLoading.setTranslationY(dp(8));
-
-        introText = AndroidUtilities.replaceSingleTag(getString(R.string.BusinessBotsInfo), () -> {
-            Browser.openUrl(getContext(), LocaleController.getString(R.string.BusinessBotsInfoLink));
-        });
-        int arrowIndex = introText.toString().indexOf(">");
-        if (arrowIndex >= 0) {
-            ColoredImageSpan span = new ColoredImageSpan(R.drawable.arrow_newchat);
-            span.setColorKey(Theme.key_chat_messageLinkIn);
-            introText.setSpan(span, arrowIndex, arrowIndex + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        }
 
         searchHelper = new SearchAdapterHelper(true);
         searchHelper.setDelegate(new SearchAdapterHelper.SearchAdapterHelperDelegate() {
@@ -222,6 +216,9 @@ public class ChatbotsActivity extends BaseFragment {
         recipientsHelper.setValue(currentBot == null ? null : currentBot.recipients);
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, null);
+        listView.setSections();
+        listView.setSectionsDrawBackground(true);
+        listView.adapter.setApplyBackground(false);
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         return fragmentView = contentView;
@@ -349,10 +346,12 @@ public class ChatbotsActivity extends BaseFragment {
     private boolean expandedGiftsSection = false;
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        items.add(UItem.asTopView(introText, "RestrictedEmoji", "🤖"));
+        items.add(UItem.asTopView(getString(R.string.BusinessBots2), getString(R.string.BusinessBots2Info), 120, "tg_superplaceholders_android_2", "🤖🏝️"));
 
         if (selectedBot != null) {
+            adapter.whiteSectionStart();
             items.add(UItem.asAddChat(selectedBot.id).setChecked(true).setCloseIcon(this::clear));
+            adapter.whiteSectionEnd();
         } else {
             adapter.whiteSectionStart();
             boolean needDivider = false;
@@ -363,7 +362,7 @@ public class ChatbotsActivity extends BaseFragment {
                 if (!(obj instanceof TLRPC.User)) continue;
                 TLRPC.User user = (TLRPC.User) obj;
                 if (!user.bot) continue;
-                items.add(UItem.asAddChat(user.id));
+                items.add(UItem.asAddChat(user.id, lastQuery));
                 foundBots.put(user.id, user);
                 needDivider = true;
             }
@@ -372,7 +371,7 @@ public class ChatbotsActivity extends BaseFragment {
                 if (!(obj instanceof TLRPC.User)) continue;
                 TLRPC.User user = (TLRPC.User) obj;
                 if (!user.bot) continue;
-                items.add(UItem.asAddChat(user.id));
+                items.add(UItem.asAddChat(user.id, lastQuery));
                 foundBots.put(user.id, user);
                 needDivider = true;
             }
@@ -383,14 +382,17 @@ public class ChatbotsActivity extends BaseFragment {
             editTextDivider.setVisibility(needDivider ? View.VISIBLE : View.GONE);
             adapter.whiteSectionEnd();
         }
-        items.add(UItem.asShadow(getString(R.string.BusinessBotLinkInfo)));
+        items.add(UItem.asShadow(getString(R.string.BusinessBotLinkInfo2)));
+        adapter.whiteSectionStart();
+        items.add(UItem.asHeader(getString(R.string.BusinessBotChats2)).setEnabled(selectedBot != null));
+        items.add(UItem.asRadio(RADIO_EXCLUDE, getString(R.string.BusinessChatsAllPrivateExcept2)).setChecked(exclude).setEnabled(selectedBot != null));
+        items.add(UItem.asRadio(RADIO_INCLUDE, getString(R.string.BusinessChatsOnlySelected2)).setChecked(!exclude).setEnabled(selectedBot != null));
+        adapter.whiteSectionEnd();
+        items.add(UItem.asShadow(null));
+        recipientsHelper.fillItems(items, adapter, selectedBot != null);
+        items.add(UItem.asShadow(getString(R.string.BusinessBotChatsInfo2)));
         if (selectedBot != null) {
-            items.add(UItem.asHeader(getString(R.string.BusinessBotChats)));
-            items.add(UItem.asRadio(RADIO_EXCLUDE, getString(R.string.BusinessChatsAllPrivateExcept)).setChecked(exclude));
-            items.add(UItem.asRadio(RADIO_INCLUDE, getString(R.string.BusinessChatsOnlySelected)).setChecked(!exclude));
-            items.add(UItem.asShadow(null));
-            recipientsHelper.fillItems(items);
-            items.add(UItem.asShadow(getString(R.string.BusinessBotChatsInfo)));
+            adapter.whiteSectionStart();
             items.add(UItem.asHeader(getString(R.string.BusinessBotPermissions)));
             items.add(
                 UItem.asExpandableSwitch(PERMISSION_MESSAGES, getString(R.string.BusinessBotPermissionsMessagesSection),
@@ -534,6 +536,7 @@ public class ChatbotsActivity extends BaseFragment {
                         checkDone(true);
                     })
             );
+            adapter.whiteSectionEnd();
             items.add(UItem.asShadow(-4, null));
             items.add(UItem.asShadow(-5, null));
             items.add(UItem.asShadow(-6, null));
@@ -542,9 +545,8 @@ public class ChatbotsActivity extends BaseFragment {
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
-        if (recipientsHelper.onClick(item)) {
-            return;
-        }
+        if (!item.enabled) return;
+        if (recipientsHelper.onClick(item)) return;
         if (item.id == RADIO_EXCLUDE) {
             recipientsHelper.setExclude(exclude = true);
             listView.adapter.update(true);
@@ -668,7 +670,7 @@ public class ChatbotsActivity extends BaseFragment {
     }
 
     private void processDone() {
-        if (doneButtonDrawable.getProgress() > 0f) return;
+        if (doneButton.isLoading()) return;
 
         if (!hasChanges()) {
             finishFragment();
@@ -679,10 +681,12 @@ public class ChatbotsActivity extends BaseFragment {
             return;
         }
 
-        ArrayList<TLObject> requests = new ArrayList<>();
+        final boolean changedBot = selectedBot != null && (currentBot == null || currentBot.bot_id != selectedBot.id);
+        final TLRPC.User newBot = selectedBot;
+        final ArrayList<TLObject> requests = new ArrayList<>();
 
         if (currentBot != null && (selectedBot == null || currentBot.bot_id != selectedBot.id)) {
-            TL_account.updateConnectedBot req = new TL_account.updateConnectedBot();
+            final TL_account.updateConnectedBot req = new TL_account.updateConnectedBot();
             req.deleted = true;
             req.bot = getMessagesController().getInputUser(currentBot.bot_id);
             req.recipients = new TL_account.TL_inputBusinessBotRecipients();
@@ -690,7 +694,7 @@ public class ChatbotsActivity extends BaseFragment {
         }
 
         if (selectedBot != null) {
-            TL_account.updateConnectedBot req = new TL_account.updateConnectedBot();
+            final TL_account.updateConnectedBot req = new TL_account.updateConnectedBot();
             req.deleted = false;
             req.rights = rights;
             req.bot = getMessagesController().getInputUser(selectedBot);
@@ -713,10 +717,10 @@ public class ChatbotsActivity extends BaseFragment {
         for (int i = 0; i < requests.size(); ++i) {
             getConnectionsManager().sendRequest(requests.get(i), (res, err) -> AndroidUtilities.runOnUIThread(() -> {
                 if (err != null) {
-                    doneButtonDrawable.animateToProgress(0f);
+                    doneButton.setLoading(false, true);
                     BulletinFactory.showError(err);
                 } else if (res instanceof TLRPC.TL_boolFalse) {
-                    doneButtonDrawable.animateToProgress(0f);
+                    doneButton.setLoading(false, true);
                     BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.UnknownError)).show();
                 } else {
                     if (res instanceof TLRPC.Updates) {
@@ -729,6 +733,22 @@ public class ChatbotsActivity extends BaseFragment {
                         BusinessChatbotController.getInstance(currentAccount).invalidate(true);
                         getMessagesController().clearFullUsers();
                         finishFragment();
+
+                        if (changedBot && newBot != null) {
+                            final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                            if (lastFragment != null) {
+                                BulletinFactory.of(lastFragment)
+                                    .createSimpleBulletin(R.raw.contact_check, formatString(R.string.BusinessBotDone, UserObject.getUserName(newBot)))
+                                    .show();
+                            }
+                        } else if (newBot != null) {
+                            final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                            if (lastFragment != null) {
+                                BulletinFactory.of(lastFragment)
+                                    .createSimpleBulletin(R.raw.contact_check, formatString(R.string.BusinessBotUpdated, UserObject.getUserName(newBot)))
+                                    .show();
+                            }
+                        }
                     }
                 }
             }));
@@ -757,6 +777,15 @@ public class ChatbotsActivity extends BaseFragment {
         });
     }
 
+    public boolean notSelectedBot() {
+        if (selectedBot != null) return false;
+        if (hasChanges()) return false;
+        return (
+            !searchHelper.getLocalServerSearch().isEmpty() ||
+            !searchHelper.getGlobalSearch().isEmpty()
+        );
+    }
+
     public boolean hasChanges() {
         if (!valueSet) return false;
         if ((selectedBot != null) != (currentBot != null)) return true;
@@ -773,35 +802,71 @@ public class ChatbotsActivity extends BaseFragment {
     }
 
     @Override
-    public boolean onBackPressed() {
+    public boolean onBackPressed(boolean invoked) {
         if (hasChanges()) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-            builder.setTitle(LocaleController.getString(R.string.UnsavedChanges));
-            builder.setMessage(LocaleController.getString(R.string.BusinessBotUnsavedChanges));
-            builder.setPositiveButton(LocaleController.getString(R.string.ApplyTheme), (dialogInterface, i) -> processDone());
-            builder.setNegativeButton(LocaleController.getString(R.string.PassportDiscard), (dialog, which) -> finishFragment());
-            showDialog(builder.create());
+            if (invoked) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.UnsavedChanges));
+                builder.setMessage(LocaleController.getString(R.string.BusinessBotUnsavedChanges));
+                builder.setPositiveButton(LocaleController.getString(R.string.ApplyTheme), (dialogInterface, i) -> processDone());
+                builder.setNegativeButton(LocaleController.getString(R.string.PassportDiscard), (dialog, which) -> finishFragment());
+                showDialog(builder.create());
+            }
             return false;
         }
-        return super.onBackPressed();
+        if (notSelectedBot()) {
+            if (invoked) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.BusinessBotNoAddedTitle));
+                builder.setMessage(LocaleController.getString(R.string.BusinessBotNoAddedText));
+                builder.setPositiveButton(LocaleController.getString(R.string.BusinessBotNoAddedButton), (dialogInterface, i) -> processDone());
+                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                showDialog(builder.create());
+            }
+            return false;
+        }
+        return super.onBackPressed(invoked);
     }
 
     private void checkDone(boolean animated) {
         if (doneButton == null) return;
         final boolean hasChanges = hasChanges();
-        doneButton.setEnabled(hasChanges);
-        if (animated) {
-            doneButton.animate().alpha(hasChanges ? 1.0f : 0.0f).scaleX(hasChanges ? 1.0f : 0.0f).scaleY(hasChanges ? 1.0f : 0.0f).setDuration(180).start();
-        } else {
-            doneButton.setAlpha(hasChanges ? 1.0f : 0.0f);
-            doneButton.setScaleX(hasChanges ? 1.0f : 0.0f);
-            doneButton.setScaleY(hasChanges ? 1.0f : 0.0f);
-        }
+        doneButton.setActive(hasChanges, animated);
     }
 
     @Override
     public boolean onFragmentCreate() {
         setValue();
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
+    @Nullable
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            if (emptyLoadingProgressDrawable != null) {
+                emptyLoadingProgressDrawable.setColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText2));
+                if (emptyViewLoading != null) {
+                    emptyViewLoading.invalidate();
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        try {
+            super.onThemeColorsChanged();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 }

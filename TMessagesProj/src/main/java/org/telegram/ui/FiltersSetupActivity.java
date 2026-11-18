@@ -7,6 +7,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
@@ -22,6 +23,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -42,18 +44,21 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
+import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.HeaderCell;
-import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CombinedDrawable;
+import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FolderBottomSheet;
 import org.telegram.ui.Components.ItemOptions;
@@ -66,8 +71,10 @@ import org.telegram.ui.Components.ProgressButton;
 import org.telegram.ui.Components.RLottieImageView;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UndoView;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public class FiltersSetupActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
@@ -86,7 +93,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         return this;
     }
 
-    public static class TextCell extends FrameLayout {
+    public static class TextCell extends FrameLayout implements Theme.Colorable {
 
         private SimpleTextView textView;
         private ImageView imageView;
@@ -97,7 +104,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             textView = new SimpleTextView(context);
             textView.setTextSize(16);
             textView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText2));
+            ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteBlueText2);
             textView.setTag(Theme.key_windowBackgroundWhiteBlueText2);
             addView(textView);
 
@@ -138,9 +145,43 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             textView.setText(text);
             imageView.setImageDrawable(icon);
         }
+
+        private Drawable lastThemedDrawable;
+        private int lastBackgroundColor, lastIconColor;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (imageView != null && imageView.getDrawable() instanceof CombinedDrawable) {
+                    final CombinedDrawable combinedDrawable = (CombinedDrawable) imageView.getDrawable();
+                    final int backgroundColor = Theme.getColor(Theme.key_switchTrackChecked);
+                    final int iconColor = Theme.getColor(Theme.key_checkboxCheck);
+                    if (combinedDrawable != lastThemedDrawable || backgroundColor != lastBackgroundColor || iconColor != lastIconColor) {
+                        lastThemedDrawable = combinedDrawable;
+                        lastBackgroundColor = backgroundColor;
+                        lastIconColor = iconColor;
+                        if (combinedDrawable.getBackground() != null) {
+                            combinedDrawable.getBackground().setColorFilter(new PorterDuffColorFilter(backgroundColor, PorterDuff.Mode.MULTIPLY));
+                        }
+                        if (combinedDrawable.getIcon() != null) {
+                            combinedDrawable.getIcon().setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
+                        }
+                        imageView.invalidate();
+                    }
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_switchTrackChecked);
+            colors.add(Theme.key_checkboxCheck);
+        }
     }
 
-    public static class SuggestedFilterCell extends FrameLayout {
+    public static class SuggestedFilterCell extends FrameLayout implements Theme.Colorable {
 
         private TextView textView;
         private TextView valueTextView;
@@ -152,7 +193,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             super(context);
 
             textView = new TextView(context);
-            textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteBlackText);
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
             textView.setLines(1);
             textView.setMaxLines(1);
@@ -162,7 +203,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, 22, 10, 22, 0));
 
             valueTextView = new TextView(context);
-            valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            ThemeBind.textColor(valueTextView, Theme.key_windowBackgroundWhiteGrayText2);
             valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
             valueTextView.setLines(1);
             valueTextView.setMaxLines(1);
@@ -173,9 +214,10 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
 
             addButton = new ProgressButton(context);
             addButton.setText(LocaleController.getString(R.string.Add));
-            addButton.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
+            ThemeBind.textColor(addButton, Theme.key_featuredStickers_buttonText);
             addButton.setProgressColor(Theme.getColor(Theme.key_featuredStickers_buttonProgress));
             addButton.setBackgroundRoundRect(Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButtonPressed));
+            ThemeBind.selectorBackground(addButton, addButton.getBackground(), ThemeBind.of(Theme.key_featuredStickers_addButton), null);
             addView(addButton, LayoutHelper.createFrameRelatively(LayoutHelper.WRAP_CONTENT, 28, Gravity.TOP | Gravity.END, 0, 18, 14, 0));
         }
 
@@ -218,7 +260,18 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             info.setText(addButton.getText());
             info.setClassName("android.widget.Button");
         }
-    }
+    
+        @Override
+        public void updateColors() {
+            try {
+                addButton.setProgressColor(Theme.getColor(Theme.key_featuredStickers_buttonProgress));
+                invalidate();
+        
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+}
 
     @SuppressWarnings("FieldCanBeLocal")
     public static class HintInnerCell extends FrameLayout {
@@ -243,7 +296,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             });
 
             messageTextView = new TextView(context);
-            messageTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText4));
+            ThemeBind.textColor(messageTextView, Theme.key_windowBackgroundWhiteGrayText4);
             messageTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             messageTextView.setGravity(Gravity.CENTER);
             messageTextView.setText(text);
@@ -256,7 +309,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         }
     }
 
-    public class FilterCell extends FrameLayout {
+    public class FilterCell extends FrameLayout implements Theme.Colorable {
 
         private final SimpleTextView textView;
         private final TextView valueTextView;
@@ -266,6 +319,17 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         private final ImageView optionsImageView;
         private final ImageView shareImageView;
         private boolean shareLoading = false;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (textView != null) {
+                    textView.setEmojiColor(Theme.getColor(Theme.key_featuredStickers_addButton, resourceProvider));
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
         private final LoadingDrawable shareLoadingDrawable;
         private boolean needDivider;
         float progressToLock;
@@ -280,7 +344,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             moveImageView.setFocusable(false);
             moveImageView.setScaleType(ImageView.ScaleType.CENTER);
             moveImageView.setImageResource(R.drawable.list_reorder);
-            moveImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
+            ThemeBind.colorFilter(moveImageView, Theme.key_stickers_menu, PorterDuff.Mode.MULTIPLY);
             moveImageView.setContentDescription(LocaleController.getString(R.string.FilterReorder));
             moveImageView.setClickable(true);
             addView(moveImageView, LayoutHelper.createFrame(48, 48, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL, 7, 0, 6, 0));
@@ -290,18 +354,18 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
 
             textView = new SimpleTextView(context);
             textView.setPadding(0, dp(4), 0, dp(4));
-            textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            ThemeBind.textColor(textView, Theme.key_windowBackgroundWhiteBlackText);
             textView.setTextSize(16);
             textView.setMaxLines(1);
             textView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
             Drawable drawable = ContextCompat.getDrawable(getContext(), R.drawable.other_lockedfolders2);
-            drawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
+            ThemeBind.drawableColorFilter(this, drawable, Theme.key_stickers_menu, PorterDuff.Mode.MULTIPLY);
             textView.setRightDrawable(drawable);
             textView.setEmojiColor(Theme.getColor(Theme.key_featuredStickers_addButton, resourceProvider));
             addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 80 : 64, 10, LocaleController.isRTL ? 64 : 80, 0));
 
             valueTextView = new TextView(context);
-            valueTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            ThemeBind.textColor(valueTextView, Theme.key_windowBackgroundWhiteGrayText2);
             valueTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
             valueTextView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
             valueTextView.setLines(1);
@@ -343,12 +407,12 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             shareLoadingDrawable.setCallback(shareImageView);
             shareImageView.setFocusable(false);
             shareImageView.setScaleType(ImageView.ScaleType.CENTER);
-            shareImageView.setBackground(Theme.createSelectorDrawable(selector));
-            shareImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
+            ThemeBind.selectorBackground(shareImageView, Theme.createSelectorDrawable(selector), null, ThemeBind.of(Theme.key_listSelector));
+            ThemeBind.colorFilter(shareImageView, Theme.key_stickers_menu, PorterDuff.Mode.MULTIPLY);
             shareImageView.setContentDescription(LocaleController.getString(R.string.FilterShare));
             shareImageView.setVisibility(View.GONE);
             shareImageView.setImageResource(R.drawable.msg_link_folder);
-            shareImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
+            ThemeBind.colorFilter(shareImageView, Theme.key_stickers_menu, PorterDuff.Mode.MULTIPLY);
             addView(shareImageView, LayoutHelper.createFrame(40, 40, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, LocaleController.isRTL ? 52 : 6, 0, LocaleController.isRTL ? 6 : 52, 0));
             shareImageView.setOnClickListener(e -> {
                 if (shareLoading && !shareLoadingDrawable.isDisappeared() || currentFilter == null) {
@@ -368,8 +432,8 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             optionsImageView = new ImageView(context);
             optionsImageView.setFocusable(false);
             optionsImageView.setScaleType(ImageView.ScaleType.CENTER);
-            optionsImageView.setBackgroundDrawable(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector)));
-            optionsImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.MULTIPLY));
+            ThemeBind.selectorBackground(optionsImageView, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector)), null, ThemeBind.of(Theme.key_listSelector));
+            ThemeBind.colorFilter(optionsImageView, Theme.key_stickers_menu, PorterDuff.Mode.MULTIPLY);
             optionsImageView.setImageResource(R.drawable.msg_actions);
             optionsImageView.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
             addView(optionsImageView, LayoutHelper.createFrame(40, 40, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 6, 0, 6, 0));
@@ -390,7 +454,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
 
             final int color = getMessagesController().folderTags ? filter.color : -1;
             if (color >= 0 && filter.color != lastAppliedColor) {
-                colorImageView.setBackground(Theme.createCircleDrawable(dp(22), getThemedColor(Theme.keys_avatar_nameInMessage[(lastAppliedColor = color) % Theme.keys_avatar_nameInMessage.length])));
+                ThemeBind.fillBackground(colorImageView, Theme.createCircleDrawable(dp(22), getThemedColor(Theme.keys_avatar_nameInMessage[(lastAppliedColor = color) % Theme.keys_avatar_nameInMessage.length])), ThemeBind.of(Theme.keys_avatar_nameInMessage[(lastAppliedColor = color) % Theme.keys_avatar_nameInMessage.length]), FiltersSetupActivity.this.getResourceProvider());
             }
             if (color != lastColor) {
                 if (moveImageViewAnimator != null) {
@@ -501,10 +565,36 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             optionsImageView.setOnClickListener(listener);
         }
 
+        private boolean dragging;
+        private final AnimatedFloat animatedDragging = new AnimatedFloat(this, 0, 420, CubicBezierInterpolator.EASE_OUT_QUINT);
+        private final Paint draggingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        public void setDragging(boolean dragging) {
+            if (this.dragging == dragging) return;
+            this.dragging = dragging;
+            invalidate();
+        }
+
+        public float getDraggingProgress() {
+            return animatedDragging.get();
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
-            if (needDivider) {
+            final float dragging = animatedDragging.set(this.dragging);
+            if (dragging > 0) {
+                draggingPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                draggingPaint.setAlpha((int) (0xFF * dragging));
+                draggingPaint.setShadowLayer(dragging * dp(12), 0, dp(3), Theme.multAlpha(0x12000000, dragging));
+                final float horizontalPadding = dp(8) * dragging;
+                final float radius = dp(12) * dragging;
+                canvas.drawRoundRect(horizontalPadding, 0, getWidth() - horizontalPadding, getHeight(), radius, radius, draggingPaint);
+            }
+            if (needDivider && dragging < 1) {
+                final int wasAlpha = Theme.dividerPaint.getAlpha();
+                Theme.dividerPaint.setAlpha((int) (wasAlpha * (1f - dragging)));
                 canvas.drawLine(LocaleController.isRTL ? 0 : dp(62), getMeasuredHeight() - 1, getMeasuredWidth() - (LocaleController.isRTL ? dp(62) : 0), getMeasuredHeight() - 1, Theme.dividerPaint);
+                Theme.dividerPaint.setAlpha(wasAlpha);
             }
             if (currentFilter != null) {
                 if (currentFilter.locked && progressToLock != 1f) {
@@ -530,8 +620,8 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     public boolean onFragmentCreate() {
         updateRows(false);
         getMessagesController().loadRemoteFilters(true);
-        getNotificationCenter().addObserver(this, NotificationCenter.dialogFiltersUpdated);
-        getNotificationCenter().addObserver(this, NotificationCenter.suggestedFiltersLoaded);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.dialogFiltersUpdated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.suggestedFiltersLoaded);
         if (getMessagesController().suggestedFilters.isEmpty()) {
             getMessagesController().loadSuggestedFilters();
         }
@@ -541,11 +631,23 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     private ArrayList<ItemInner> oldItems = new ArrayList<>();
     private ArrayList<ItemInner> items = new ArrayList<>();
 
+    @Keep
+    private int showTagsRow;
     private int filtersStartPosition;
     private int filtersSectionStart = -1, filtersSectionEnd = -1;
     private int folderTagsPosition;
 
     private void updateRows(boolean animated) {
+        showTagsRow = -1;
+
+        if (listView != null) {
+            if (listView.forcedSections == null) {
+                listView.forcedSections = new ArrayList<>();
+            } else {
+                listView.forcedSections.clear();
+            }
+        }
+
         oldItems.clear();
         oldItems.addAll(items);
         items.clear();
@@ -554,10 +656,12 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         ArrayList<MessagesController.DialogFilter> dialogFilters = getMessagesController().getDialogFilters();
         items.add(ItemInner.asHint());
         if (!suggestedFilters.isEmpty() && dialogFilters.size() < 10) {
+            int start = items.size();
             items.add(ItemInner.asHeader(LocaleController.getString(R.string.FilterRecommended)));
             for (int i = 0; i < suggestedFilters.size(); ++i) {
                 items.add(ItemInner.asSuggested(suggestedFilters.get(i)));
             }
+            if (listView != null) listView.forcedSections.add(AndroidUtilities.pack(start, items.size() - 1));
             items.add(ItemInner.asShadow(null));
         }
         if (!dialogFilters.isEmpty()) {
@@ -571,6 +675,8 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                 }
             }
             filtersSectionEnd = items.size();
+
+            if (listView != null) listView.forcedSections.add(AndroidUtilities.pack(filtersSectionStart, filtersSectionEnd - 1 + (dialogFilters.size() < getMessagesController().dialogFiltersLimitPremium ? 1 : 0)));
         } else {
             filtersSectionStart = filtersSectionEnd = -1;
         }
@@ -579,6 +685,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         }
         items.add(ItemInner.asShadow(null));
         folderTagsPosition = items.size();
+        showTagsRow = items.size();
         items.add(ItemInner.asCheck(LocaleController.getString(R.string.FolderShowTags)));
         items.add(ItemInner.asShadow(!getUserConfig().isPremium() ? AndroidUtilities.replaceSingleTag(LocaleController.getString(R.string.FolderShowTagsInfoPremium), Theme.key_windowBackgroundWhiteBlueHeader, AndroidUtilities.REPLACING_TAG_TYPE_LINKBOLD, () -> {
             presentFragment(new PremiumPreviewFragment("settings"));
@@ -597,28 +704,44 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     public void onFragmentDestroy() {
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogFiltersUpdated);
         getNotificationCenter().removeObserver(this, NotificationCenter.suggestedFiltersLoaded);
-        if (orderChanged) {
-            getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
-            getMessagesStorage().saveDialogFiltersOrder();
-            TLRPC.TL_messages_updateDialogFiltersOrder req = new TLRPC.TL_messages_updateDialogFiltersOrder();
-            ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
-            for (int a = 0, N = filters.size(); a < N; a++) {
-                MessagesController.DialogFilter filter = filters.get(a);
-                req.order.add(filter.id);
-            }
-            getConnectionsManager().sendRequest(req, (response, error) -> {
-
-            });
-        }
+        saveFiltersOrder(null);
         super.onFragmentDestroy();
+    }
+
+    private void saveFiltersOrder(Runnable done) {
+        if (!orderChanged) {
+            if (done != null) {
+                done.run();
+            }
+            return;
+        }
+        orderChanged = false;
+        getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
+        getMessagesStorage().saveDialogFiltersOrder();
+        TLRPC.TL_messages_updateDialogFiltersOrder req = new TLRPC.TL_messages_updateDialogFiltersOrder();
+        ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
+        for (int a = 0, N = filters.size(); a < N; a++) {
+            MessagesController.DialogFilter filter = filters.get(a);
+            req.order.add(filter.id);
+        }
+        getConnectionsManager().sendRequest(req, (response, error) -> {
+            if (done != null) {
+                AndroidUtilities.runOnUIThread(done);
+            }
+        });
+    }
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
     }
 
     @Override
     public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(LocaleController.getString(R.string.Filters));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        setHasOwnBackground(true);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        simpleActionBar.setTitle(LocaleController.getString(R.string.Filters));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -626,10 +749,12 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                 }
             }
         });
+        if (parentLayout != null && parentLayout.isRightLayout()) {
+            simpleActionBar.setBackButtonImage(R.drawable.ic_ab_close);
+        }
 
         fragmentView = new FrameLayout(context);
         FrameLayout frameLayout = (FrameLayout) fragmentView;
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         listView = new RecyclerListView(context) {
             @Override
@@ -643,17 +768,19 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             }
 
             @Override
-            protected void dispatchDraw(Canvas canvas) {
-                drawSectionBackground(canvas, filtersSectionStart, filtersSectionEnd, Theme.getColor(Theme.key_windowBackgroundWhite));
-                super.dispatchDraw(canvas);
+            protected boolean shouldClipChildToSection(View child) {
+                return !(child instanceof FilterCell) || ((FilterCell) child).getDraggingProgress() <= 0;
             }
         };
+        listView.setSections();
+        listView.setClipChildren(false);
         DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
         itemAnimator.setDurations(350);
         itemAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
         itemAnimator.setDelayAnimations(false);
         itemAnimator.setSupportsChangeAnimations(false);
         listView.setItemAnimator(itemAnimator);
+        listView.setSectionsDrawBackground(true);
         ((DefaultItemAnimator) listView.getItemAnimator()).setDelayAnimations(false);
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
@@ -680,8 +807,8 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                 getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
                     if (req.enabled && !loadedColors) {
                         loadingFiltersForColors = true;
-                        getMessagesController().loadRemoteFilters(true);
                         loadedColors = true;
+                        saveFiltersOrder(() -> getMessagesController().loadRemoteFilters(true));
                     }
                 }));
                 ((TextCheckCell) view).setChecked(getMessagesController().folderTags);
@@ -697,15 +824,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                     presentFragment(new FilterCreateActivity(filter));
                 }
             } else if (item.viewType == VIEW_TYPE_BUTTON) {
-                final int count = getMessagesController().getDialogFilters().size();
-                if (
-                    count - 1 >= getMessagesController().dialogFiltersLimitDefault && !getUserConfig().isPremium() ||
-                    count >= getMessagesController().dialogFiltersLimitPremium
-                ) {
-                    showDialog(new LimitReachedBottomSheet(this, context, LimitReachedBottomSheet.TYPE_FOLDERS, currentAccount, null));
-                } else {
-                    presentFragment(new FilterCreateActivity());
-                }
+                createFolder(getParentLayout());
             }
         });
 
@@ -721,12 +840,30 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         return fragmentView;
     }
 
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
+    public void createFolder(INavigationLayout navigationLayout) {
+        final int count = getMessagesController().getDialogFilters().size();
+        if (
+            count - 1 >= getMessagesController().dialogFiltersLimitDefault && !getUserConfig().isPremium() ||
+            count >= getMessagesController().dialogFiltersLimitPremium
+        ) {
+            showDialog(new LimitReachedBottomSheet(this, getContext(), LimitReachedBottomSheet.TYPE_FOLDERS, currentAccount, null));
+        } else if (navigationLayout != null) {
+            navigationLayout.presentFragment(new FilterCreateActivity());
+        }
+    }
+
     public UndoView getUndoView() {
         if (getContext() == null) {
             return null;
         }
         if (undoView == null) {
             ((FrameLayout) fragmentView).addView(undoView = new UndoView(getContext()), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.LEFT, 8, 0, 8, 8));
+            undoView.setTranslationY(-getBottomInset());
         }
         return undoView;
     }
@@ -871,15 +1008,12 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             switch (viewType) {
                 case VIEW_TYPE_HEADER:
                     view = new HeaderCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_HINT:
-                    view = new HintInnerCell(mContext, R.raw.filters, AndroidUtilities.replaceTags(LocaleController.formatString("CreateNewFilterInfo", R.string.CreateNewFilterInfo)));
-                    view.setBackgroundDrawable(Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider_top, Theme.key_windowBackgroundGrayShadow));
+                    view = new HintInnerCell(mContext, R.raw.filters, AndroidUtilities.replaceTags(LocaleController.formatString(R.string.CreateNewFilterInfo)));
                     break;
                 case VIEW_TYPE_FILTER:
                     FilterCell filterCell = new FilterCell(mContext);
-                    filterCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     filterCell.setOnReorderButtonTouchListener((v, event) -> {
                         if (event.getAction() == MotionEvent.ACTION_DOWN) {
                             itemTouchHelper.startDrag(listView.getChildViewHolder(filterCell));
@@ -935,12 +1069,13 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                             showDialog(alertDialog);
                             TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                             if (button != null) {
-                                button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                                ThemeBind.textColor(button, Theme.key_text_RedBold);
                             }
                         });
                         if (LocaleController.isRTL) {
                             options.setGravity(Gravity.LEFT);
                         }
+                        options.setScrimViewBackground(listView.getClipBackground(cell));
                         options.show();
                     });
                     view = filterCell;
@@ -950,16 +1085,13 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                     break;
                 case VIEW_TYPE_BUTTON:
                     view = new TextCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_CHECK:
                     view = new TextCheckCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case VIEW_TYPE_FILTER_SUGGESTION:
                 default:
                     SuggestedFilterCell suggestedFilterCell = new SuggestedFilterCell(mContext);
-                    suggestedFilterCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     suggestedFilterCell.setAddOnClickListener(v -> {
                         TLRPC.TL_dialogFilterSuggested suggested = suggestedFilterCell.getSuggestedFilter();
                         MessagesController.DialogFilter filter = new MessagesController.DialogFilter();
@@ -1051,7 +1183,6 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                         cell.setText(item.text);
                     }
                     cell.setBottomPadding(last ? 32 : 17);
-                    cell.setBackground(Theme.getThemedDrawableByKey(mContext, divider ? R.drawable.greydivider : R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
                     break;
                 }
                 case VIEW_TYPE_BUTTON: {
@@ -1156,6 +1287,11 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
         }
 
+        private final Runnable onReorderDone = () -> {
+            resetDefaultPosition();
+            saveFiltersOrder(null);
+        };
+
         private void resetDefaultPosition() {
             if (UserConfig.getInstance(UserConfig.selectedAccount).isPremium()) {
                 return;
@@ -1177,10 +1313,16 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                 listView.cancelClickRunnables(false);
                 viewHolder.itemView.setPressed(true);
             } else {
-                AndroidUtilities.cancelRunOnUIThread(this::resetDefaultPosition);
-                AndroidUtilities.runOnUIThread(this::resetDefaultPosition, 320);
+                AndroidUtilities.cancelRunOnUIThread(onReorderDone);
+                AndroidUtilities.runOnUIThread(onReorderDone, 320);
             }
             super.onSelectedChanged(viewHolder, actionState);
+            if (viewHolder != null) {
+                viewHolder.itemView.setTag(R.id.dragging, actionState == ItemTouchHelper.ACTION_STATE_DRAG ? true : null);
+                if (viewHolder.itemView instanceof FilterCell) {
+                    ((FilterCell) viewHolder.itemView).setDragging(actionState == ItemTouchHelper.ACTION_STATE_DRAG);
+                }
+            }
         }
 
         @Override
@@ -1192,6 +1334,10 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         public void clearView(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {
             super.clearView(recyclerView, viewHolder);
             viewHolder.itemView.setPressed(false);
+            viewHolder.itemView.setTag(R.id.dragging, null);
+            if (viewHolder.itemView instanceof FilterCell) {
+                ((FilterCell) viewHolder.itemView).setDragging(false);
+            }
         }
     }
 
@@ -1208,33 +1354,47 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{HeaderCell.class, TextCell.class, FilterCell.class, SuggestedFilterCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
+        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{HeaderCell.class, TextCell.class, SuggestedFilterCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
 
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
+//        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{FilterCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{FilterCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{FilterCell.class}, new String[]{"moveImageView"}, null, null, null, Theme.key_stickers_menu));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{FilterCell.class}, new String[]{"optionsImageView"}, null, null, null, Theme.key_stickers_menu));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{FilterCell.class}, new String[]{"optionsImageView"}, null, null, null, Theme.key_stickers_menuSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueText2));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_switchTrackChecked));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_checkboxCheck));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ShadowSectionCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
 
         return themeDescriptions;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        if (undoView != null) {
+            undoView.setTranslationY(-bottom);
+        }
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_checkboxCheck);
+        keys.add(Theme.key_switchTrackChecked);
+        keys.add(Theme.key_windowBackgroundWhiteBlueText2);
+        keys.add(Theme.key_stickers_menu);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText2);
+        keys.add(Theme.key_windowBackgroundWhiteBlackText);
+        keys.add(Theme.key_windowBackgroundWhiteBlueHeader);
+        keys.add(Theme.key_divider);
+        keys.add(Theme.key_listSelector);
+        keys.add(Theme.key_actionBarDefaultSelector);
+        keys.add(Theme.key_actionBarDefaultTitle);
+        keys.add(Theme.key_actionBarDefaultIcon);
+        keys.add(Theme.key_actionBarDefault);
     }
 }

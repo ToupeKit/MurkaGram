@@ -6,7 +6,10 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
+import org.telegram.messenger.FileLog;
 import android.animation.Animator;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
@@ -23,6 +26,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -30,6 +34,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.collection.ArraySet;
 import androidx.core.graphics.ColorUtils;
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
@@ -60,12 +65,11 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.EmptyCell;
-import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.LoadingCell;
 import org.telegram.ui.Cells.ManageChatTextCell;
-import org.telegram.ui.Cells.ManageChatUserCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.StatisticPostInfoCell;
 import org.telegram.ui.Charts.BarChartView;
@@ -83,24 +87,32 @@ import org.telegram.ui.Charts.data.StackLinearChartData;
 import org.telegram.ui.Charts.view_data.ChartHeaderView;
 import org.telegram.ui.Charts.view_data.LineViewData;
 import org.telegram.ui.Charts.view_data.TransitionParams;
-import org.telegram.ui.Components.BottomPagerTabs;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.ChatAvatarContainer;
 import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.FlatCheckBox;
+import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.boosts.BoostDialogs;
 import org.telegram.ui.Components.RLottieImageView;
 import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.RecyclerListView;
-import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.ViewPagerFixed;
+import org.telegram.ui.Components.SiblingRecyclerPagerLayout;
+import org.telegram.ui.Components.blur3.capture.IBlur3Capture;
+import org.telegram.ui.Components.CubicBezierInterpolator;
+import me.vkryl.android.animator.BoolAnimator;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
+import org.telegram.ui.Components.blur3.utils.Blur3Utils;
+import org.telegram.ui.Components.glass.GlassTabView;
 import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
-import org.telegram.ui.Stories.recorder.KeyboardNotifier;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -108,7 +120,6 @@ import java.util.List;
 import java.util.Locale;
 
 public class StatisticActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
-
     public static BaseFragment create(TLRPC.Chat chat) {
         return create(chat, true);
     }
@@ -127,6 +138,7 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
     private TLRPC.ChatFull chat;
     private final long chatId;
+    private boolean showTabs;
 
     //mutual
     private ChartViewData growthData;
@@ -153,16 +165,17 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
     private ChartViewData messagesData;
     private ChartViewData actionsData;
     private ChartViewData topDayOfWeeksData;
-    private ArrayList<MemberData> topMembersAll = new ArrayList<>();
-    private ArrayList<MemberData> topMembersVisible = new ArrayList<>();
-    private ArrayList<MemberData> topInviters = new ArrayList<>();
-    private ArrayList<MemberData> topAdmins = new ArrayList<>();
+    private final ArrayList<MemberData> topMembersAll = new ArrayList<>();
+    private final ArrayList<MemberData> topMembersVisible = new ArrayList<>();
+    private final ArrayList<MemberData> topInviters = new ArrayList<>();
+    private final ArrayList<MemberData> topAdmins = new ArrayList<>();
 
     ChatAvatarContainer avatarContainer;
 
     private RecyclerListView recyclerListView;
+    private IBlur3Capture listBlur3Capture;
     private LinearLayoutManager layoutManager;
-    private LruCache<ChartData> childDataCache = new LruCache<>(50);
+    private final LruCache<ChartData> childDataCache = new LruCache<>(50);
     private RLottieImageView imageView;
 
     private Adapter adapter;
@@ -172,15 +185,23 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
     private BaseChartView.SharedUiComponents sharedUi;
     private LinearLayout progressLayout;
     private final boolean isMegagroup;
-    private boolean startFromBoosts, startFromMonetization;
+    private final boolean startFromBoosts;
+    private final boolean startFromMonetization;
     private long maxDateOverview;
     private long minDateOverview;
 
-    private AlertDialog[] progressDialog = new AlertDialog[1];
+    private final AlertDialog[] progressDialog = new AlertDialog[1];
     private ViewPagerFixed viewPagerFixed;
     private ChannelBoostLayout boostLayout;
     private ChannelMonetizationLayout monetizationLayout;
-    private boolean onlyBoostsStat;
+    private View listTopOverlay;
+    private FrameLayout transactionTabsOverlay;
+    private BoolAnimator tabsPinnedAnimator;
+    private final boolean onlyBoostsStat;
+
+    private MainTabsLayout tabsView;
+    private FrameLayout tabsViewWrapper;
+    private GlassTabView[] tabs;
 
     public StatisticActivity(Bundle args) {
         super(args);
@@ -214,12 +235,21 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         }
     };
 
+    private NotificationCenter.ObserversGroup observersGroup;
+
     @Override
     public boolean onFragmentCreate() {
-        getNotificationCenter().addObserver(this, NotificationCenter.messagesDidLoad);
-        getNotificationCenter().addObserver(this, NotificationCenter.chatInfoDidLoad);
-        getNotificationCenter().addObserver(this, NotificationCenter.boostByChannelCreated);
-        getNotificationCenter().addObserver(this, NotificationCenter.storiesListUpdated);
+        if (this.observersGroup != null) {
+            this.observersGroup.removeAllObservers();
+            this.observersGroup = null;
+        }
+        this.observersGroup = getNotificationCenter()
+            .createObserversGroup(this)
+            .add(NotificationCenter.messagesDidLoad)
+            .add(NotificationCenter.chatInfoDidLoad)
+            .add(NotificationCenter.boostByChannelCreated)
+            .add(NotificationCenter.storiesListUpdated);
+
         StoriesController storiesController = getMessagesController().getStoriesController();
         storiesList = storiesController.getStoriesList(-chatId, StoriesController.StoriesList.TYPE_STATISTICS);
         if (storiesList != null) {
@@ -449,10 +479,10 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
     @Override
     public void onFragmentDestroy() {
-        getNotificationCenter().removeObserver(this, NotificationCenter.boostByChannelCreated);
-        getNotificationCenter().removeObserver(this, NotificationCenter.messagesDidLoad);
-        getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
-        getNotificationCenter().removeObserver(this, NotificationCenter.storiesListUpdated);
+        if (observersGroup != null) {
+            observersGroup.removeAllObservers();
+            observersGroup = null;
+        }
 
         if (progressDialog[0] != null) {
             progressDialog[0].dismiss();
@@ -569,53 +599,111 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
     }
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
+        setHasOwnBackground(true);
+
         sharedUi = new BaseChartView.SharedUiComponents();
         TLRPC.Chat currentChat = MessagesController.getInstance(currentAccount).getChat(chatId);
         TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
         final boolean hasStats = chatFull != null && chatFull.can_view_stats;
         boolean isBoostSupported = ChatObject.isBoostSupported(currentChat);
         final boolean hasMonetization = chatFull != null && (chatFull.can_view_revenue || chatFull.can_view_stars_revenue);
-        BottomPagerTabs storiesTabsView = new BottomPagerTabs(context, getResourceProvider()) {
-            @Override
-            public Tab[] createTabs() {
-                ArrayList<Tab> tabs = new ArrayList<>();
-                int i = 0;
-                if (hasStats) {
-                    tabs.add(new Tab(i++, R.raw.stats, 25, 49, getString(R.string.Statistics)).customFrameInvert());
-                }
-                tabs.add(new Tab(i++, R.raw.boosts, 25, 49, getString(R.string.Boosts)));
-                if (hasMonetization) {
-                    tabs.add(new Tab(i++, R.raw.monetize, 19, 45, getString(R.string.Monetization)));
-                }
-                return tabs.toArray(new Tab[0]);
-            }
-        };
+
+        ArrayList<GlassTabView> tabViews = new ArrayList<>(3);
+        if (hasStats) {
+            tabViews.add(GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.POLL, R.string.Statistics));
+        }
+        tabViews.add(GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.BOOSTS, R.string.Boosts));
+        if (hasMonetization) {
+            tabViews.add(GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.MONETIZATION, R.string.Monetization));
+        }
+
+        tabs = tabViews.toArray(new GlassTabView[0]);
+        tabsView = new MainTabsLayout(context, resourceProvider);
+        tabsView.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4));
+        tabsView.setMaxWidth(AndroidUtilities.dp(344.0f));
+        tabsView.setClipChildren(false);
+
+        tabsViewWrapper = new FrameLayout(context);
+        tabsViewWrapper.setOnClickListener(view -> {});
+        tabsViewWrapper.addView(tabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 72, 81));
+        tabsViewWrapper.setClipToPadding(false);
+        for (int index = 0; index < tabs.length; index++) {
+            final GlassTabView view = tabs[index];
+            final int position = index;
+
+            tabs[index].setOnClickListener(v -> {
+                viewPagerFixed.scrollToPosition(position);
+                selectTab(position, true);
+            });
+
+            tabsView.addView(tabs[index]);
+            tabsView.setViewVisible(view, true, false);
+        }
 
         viewPagerFixed = new ViewPagerFixed(getContext()) {
+            private boolean transactionGesture;
+
+            @Override
+            public boolean dispatchTouchEvent(MotionEvent event) {
+                int action = event.getActionMasked();
+                if (action == MotionEvent.ACTION_DOWN) {
+                    transactionGesture = monetizationLayout != null && getCurrentView() == monetizationLayout
+                            && monetizationLayout.prepareTransactionGesture(
+                                    event.getX() - monetizationLayout.getX(),
+                                    event.getY() - monetizationLayout.getY());
+                }
+                try {
+                    return super.dispatchTouchEvent(event);
+                } finally {
+                    if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                        transactionGesture = false;
+                    }
+                }
+            }
+
+            @Override
+            public boolean onInterceptTouchEvent(MotionEvent event) {
+                return !transactionGesture && super.onInterceptTouchEvent(event);
+            }
+
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                return !transactionGesture && super.onTouchEvent(event);
+            }
+
             @Override
             public void onTabAnimationUpdate(boolean manual) {
-                if (manual) {
-                    return;
+                final boolean isDragByGesture = !manual;
+                final float position = viewPagerFixed.getPositionAnimated();
+                setGestureSelectedOverride(position, isDragByGesture);
+                if (isDragByGesture) {
+                    selectTab(Math.round(position), true);
                 }
-                storiesTabsView.setScrolling(true);
-                storiesTabsView.setProgress(viewPagerFixed.getPositionAnimated());
+            }
+
+            @Override
+            protected void onScrollEnd() {
+                super.onScrollEnd();
+                selectTab(viewPagerFixed.getCurrentPosition(), true);
+                setGestureSelectedOverride(0, false);
             }
         };
 
-        storiesTabsView.setOnTabClick(position -> {
-            if (viewPagerFixed.scrollToPosition(position)) {
-                storiesTabsView.setScrolling(false);
-                storiesTabsView.setProgress(position);
-            }
-        });
         FrameLayout statisticLayout = new FrameLayout(context);
         if (isBoostSupported) {
             boostLayout = new ChannelBoostLayout(StatisticActivity.this, -chatId, getResourceProvider());
+            boostLayout.listView.setCaptureSectionsDecoratorAllowed(true);
+            glassEngine.addScrolledView(boostLayout.listView);
         }
         if (hasMonetization) {
-            monetizationLayout = new ChannelMonetizationLayout(getContext(), StatisticActivity.this, currentAccount, -chatId, getResourceProvider(), ChatObject.isChannelAndNotMegaGroup(currentChat) && chatFull.can_view_revenue, chatFull.can_view_stars_revenue);
-            monetizationLayout.setActionBar(actionBar);
+            monetizationLayout = new ChannelMonetizationLayout(getContext(), StatisticActivity.this, currentAccount, -chatId, getResourceProvider(), glassEngine, ChatObject.isChannelAndNotMegaGroup(currentChat) && chatFull.can_view_revenue, chatFull.can_view_stars_revenue);
+            monetizationLayout.listView.setCaptureSectionsDecoratorAllowed(true);
         }
         viewPagerFixed.setAdapter(new ViewPagerFixed.Adapter() {
             @Override
@@ -658,31 +746,31 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
             }
         });
-        boolean showTabs = isBoostSupported && !onlyBoostsStat;
+        showTabs = isBoostSupported && !onlyBoostsStat;
         if (showTabs && startFromBoosts) {
             viewPagerFixed.setPosition(hasStats ? 1 : 0);
         } else if (showTabs && startFromMonetization) {
-            storiesTabsView.setProgress((hasStats ? 1 : 0) + (!onlyBoostsStat && isBoostSupported ? 1 : 0));
             viewPagerFixed.setPosition((hasStats ? 1 : 0) + (!onlyBoostsStat && isBoostSupported ? 1 : 0));
         }
-
-
-        FrameLayout contentLayout = new SizeNotifierFrameLayout(getContext());
-        contentLayout.addView(viewPagerFixed, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, 0, 0, 0, 0, showTabs ? 64 : 0));
+        selectTab(viewPagerFixed.getCurrentPosition(), false);
+        final FrameLayout contentLayout = new FrameLayout(getContext());
+        contentLayout.addView(viewPagerFixed, LayoutHelper.createFrameMatchParent());
+        listTopOverlay = new View(context);
+        contentLayout.addView(listTopOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 0, Gravity.TOP));
+        transactionTabsOverlay = new FrameLayout(context);
+        transactionTabsOverlay.setVisibility(View.INVISIBLE);
+        contentLayout.addView(transactionTabsOverlay, LayoutHelper.createFrameMatchParent());
+        contentLayout.addView(simpleActionBar);
         if (showTabs) {
-            contentLayout.addView(storiesTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL));
             Bulletin.addDelegate(this, new Bulletin.Delegate() {
                 @Override
                 public int getBottomOffset(int tag) {
                     return dp(64);
                 }
             });
+            tabsViewWrapper.setBackground(getBaseSimpleGlass().createNavigationBarFadeDrawable(tabsViewWrapper));
+            contentLayout.addView(tabsViewWrapper, LayoutHelper.createFrame(-1, -2, 80));
         }
-        new KeyboardNotifier(contentLayout, keyboardHeight -> {
-            if (storiesTabsView != null) {
-                storiesTabsView.setVisibility(keyboardHeight > dp(20) ? View.GONE : View.VISIBLE);
-            }
-        });
         fragmentView = contentLayout;
         recyclerListView = new RecyclerListView(context) {
             int lastH;
@@ -696,6 +784,11 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                 lastH = getMeasuredHeight();
             }
         };
+        recyclerListView.setCaptureSectionsDecoratorAllowed(true);
+        recyclerListView.setSections(true);
+        recyclerListView.setClipToPadding(false);
+        glassEngine.addScrolledView(recyclerListView);
+        recyclerListView.setSections();
 
         progressLayout = new LinearLayout(context);
         progressLayout.setOrientation(LinearLayout.VERTICAL);
@@ -708,16 +801,16 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         TextView loadingTitle = new TextView(context);
         loadingTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         loadingTitle.setTypeface(AndroidUtilities.bold());
-        loadingTitle.setTextColor(Theme.getColor(Theme.key_player_actionBarTitle));
+        ThemeBind.textColor(loadingTitle, Theme.key_player_actionBarTitle);
         loadingTitle.setTag(Theme.key_player_actionBarTitle);
-        loadingTitle.setText(getString("LoadingStats", R.string.LoadingStats));
+        loadingTitle.setText(getString(R.string.LoadingStats));
         loadingTitle.setGravity(Gravity.CENTER_HORIZONTAL);
 
         TextView loadingSubtitle = new TextView(context);
         loadingSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        loadingSubtitle.setTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle));
+        ThemeBind.textColor(loadingSubtitle, Theme.key_player_actionBarSubtitle);
         loadingSubtitle.setTag(Theme.key_player_actionBarSubtitle);
-        loadingSubtitle.setText(getString("LoadingStatsDescription", R.string.LoadingStatsDescription));
+        loadingSubtitle.setText(getString(R.string.LoadingStatsDescription));
         loadingSubtitle.setGravity(Gravity.CENTER_HORIZONTAL);
 
         progressLayout.addView(imageView, LayoutHelper.createLinear(120, 120, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 20));
@@ -788,36 +881,22 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                     return false;
                 }
 
-                final ArrayList<String> items = new ArrayList<>();
-                final ArrayList<Integer> actions = new ArrayList<>();
-                final ArrayList<Integer> icons = new ArrayList<>();
-
-                items.add(getString("ViewMessageStatistic", R.string.ViewMessageStatistic));
-                actions.add(0);
-                icons.add(R.drawable.msg_stats);
-
-                items.add(getString("ViewMessage", R.string.ViewMessage));
-                actions.add(1);
-                icons.add(R.drawable.msg_msgbubble3);
-
-
-                AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-                builder.setItems(items.toArray(new CharSequence[actions.size()]), AndroidUtilities.toIntArray(icons), (dialogInterface, i) -> {
-                    if (i == 0) {
-                        MessageStatisticActivity activity = new MessageStatisticActivity(messageObject);
-                        presentFragment(activity);
-                    } else if (i == 1) {
+                ItemOptions.makeOptions(this, view)
+                    .add(R.drawable.msg_stats, getString(R.string.ViewMessageStatistic), () -> {
+                        presentFragment(new MessageStatisticActivity(messageObject));
+                    })
+                    .add(R.drawable.msg_msgbubble3, getString(R.string.ViewMessage), () -> {
                         Bundle bundle = new Bundle();
                         bundle.putLong("chat_id", chatId);
                         bundle.putInt("message_id", messageObject.getId());
                         bundle.putBoolean("need_remove_previous_same_chat_activity", false);
                         ChatActivity chatActivity = new ChatActivity(bundle);
                         presentFragment(chatActivity, false);
-                    }
-                });
+                    })
+                    .setScrimViewBackground(recyclerListView.getClipBackground(view))
+                    .show();
 
-                showDialog(builder.create());
-
+                return true;
             } else if (position >= adapter.topAdminsStartRow && position <= adapter.topAdminsEndRow) {
                 int i = position - adapter.topAdminsStartRow;
                 topAdmins.get(i).onLongClick(chat, this, progressDialog);
@@ -837,20 +916,12 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         statisticLayout.addView(recyclerListView);
 
         avatarContainer = new ChatAvatarContainer(context, null, false);
-        avatarContainer.setOccupyStatusBar(!AndroidUtilities.isTablet());
-        avatarContainer.getAvatarImageView().setScaleX(0.9f);
-        avatarContainer.getAvatarImageView().setScaleY(0.9f);
-        avatarContainer.setRightAvatarPadding(-dp(3));
-        actionBar.addView(avatarContainer, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, !inPreviewMode ? 50 : 0, 0, 40, 0));
-
         TLRPC.Chat chatLocal = getMessagesController().getChat(chatId);
 
         avatarContainer.setChatAvatar(chatLocal);
-        avatarContainer.setTitle(chatLocal == null ? "" : chatLocal.title);
-        avatarContainer.hideSubtitle();
-
-        actionBar.setBackButtonDrawable(new BackDrawable(false));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        simpleActionBar.setBackButtonDrawable(new BackDrawable(false));
+        simpleActionBar.setTitle(chatLocal == null ? "" : chatLocal.title);
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(final int id) {
                 if (id == -1) {
@@ -860,10 +931,6 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         });
 
         avatarContainer.setTitleColors(Theme.getColor(Theme.key_player_actionBarTitle), Theme.getColor(Theme.key_player_actionBarSubtitle));
-        actionBar.setItemsColor(Theme.getColor(Theme.key_player_actionBarTitle), false);
-        actionBar.setItemsColor(Theme.getColor(Theme.key_player_actionBarTitle), true);
-        actionBar.setItemsBackgroundColor(Theme.getColor(Theme.key_actionBarActionModeDefaultSelector), false);
-        actionBar.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
 
         if (initialLoading) {
             progressLayout.setAlpha(0f);
@@ -875,7 +942,57 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
             progressLayout.setVisibility(View.GONE);
             recyclerListView.setVisibility(View.VISIBLE);
         }
+        BlurredBackgroundDrawable tabsViewBackground = getBaseSimpleGlass().factory
+            .create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
+        tabsViewBackground.setRadius(AndroidUtilities.dp(28.0f));
+        tabsViewBackground.setPadding(AndroidUtilities.dp(7.666f));
+        tabsView.setBackground(tabsViewBackground);
 
+        glassEngine.addScrolledView(viewPagerFixed);
+        getBaseSimpleGlass().setViews(contentLayout, viewPagerFixed, simpleActionBar, resourceProvider);
+        tabsPinnedAnimator = new BoolAnimator(0, (id, factor, fraction, callee) ->
+                updateHeaderOverlayPosition(), CubicBezierInterpolator.EASE_OUT_QUINT, 380);
+        if (monetizationLayout != null) {
+            monetizationLayout.configureTabsGlass(getBaseSimpleGlass());
+            View transactionTabs = monetizationLayout.getTransactionTabs();
+            ViewGroup.LayoutParams params = transactionTabs.getLayoutParams();
+            AndroidUtilities.removeFromParent(transactionTabs);
+            transactionTabsOverlay.addView(transactionTabs, params);
+            monetizationLayout.setTabsPinnedChangedListener(() -> tabsPinnedAnimator.setValue(
+                    monetizationLayout.areTabsPinned(), listTopOverlay.isAttachedToWindow()));
+            tabsPinnedAnimator.setValue(monetizationLayout.areTabsPinned(), false);
+        }
+        // Only View properties change here: no layout requests or allocations during swipes.
+        contentLayout.getViewTreeObserver().addOnPreDrawListener(() -> {
+            updateHeaderOverlayPosition();
+            return true;
+        });
+        final SiblingRecyclerPagerLayout.ScrollCapture listCapture = (canvas, bounds, view) -> {
+            RecyclerListView list = (RecyclerListView) view;
+            Blur3Utils.captureRelativeParent(list, canvas, bounds, list, contentLayout);
+        };
+        getBaseSimpleGlass().setCapture((canvas, rectF) -> {
+            if (recyclerListView != null) {
+                Blur3Utils.captureRelativeParent(recyclerListView, canvas, rectF, recyclerListView, contentLayout);
+            }
+            if (boostLayout != null) {
+                Blur3Utils.captureRelativeParent(boostLayout.listView, canvas, rectF, boostLayout.listView, contentLayout);
+            }
+            if (monetizationLayout != null && monetizationLayout.getParent() == viewPagerFixed
+                    && monetizationLayout.getVisibility() == View.VISIBLE) {
+                monetizationLayout.captureScrollingContent(canvas, rectF, listCapture);
+            }
+        });
+        getBaseSimpleGlass().setClipView(null);
+
+        simpleActionBar.setBackground(null);
+        listTopOverlay.setBackground(getBaseSimpleGlass().createActionBarFadeDrawable(listTopOverlay));
+
+        AndroidUtilities.removeFromParent(avatarContainer.avatarImageView);
+        contentLayout.addView(avatarContainer.avatarImageView, LayoutHelper.createFrame(42, 42, 53));
+        checkUi_listPaddings();
+
+        fragmentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
 
         diffUtilsCallback = new DiffUtilsCallback(adapter, layoutManager);
         return fragmentView;
@@ -1090,7 +1207,6 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                 v.setWillNotDraw(false);
             } else if (viewType == 11) {
                 v = new LoadingCell(parent.getContext());
-                v.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
             } else if (viewType == 12) {
                 v = new EmptyCell(parent.getContext(), dp(15));
             } else if (viewType == 13) {
@@ -1110,10 +1226,9 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                 v = new OverviewCell(parent.getContext(), isMegagroup ? 2 : 4);
             } else if (viewType == 15) {
                 v = new ManageChatTextCell(parent.getContext());
-                v.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                 ((ManageChatTextCell) v).setColors(Theme.key_windowBackgroundWhiteBlueIcon, Theme.key_windowBackgroundWhiteBlueButton);
             } else {
-                v = new ShadowSectionCell(parent.getContext(), 12, Theme.getColor(Theme.key_windowBackgroundGray));
+                v = new ShadowSectionCell(parent.getContext(), 12, 0);
             }
             v.setLayoutParams(new RecyclerView.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
             return new RecyclerListView.Holder(v);
@@ -1603,7 +1718,8 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         }
     }
 
-    public static abstract class BaseChartCell extends FrameLayout {
+    public static abstract class BaseChartCell extends FrameLayout implements Theme.Colorable {
+        final @Nullable Window window;
         BaseChartView chartView;
         BaseChartView zoomedChartView;
         ChartHeaderView chartHeaderView;
@@ -1617,7 +1733,6 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
         int chartType;
 
-        @SuppressLint("ClickableViewAccessibility")
         public BaseChartCell(@NonNull Context context, int type, BaseChartView.SharedUiComponents sharedUi) {
             this(context, type, sharedUi, null);
         }
@@ -1626,6 +1741,13 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         public BaseChartCell(@NonNull Context context, int type, BaseChartView.SharedUiComponents sharedUi, Theme.ResourcesProvider resourcesProvider) {
             super(context);
             setWillNotDraw(false);
+
+            if (context instanceof Activity) {
+                window = ((Activity) context).getWindow();
+            } else {
+                window = null;
+            }
+
             chartType = type;
             LinearLayout linearLayout = new LinearLayout(context);
             linearLayout.setOrientation(LinearLayout.VERTICAL);
@@ -1720,7 +1842,7 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
             frameLayout.addView(errorTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 0, 0, 30));
             progressView.setVisibility(View.GONE);
 
-            errorTextView.setTextColor(Theme.getColor(Theme.key_dialogTextGray4, resourcesProvider));
+            ThemeBind.textColor(errorTextView, Theme.key_dialogTextGray4, resourcesProvider);
 
 
             chartView.setDateSelectionListener(date -> {
@@ -1738,7 +1860,7 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
             linearLayout.addView(chartHeaderView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 52));
             linearLayout.addView(frameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-            linearLayout.addView(checkboxContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL, 16, 0, 16, 0));
+            linearLayout.addView(checkboxContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL, 10, 0, 10, 0));
 
             if (chartType == 4) {
                 frameLayout.setClipChildren(false);
@@ -1836,7 +1958,9 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                         zoomedChartView.enabled = true;
                         chartView.transitionMode = BaseChartView.TRANSITION_MODE_NONE;
                         zoomedChartView.transitionMode = BaseChartView.TRANSITION_MODE_NONE;
-                        ((Activity) getContext()).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                        if (window != null) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                        }
                     }
                 });
                 animator.start();
@@ -1865,7 +1989,9 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                 chartView.enabled = true;
                 zoomedChartView.enabled = false;
                 chartView.invalidate();
-                ((Activity) getContext()).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                if (window != null) {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                }
 
                 for (CheckBoxHolder checkbox : checkBoxes) {
                     checkbox.checkBox.setAlpha(1);
@@ -1893,7 +2019,9 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                             chartView.legendShowing = false;
                             chartView.clearSelection();
                         }
-                        ((Activity) getContext()).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                        if (window != null) {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+                        }
                     }
                 });
                 for (CheckBoxHolder checkbox : checkBoxes) {
@@ -1907,8 +2035,10 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         }
 
         private ValueAnimator createTransitionAnimator(long d, boolean in) {
-            ((Activity) getContext()).getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            if (window != null) {
+                window.setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+            }
 
             chartView.enabled = false;
             zoomedChartView.enabled = false;
@@ -2062,6 +2192,20 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
                     }
                 });
                 animator.start();
+            }
+        }
+
+        private int lastThemeGeneration = -1;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (chartView == null || zoomedChartView == null || chartHeaderView == null || progressView == null || errorTextView == null) {
+                    return;
+                }
+                recolor();
+            } catch (Exception e) {
+                FileLog.e(e);
             }
         }
 
@@ -2385,10 +2529,26 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         });
     }
 
+    private PorterDuffColorFilter shadowFilter;
+    private int shadowFilterColor;
+
     private void recolorRecyclerItem(View child) {
         if (child instanceof ChartCell) {
-            ((ChartCell) child).recolor();
-        } else if (child instanceof ShadowSectionCell) {
+            // Theme.Colorable: recolored by the theme dispatcher
+        } else if (child instanceof ShadowSectionCell && !recyclerListView.hasSections()) {
+            final Drawable current = child.getBackground();
+            if (current instanceof CombinedDrawable && ((CombinedDrawable) current).getBackground() instanceof ColorDrawable && ((CombinedDrawable) current).getIcon() != null) {
+                // recolor in place: no allocations per theme frame
+                final int shadowColor = Theme.getColor(Theme.key_windowBackgroundGrayShadow);
+                if (shadowFilter == null || shadowFilterColor != shadowColor) {
+                    shadowFilterColor = shadowColor;
+                    shadowFilter = new PorterDuffColorFilter(shadowColor, PorterDuff.Mode.MULTIPLY);
+                }
+                ((ColorDrawable) ((CombinedDrawable) current).getBackground()).setColor(Theme.getColor(Theme.key_windowBackgroundGray));
+                ((CombinedDrawable) current).getIcon().setColorFilter(shadowFilter);
+                child.invalidate();
+                return;
+            }
             Drawable shadowDrawable = Theme.getThemedDrawableByKey(ApplicationLoader.applicationContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
             Drawable background = new ColorDrawable(Theme.getColor(Theme.key_windowBackgroundGray));
             CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
@@ -2396,9 +2556,8 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
             child.setBackground(combinedDrawable);
         } else if (child instanceof ChartHeaderView) {
             ((ChartHeaderView) child).recolor();
-        } else if (child instanceof OverviewCell) {
-            ((OverviewCell) child).updateColors();
         }
+        // OverviewCell is Theme.Colorable: recolored by the theme dispatcher
     }
 
     private static class DiffUtilsCallback extends DiffUtil.Callback {
@@ -2568,69 +2727,13 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
     @Override
     public ArrayList<ThemeDescription> getThemeDescriptions() {
-        ThemeDescription.ThemeDescriptionDelegate themeDelegate = () -> {
-            if (recyclerListView != null) {
-                int count = recyclerListView.getChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(recyclerListView.getChildAt(a));
-                }
-                count = recyclerListView.getHiddenChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(recyclerListView.getHiddenChildAt(a));
-                }
-                count = recyclerListView.getCachedChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(recyclerListView.getCachedChildAt(a));
-                }
-                count = recyclerListView.getAttachedScrapChildCount();
-                for (int a = 0; a < count; a++) {
-                    recolorRecyclerItem(recyclerListView.getAttachedScrapChildAt(a));
-                }
-                recyclerListView.getRecycledViewPool().clear();
-            }
-            if (sharedUi != null) {
-                sharedUi.invalidate();
-            }
-        };
+        ThemeDescription.ThemeDescriptionDelegate themeDelegate = this::themeDelegateThemeColors;
 
         ArrayList<ThemeDescription> arrayList = new ArrayList<>();
 
-        arrayList.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
 
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{StatisticPostInfoCell.class}, new String[]{"message"}, null, null, null, Theme.key_dialogTextBlack));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{StatisticPostInfoCell.class}, new String[]{"views"}, null, null, null, Theme.key_dialogTextBlack));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{StatisticPostInfoCell.class}, new String[]{"shares"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText3));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{StatisticPostInfoCell.class}, new String[]{"likes"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText3));
-        arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{StatisticPostInfoCell.class}, new String[]{"date"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText3));
         arrayList.add(new ThemeDescription(recyclerListView, 0, new Class[]{ChartHeaderView.class}, new String[]{"textView"}, null, null, null, Theme.key_dialogTextBlack));
 
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_dialogTextBlack));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartSignature));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartSignatureAlpha));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartHintLine));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartActiveLine));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartInactivePickerChart));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_statisticChartActivePickerChart));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_dialogBackground));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_windowBackgroundWhite));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_windowBackgroundWhiteGrayText2));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, null, themeDelegate, Theme.key_actionBarActionModeDefaultSelector));
-
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, themeDelegate, Theme.key_windowBackgroundGray));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, themeDelegate, Theme.key_windowBackgroundGrayShadow));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, themeDelegate, Theme.key_windowBackgroundWhiteGreenText2));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, themeDelegate, Theme.key_text_RedRegular));
-
-        arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
-        arrayList.add(new ThemeDescription(avatarContainer != null ? avatarContainer.getTitleTextView() : null, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_player_actionBarTitle));
-        arrayList.add(new ThemeDescription(avatarContainer != null ? avatarContainer.getSubtitleTextView() : null, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_player_actionBarSubtitle, null));
-        arrayList.add(new ThemeDescription(null, 0, null, null, null, themeDelegate, Theme.key_statisticChartLineEmpty));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueButton));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueIcon));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_text_RedRegular));
-        arrayList.add(new ThemeDescription(recyclerListView, ThemeDescription.FLAG_CHECKTAG, new Class[]{ManageChatTextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_text_RedRegular));
 
         if (isMegagroup) {
             for (int i = 0; i < 6; i++) {
@@ -2929,7 +3032,7 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
         }
     }
 
-    public static class OverviewCell extends LinearLayout {
+    public static class OverviewCell extends LinearLayout implements Theme.Colorable {
 
         TextView[] primary;
         TextView[] secondary;
@@ -3093,7 +3196,11 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
             updateColors();
         }
 
-        private void updateColors() {
+        @Override
+        public void updateColors() {
+            if (primary == null || secondary == null || title == null) {
+                return;
+            }
             for (int i = 0; i < primary.length; i++) {
                 primary[i].setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
                 title[i].setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
@@ -3356,9 +3463,149 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
     @Override
     public boolean isSwipeBackEnabled(MotionEvent event) {
+        if (event != null && monetizationLayout != null && viewPagerFixed != null
+                && viewPagerFixed.getCurrentView() == monetizationLayout
+                && monetizationLayout.isTransactionTouch(
+                        event.getX() - viewPagerFixed.getX() - monetizationLayout.getX(),
+                        event.getY() - viewPagerFixed.getY() - monetizationLayout.getY())) {
+            return false;
+        }
         if (viewPagerFixed != null && (viewPagerFixed.currentPosition != 0 || viewPagerFixed.currentProgress != 1f)) {
             return false;
         }
         return super.isSwipeBackEnabled(event);
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        checkUi_listPaddings();
+    }
+
+    private void updateHeaderOverlayHeight() {
+        if (listTopOverlay == null) return;
+        int height = mSystemInsets.top + ActionBar.getCurrentActionBarHeight() + dp(44);
+        ViewGroup.LayoutParams params = listTopOverlay.getLayoutParams();
+        if (params.height != height) {
+            params.height = height;
+            listTopOverlay.setLayoutParams(params);
+        }
+        updateHeaderOverlayPosition();
+    }
+
+    private void updateHeaderOverlayPosition() {
+        if (listTopOverlay == null || transactionTabsOverlay == null) return;
+        float visibleFraction = 0f;
+        boolean visible = monetizationLayout != null && monetizationLayout.getParent() == viewPagerFixed
+                && monetizationLayout.isTransactionTabsOverlayVisible();
+        if (visible) {
+            float pageX = monetizationLayout.getX();
+            float pageWidth = monetizationLayout.getWidth();
+            float visibleWidth = Math.max(0f, Math.min(viewPagerFixed.getWidth(), pageX + pageWidth)
+                    - Math.max(0f, pageX));
+            visibleFraction = pageWidth > 0f ? visibleWidth / pageWidth : 0f;
+            transactionTabsOverlay.setTranslationX(viewPagerFixed.getX() + pageX);
+            transactionTabsOverlay.setTranslationY(viewPagerFixed.getY() + monetizationLayout.getY());
+        }
+        transactionTabsOverlay.setVisibility(visible && visibleFraction > 0f ? View.VISIBLE : View.INVISIBLE);
+        float pinnedFactor = tabsPinnedAnimator == null ? 0f : tabsPinnedAnimator.getFloatValue();
+        listTopOverlay.setTranslationY(-(1f - pinnedFactor * visibleFraction) * dp(44));
+    }
+
+    private void checkUi_listPaddings() {
+        int pt = ActionBar.getCurrentActionBarHeight();
+        updateHeaderOverlayHeight();
+        int pb = showTabs ? AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
+        AndroidUtilities.setViewLayoutMargins(avatarContainer.avatarImageView, 0, mSystemInsets.top + ((ActionBar.getCurrentActionBarHeight() - AndroidUtilities.dp(42.0f)) / 2), AndroidUtilities.dp(6.0f), 0);
+        tabsViewWrapper.setPadding(0, 0, 0, mSystemInsets.bottom);
+        if (recyclerListView != null) {
+            BaseFragmentSimpleGlass.setListViewParams(recyclerListView, mSystemInsets.top, mSystemInsets.bottom, pt, pb);
+        }
+        if (boostLayout != null) {
+            BaseFragmentSimpleGlass.setListViewParams(boostLayout.listView, mSystemInsets.top, mSystemInsets.bottom, pt, pb);
+        }
+        if (monetizationLayout != null) {
+            monetizationLayout.setScreenInsets(mSystemInsets.top, mSystemInsets.bottom, pb);
+        }
+    }
+
+    public void selectTab(int position, boolean animated) {
+        for (int a = 0; a < tabs.length; a++) {
+            GlassTabView tab = tabs[a];
+            tab.setSelected(a == position, animated);
+        }
+    }
+
+    public void setGestureSelectedOverride(float animatedPosition, boolean allow) {
+        for (int index = 0; index < tabs.length; index++) {
+            final float visibility = Math.max(0, 1f - Math.abs(index - animatedPosition));
+            tabs[index].setGestureSelectedOverride(visibility, allow);
+        }
+        tabsView.invalidate();
+    }
+
+    @Override
+    public void onThemeColorsChanged() {
+        try {
+            super.onThemeColorsChanged();
+            if (avatarContainer != null) avatarContainer.setTitleColors(Theme.getColor(Theme.key_player_actionBarTitle), Theme.getColor(Theme.key_player_actionBarSubtitle));
+            themeDelegateThemeColors();
+    
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void themeDelegateThemeColors() {
+        if (recyclerListView != null) {
+            int count = recyclerListView.getChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(recyclerListView.getChildAt(a));
+            }
+            count = recyclerListView.getHiddenChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(recyclerListView.getHiddenChildAt(a));
+            }
+            count = recyclerListView.getCachedChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(recyclerListView.getCachedChildAt(a));
+            }
+            count = recyclerListView.getAttachedScrapChildCount();
+            for (int a = 0; a < count; a++) {
+                recolorRecyclerItem(recyclerListView.getAttachedScrapChildAt(a));
+            }
+            recyclerListView.getRecycledViewPool().clear();
+        }
+        if (sharedUi != null) {
+            sharedUi.invalidate();
+        }
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_text_RedRegular);
+        keys.add(Theme.key_windowBackgroundWhiteBlueIcon);
+        keys.add(Theme.key_windowBackgroundWhiteBlueButton);
+        keys.add(Theme.key_windowBackgroundWhiteGrayIcon);
+        keys.add(Theme.key_windowBackgroundWhiteBlackText);
+        keys.add(Theme.key_statisticChartLineEmpty);
+        keys.add(Theme.key_windowBackgroundWhiteGreenText2);
+        keys.add(Theme.key_windowBackgroundGrayShadow);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText2);
+        keys.add(Theme.key_dialogBackground);
+        keys.add(Theme.key_statisticChartActivePickerChart);
+        keys.add(Theme.key_statisticChartInactivePickerChart);
+        keys.add(Theme.key_statisticChartActiveLine);
+        keys.add(Theme.key_statisticChartHintLine);
+        keys.add(Theme.key_statisticChartSignatureAlpha);
+        keys.add(Theme.key_statisticChartSignature);
+        keys.add(Theme.key_dialogTextBlack);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText3);
     }
 }

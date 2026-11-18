@@ -26,8 +26,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import android.util.StateSet;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -38,7 +36,15 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.BaseCell;
 
-public class Switch extends View {
+import me.vkryl.android.animator.BoolAnimator;
+
+public class Switch extends View implements Theme.Colorable {
+
+    @Override
+    public void updateColors() {
+        colorSet = 0; // the ripple color is re-read from the theme on the next press
+    }
+    private final BoolAnimator animatorIconVisibility = new BoolAnimator(this, CubicBezierInterpolator.EASE_OUT_QUINT, 380L, true);
 
     private RectF rectF;
 
@@ -304,6 +310,10 @@ public class Switch extends View {
         invalidate();
     }
 
+    public void setIconVisible(boolean visible, boolean animated) {
+        animatorIconVisibility.setValue(visible, animated);
+    }
+
     public void setDrawIconType(int iconType, boolean animated) {
         if (drawIconType != iconType) {
             drawIconType = iconType;
@@ -378,18 +388,6 @@ public class Switch extends View {
         float y = (getMeasuredHeight() - AndroidUtilities.dpf2(14)) / 2;
         int tx = x + AndroidUtilities.dp(7) + (int) (AndroidUtilities.dp(17) * progress);
         int ty = getMeasuredHeight() / 2;
-        // MurkaGram: MD3 — трек-«пилюля» 52x32dp (ячейки расширяют Switch через MurkaMD3.switchWidth()),
-        // круг 8dp в выключенном состоянии и 12dp во включённом; в узких контейнерах трек сжимается
-        final boolean md3 = MurkaMD3.switchStyle(); // MurkaGram: «Переключатели в стиле MD3»
-        final float md3TrackW = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_W), getMeasuredWidth());
-        final float md3TrackH = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_H), Math.min(getMeasuredHeight(), md3TrackW * 0.6f));
-        final float md3Left = (getMeasuredWidth() - md3TrackW) / 2f;
-        final float md3Top = (getMeasuredHeight() - md3TrackH) / 2f;
-        final float md3ThumbROn = Math.max(1, md3TrackH / 2f - md3TrackH / 8f);
-        final float md3ThumbR = Math.max(1, md3ThumbROn * (0.667f + 0.333f * progress));
-        if (md3) {
-            tx = Math.round(md3Left + md3TrackH / 2f + (md3TrackW - md3TrackH) * progress);
-        }
 
 
         int color1;
@@ -452,14 +450,9 @@ public class Switch extends View {
             paint.setColor(color);
             paint2.setColor(color);
 
-            if (md3) { // MurkaGram: MD3 — сплошной трек без «выступающего» круга
-                rectF.set(md3Left, md3Top, md3Left + md3TrackW, md3Top + md3TrackH);
-                canvasToDraw.drawRoundRect(rectF, md3TrackH / 2f, md3TrackH / 2f, paint);
-            } else {
-                rectF.set(x, y, x + width, y + AndroidUtilities.dpf2(14));
-                canvasToDraw.drawRoundRect(rectF, AndroidUtilities.dpf2(7), AndroidUtilities.dpf2(7), paint);
-                canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dpf2(10), paint);
-            }
+            rectF.set(x, y, x + width, y + AndroidUtilities.dpf2(14));
+            canvasToDraw.drawRoundRect(rectF, AndroidUtilities.dpf2(7), AndroidUtilities.dpf2(7), paint);
+            canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dpf2(10), paint);
 
             if (a == 0 && rippleDrawable != null) {
                 rippleDrawable.setBounds(tx - AndroidUtilities.dp(18), ty - AndroidUtilities.dp(18), tx + AndroidUtilities.dp(18), ty + AndroidUtilities.dp(18));
@@ -506,17 +499,23 @@ public class Switch extends View {
             alpha = (int) (a1 + (a2 - a1) * colorProgress);
             paint.setColor(((alpha & 0xff) << 24) | ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff));
 
-            canvasToDraw.drawCircle(tx, ty, md3 ? md3ThumbR : AndroidUtilities.dp(8), paint); // MurkaGram: MD3
+            canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dp(8), paint);
 
             if (a == 0) {
-                final int murkaSave = canvasToDraw.save(); // MurkaGram: MD3 — иконки уменьшаются вместе с кругом
-                if (md3) {
-                    final float sc = md3ThumbR / AndroidUtilities.dp(8);
-                    canvasToDraw.scale(sc, sc, tx, ty);
-                }
                 if (iconDrawable != null) {
-                    iconDrawable.setBounds(tx - iconDrawable.getIntrinsicWidth() / 2, ty - iconDrawable.getIntrinsicHeight() / 2, tx + iconDrawable.getIntrinsicWidth() / 2, ty + iconDrawable.getIntrinsicHeight() / 2);
-                    iconDrawable.draw(canvasToDraw);
+                    final float factor = animatorIconVisibility.getFloatValue();
+                    if (factor > 0) {
+                        final boolean needScale = factor < 1;
+                        if (needScale) {
+                            canvas.save();
+                            canvas.scale(factor, factor, tx, ty);
+                        }
+                        iconDrawable.setBounds(tx - iconDrawable.getIntrinsicWidth() / 2, ty - iconDrawable.getIntrinsicHeight() / 2, tx + iconDrawable.getIntrinsicWidth() / 2, ty + iconDrawable.getIntrinsicHeight() / 2);
+                        iconDrawable.draw(canvasToDraw);
+                        if (needScale) {
+                            canvas.restore();
+                        }
+                    }
                 } else if (drawIconType == 1) {
                     tx -= AndroidUtilities.dp(10.8f) - AndroidUtilities.dp(1.3f) * progress;
                     ty -= AndroidUtilities.dp(8.5f) - AndroidUtilities.dp(0.5f) * progress;
@@ -549,7 +548,6 @@ public class Switch extends View {
                     canvasToDraw.drawLine(tx, ty, tx + AndroidUtilities.dp(4), ty, paint2);
                     canvasToDraw.restore();
                 }
-                canvasToDraw.restoreToCount(murkaSave); // MurkaGram
             }
             if (a == 1) {
                 canvasToDraw.drawBitmap(overlayMaskBitmap, 0, 0, overlayMaskPaint);

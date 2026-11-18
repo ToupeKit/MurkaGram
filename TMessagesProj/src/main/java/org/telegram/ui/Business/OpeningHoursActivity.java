@@ -13,8 +13,10 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -22,16 +24,17 @@ import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.SimpleActionBarDoneButton;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.NotificationsCheckCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Components.BulletinFactory;
-import org.telegram.ui.Components.CircularProgressDrawable;
-import org.telegram.ui.Components.CrossfadeDrawable;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
@@ -49,19 +52,23 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
     private UniversalRecyclerView listView;
 
     private static final int done_button = 1;
-    private CrossfadeDrawable doneButtonDrawable;
-    private ActionBarMenuItem doneButton;
+    private SimpleActionBarDoneButton doneButton;
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
 
     @Override
     public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(getString(R.string.BusinessHours));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        setHasOwnBackground(true);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        simpleActionBar.setTitle(getString(R.string.BusinessHours));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
-                    if (onBackPressed()) {
+                    if (onBackPressed(true)) {
                         finishFragment();
                     }
                 } else if (id == done_button) {
@@ -70,16 +77,15 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
             }
         });
 
-        Drawable checkmark = context.getResources().getDrawable(R.drawable.ic_ab_done).mutate();
-        checkmark.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_actionBarDefaultIcon), PorterDuff.Mode.MULTIPLY));
-        doneButtonDrawable = new CrossfadeDrawable(checkmark, new CircularProgressDrawable(Theme.getColor(Theme.key_actionBarDefaultIcon)));
-        doneButton = actionBar.createMenu().addItemWithWidth(done_button, doneButtonDrawable, AndroidUtilities.dp(56), LocaleController.getString(R.string.Done));
+        doneButton = simpleActionBar.createDoneButton(done_button, LocaleController.getString(R.string.Save));
         checkDone(false);
 
         FrameLayout contentView = new FrameLayout(context);
-        contentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, null);
+        listView.setSections();
+        listView.adapter.setApplyBackground(false);
+        listView.setSectionsDrawBackground(true);
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         setValue();
@@ -114,21 +120,14 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
     private void checkDone(boolean animated) {
         if (doneButton == null) return;
         final boolean hasChanges = hasChanges();
-        doneButton.setEnabled(hasChanges);
-        if (animated) {
-            doneButton.animate().alpha(hasChanges ? 1.0f : 0.0f).scaleX(hasChanges ? 1.0f : 0.0f).scaleY(hasChanges ? 1.0f : 0.0f).setDuration(180).start();
-        } else {
-            doneButton.setAlpha(hasChanges ? 1.0f : 0.0f);
-            doneButton.setScaleX(hasChanges ? 1.0f : 0.0f);
-            doneButton.setScaleY(hasChanges ? 1.0f : 0.0f);
-        }
+        doneButton.setActive(hasChanges, animated);
     }
 
     @Override
     public boolean onFragmentCreate() {
         TimezonesController.getInstance(currentAccount).load();
         timezoneId = TimezonesController.getInstance(currentAccount).getSystemTimezoneId();
-        getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.userInfoDidLoad);
         return super.onFragmentCreate();
     }
 
@@ -369,14 +368,14 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
     }
 
     private void processDone() {
-        if (doneButtonDrawable.getProgress() > 0f) return;
+        if (doneButton.isLoading()) return;
 
         if (!hasChanges()) {
             finishFragment();
             return;
         }
 
-        doneButtonDrawable.animateToProgress(1f);
+        doneButton.setLoading(true, true);
         TLRPC.UserFull userFull = getMessagesController().getUserFull(getUserConfig().getClientUserId());
         TL_account.updateBusinessWorkHours req = new TL_account.updateBusinessWorkHours();
         ArrayList<TL_account.TL_businessWeeklyOpen> periods = fromDaysHours(value);
@@ -401,11 +400,11 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
 
         getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
             if (err != null) {
-                doneButtonDrawable.animateToProgress(0f);
+                doneButton.setLoading(false, true);
                 BulletinFactory.showError(err);
             } else if (res instanceof TLRPC.TL_boolFalse) {
                 if (getContext() == null) return;
-                doneButtonDrawable.animateToProgress(0f);
+                doneButton.setLoading(false, true);
                 BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.UnknownError)).show();
             } else {
                 if (!isFinished && !finishing)
@@ -520,7 +519,7 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
     public static final int BUTTON_TIMEZONE = -2;
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        items.add(UItem.asTopView(getString(R.string.BusinessHoursInfo), R.raw.biz_clock));
+        items.add(UItem.asTopView(getString(R.string.BusinessHours), getString(R.string.BusinessHoursInfo), R.raw.biz_clock));
         items.add(UItem.asCheck(BUTTON_SHOW, getString(R.string.BusinessHoursShow)).setChecked(enabled));
         items.add(UItem.asShadow(-100, null));
         if (enabled) {
@@ -610,45 +609,14 @@ public class OpeningHoursActivity extends BaseFragment implements NotificationCe
         }
     }
 
-//    private class TimezonesBottomSheet extends BottomSheetWithRecyclerListView {
-//        private String currentTimezoneId;
-//        private Utilities.Callback<String> whenSelectedTimezone;
-//        public TimezonesBottomSheet(BaseFragment fragment, String timezoneId, Utilities.Callback<String> whenSelected) {
-//            super(fragment, false, false);
-//            currentTimezoneId = timezoneId;
-//            whenSelectedTimezone = whenSelected;
-//            listView.setOnItemClickListener((view, position) -> {
-//                position -= 2;
-//                TimezonesController timezonesController = TimezonesController.getInstance(currentAccount);
-//                ArrayList<TLRPC.TL_timezone> timezones = timezonesController.getTimezones();
-//                if (position >= 0 && position < timezones.size()) {
-//                    if (whenSelectedTimezone != null) {
-//                        whenSelectedTimezone.run(timezones.get(position).id);
-//                    }
-//                    dismiss();
-//                }
-//            });
-//        }
-//
-//        @Override
-//        protected CharSequence getTitle() {
-//            return getString(R.string.BusinessHoursTimezonePicker);
-//        }
-//
-//        @Override
-//        protected RecyclerListView.SelectionAdapter createAdapter() {
-//            return new UniversalAdapter(getContext(), currentAccount, this::fillItems, getResourceProvider());
-//        }
-//
-//        private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-//            items.add(UItem.asHeader(getString(R.string.BusinessHoursTimezonePicker)));
-//
-//            TimezonesController timezonesController = TimezonesController.getInstance(currentAccount);
-//            ArrayList<TLRPC.TL_timezone> timezones = timezonesController.getTimezones();
-//            for (int i = 0; i < timezones.size(); ++i) {
-//                items.add(UItem.asCheck(i, timezonesController.getTimezoneName(timezones.get(i), true)).setChecked(TextUtils.equals(currentTimezoneId, timezones.get(i).id)));
-//            }
-//        }
-//    }
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
 
+    @Nullable
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
 }

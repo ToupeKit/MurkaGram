@@ -1,5 +1,7 @@
 package org.telegram.ui;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
 import android.content.Context;
 import android.text.TextUtils;
 import android.view.View;
@@ -7,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -21,6 +24,7 @@ import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
@@ -44,11 +48,17 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
     private int shiftDp = -3;
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(LocaleController.getString(R.string.ArchiveSettings));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        setHasOwnBackground(true);
+
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        simpleActionBar.setTitle(LocaleController.getString(R.string.ArchiveSettings));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -59,9 +69,9 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
 
         fragmentView = new FrameLayout(context);
         FrameLayout frameLayout = (FrameLayout) fragmentView;
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         listView = new RecyclerListView(context);
+        listView.setSections();
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
             @Override
             public boolean supportsPredictiveItemAnimations() {
@@ -69,6 +79,7 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
             }
         });
         listView.setVerticalScrollBarEnabled(false);
+        listView.setSectionsDrawBackground(true);
         listView.setLayoutAnimation(null);
         listView.setAdapter(adapter = new ListAdapter());
         DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
@@ -98,7 +109,7 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
                         presentFragment(new PremiumPreviewFragment("settings"));
                     }));
                     layout.textView.setSingleLine(false);
-                    layout.textView.setPadding(0, AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4));
+                    layout.textView.setPadding(0, dp(4), 0, dp(4));
                     layout.imageView.setImageResource(R.drawable.msg_settings_premium);
                     Bulletin.make(this, layout, 3500).show();
 
@@ -183,10 +194,8 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
             View view;
             if (viewType == VIEW_TYPE_HEADER) {
                 view = new HeaderCell(getContext());
-                view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
             } else if (viewType == VIEW_TYPE_CHECK) {
                 view = new TextCheckCell(getContext());
-                view.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
             } else {
                 view = new TextInfoPrivacyCell(getContext());
             }
@@ -210,11 +219,6 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
                 } else {
                     cell.setFixedSize(0);
                     cell.setText(item.text);
-                }
-                if (divider) {
-                    cell.setBackground(Theme.getThemedDrawableByKey(getContext(), R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
-                } else {
-                    cell.setBackground(Theme.getThemedDrawableByKey(getContext(), R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow));
                 }
             } else if (holder.getItemViewType() == VIEW_TYPE_CHECK) {
                 TextCheckCell cell = (TextCheckCell) holder.itemView;
@@ -256,7 +260,7 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
 
     @Override
     public boolean onFragmentCreate() {
-        getNotificationCenter().addObserver(this, NotificationCenter.privacyRulesUpdated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.privacyRulesUpdated);
         return super.onFragmentCreate();
     }
 
@@ -301,5 +305,16 @@ public class ArchiveSettingsActivity extends BaseFragment implements Notificatio
         } else if (id == NotificationCenter.dialogFiltersUpdated) {
             updateItems(true);
         }
+    }
+
+    @Nullable
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
     }
 }

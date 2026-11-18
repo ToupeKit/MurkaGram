@@ -39,6 +39,7 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
@@ -107,7 +108,11 @@ public class ForumUtilities {
         }
         if (forumTopic.id == 1) {
             backupImageView.setAnimatedEmojiDrawable(null);
-            backupImageView.setImageDrawable(createGeneralTopicDrawable(backupImageView.getContext(), 0.75f, Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider), false, largeIcon));
+            final GeneralTopicDrawable generalDrawable = createGeneralTopicDrawable(backupImageView.getContext(), 0.75f, Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider), false, largeIcon);
+            backupImageView.setImageDrawable(generalDrawable);
+            if (generalDrawable != null) {
+                ThemeBind.drawableColorFilter(backupImageView, generalDrawable, Theme.key_actionBarDefaultIcon, resourcesProvider, PorterDuff.Mode.MULTIPLY);
+            }
         } else if (forumTopic.icon_emoji_id != 0) {
             backupImageView.setImageDrawable(null);
             if (backupImageView.animatedEmojiDrawable == null || forumTopic.icon_emoji_id != backupImageView.animatedEmojiDrawable.getDocumentId()) {
@@ -118,6 +123,26 @@ public class ForumUtilities {
         } else {
             backupImageView.setAnimatedEmojiDrawable(null);
             backupImageView.setImageDrawable(createTopicDrawable(forumTopic, false));
+        }
+    }
+    public static void setTopicIcon(Context context, ImageReceiver imageReceiver, TLRPC.TL_forumTopic forumTopic, boolean actionBar, boolean largeIcon, Theme.ResourcesProvider resourcesProvider) {
+        if (forumTopic == null || imageReceiver == null) {
+            return;
+        }
+        if (forumTopic.id == 1) {
+            final GeneralTopicDrawable generalDrawable = createGeneralTopicDrawable(context, 0.75f, Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider), false, largeIcon);
+            imageReceiver.setImageBitmap(generalDrawable);
+            if (generalDrawable != null && imageReceiver.getParentView() != null) {
+                ThemeBind.drawableColorFilter(imageReceiver.getParentView(), generalDrawable, Theme.key_actionBarDefaultIcon, resourcesProvider, PorterDuff.Mode.MULTIPLY);
+            }
+        } else if (forumTopic.icon_emoji_id != 0) {
+            if (imageReceiver.getImageDrawable() == null || !(imageReceiver.getImageDrawable() instanceof AnimatedEmojiDrawable) || forumTopic.icon_emoji_id != ((AnimatedEmojiDrawable) imageReceiver.getDrawable()).getDocumentId()) {
+                final AnimatedEmojiDrawable drawable = new AnimatedEmojiDrawable(largeIcon ? AnimatedEmojiDrawable.CACHE_TYPE_FORUM_TOPIC_LARGE : AnimatedEmojiDrawable.CACHE_TYPE_FORUM_TOPIC, UserConfig.selectedAccount, forumTopic.icon_emoji_id);
+                drawable.setColorFilter(actionBar ? new PorterDuffColorFilter(Theme.getColor(Theme.key_actionBarDefaultTitle), PorterDuff.Mode.SRC_IN) : Theme.getAnimatedEmojiColorFilter(resourcesProvider));
+                imageReceiver.setImageBitmap(drawable);
+            }
+        } else {
+            imageReceiver.setImageBitmap(createTopicDrawable(forumTopic, false));
         }
     }
 
@@ -202,6 +227,12 @@ public class ForumUtilities {
         @Override
         public void setColorFilter(@Nullable ColorFilter colorFilter) {
             icon.setColorFilter(colorFilter);
+        }
+
+        @Nullable
+        @Override
+        public ColorFilter getColorFilter() {
+            return icon != null ? icon.getColorFilter() : null;
         }
 
         @Override

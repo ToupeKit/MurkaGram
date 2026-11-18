@@ -56,11 +56,13 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BottomSheetTabs;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.Text;
 import org.telegram.ui.Components.UItem;
@@ -72,6 +74,7 @@ import java.net.URLDecoder;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 
 public class AddressBarList extends FrameLayout {
 
@@ -162,6 +165,7 @@ public class AddressBarList extends FrameLayout {
 
         setColors(Theme.getColor(Theme.key_iv_background), AndroidUtilities.computePerceivedBrightness(Theme.getColor(Theme.key_iv_background)) >= .721f ? Color.BLACK : Color.WHITE);
         setOpenProgress(0f);
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
     }
 
     private void clearRecentSearches(View view) {
@@ -287,6 +291,12 @@ public class AddressBarList extends FrameLayout {
 //                child.setAlpha(alpha);
 //                child.setTranslationY(-dp(Math.min(48, 8 + 6 * i)) * (1 - alpha));
 //            }
+            int desired = progress <= 0.0001f
+                ? IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                : IMPORTANT_FOR_ACCESSIBILITY_AUTO;
+            if (getImportantForAccessibility() != desired) {
+                setImportantForAccessibility(desired);
+            }
             invalidate();
         }
     }
@@ -595,7 +605,7 @@ public class AddressBarList extends FrameLayout {
         public static class Factory extends UItem.UItemFactory<Address2View> {
             static { setup(new Factory()); }
             @Override
-            public Address2View createView(Context context, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            public Address2View createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
                 return new Address2View(context);
             }
 
@@ -704,6 +714,11 @@ public class AddressBarList extends FrameLayout {
             setColors(backgroundColor, textColor);
             dividerPaint.setColor(Theme.multAlpha(textColor, .1f));
             iconView.invalidate();
+        }
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_windowBackgroundWhite);
+            colors.add(Theme.key_windowBackgroundWhiteBlackText);
         }
 
         private int textColor;
@@ -900,7 +915,7 @@ public class AddressBarList extends FrameLayout {
         public static class Factory extends UItem.UItemFactory<BookmarkView> {
             static { setup(new Factory()); }
             @Override
-            public BookmarkView createView(Context context, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
+            public BookmarkView createView(Context context, RecyclerListView listView, int currentAccount, int classGuid, Theme.ResourcesProvider resourcesProvider) {
                 return new BookmarkView(context, resourcesProvider);
             }
 
@@ -1082,8 +1097,8 @@ public class AddressBarList extends FrameLayout {
         public void attach() {
             if (attached) return;
             attached = true;
-            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.mediaDidLoad);
-            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.bookmarkAdded);
+            NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.mediaDidLoad);
+            NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.bookmarkAdded);
             if (TextUtils.isEmpty(query)) {
                 load();
             }

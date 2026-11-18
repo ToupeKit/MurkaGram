@@ -21,8 +21,6 @@ import android.content.IntentFilter;
 import android.database.Cursor;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
@@ -69,6 +67,7 @@ import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Adapters.FiltersView;
 import org.telegram.ui.Cells.GraySectionCell;
@@ -133,8 +132,6 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     private FlickerLoadingView loadingView;
 
     private boolean sendPressed;
-
-    private boolean ignoreLayout;
 
     private StickerEmptyView emptyView;
     private float additionalTranslationY;
@@ -229,7 +226,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         }
 
         ActionBarMenu menu = parentAlert.actionBar.createMenu();
-        searchItem = menu.addItem(search_button, R.drawable.ic_ab_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+        searchItem = menu.addItem(search_button, R.drawable.outline_header_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
             @Override
             public void onSearchExpand() {
                 searching = true;
@@ -263,9 +260,9 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         searchItem.setSearchFieldHint(LocaleController.getString(R.string.Search));
         searchItem.setContentDescription(LocaleController.getString(R.string.Search));
         EditTextBoldCursor editText = searchItem.getSearchField();
-        editText.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
-        editText.setCursorColor(getThemedColor(Theme.key_dialogTextBlack));
-        editText.setHintTextColor(getThemedColor(Theme.key_chat_messagePanelHint));
+        ThemeBind.textColor(editText, Theme.key_dialogTextBlack, resourcesProvider);
+        ThemeBind.cursorColor(editText, Theme.key_dialogTextBlack, resourcesProvider);
+        ThemeBind.hintTextColor(editText, Theme.key_chat_messagePanelHint, resourcesProvider);
 
         sortItem = menu.addItem(sort_button, sortByName ? R.drawable.msg_contacts_time : R.drawable.msg_contacts_name);
         sortItem.setContentDescription(LocaleController.getString(R.string.AccDescrContactSorting));
@@ -317,7 +314,6 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         backgroundListView.setLayoutManager(backgroundLayoutManager = new FillLastLinearLayoutManager(context, LinearLayoutManager.VERTICAL, false, AndroidUtilities.dp(56), backgroundListView));
         backgroundListView.setClipToPadding(false);
         backgroundListView.setAdapter(backgroundListAdapter = new ListAdapter(context));
-        backgroundListView.setPadding(0, 0, 0, AndroidUtilities.dp(48));
         addView(backgroundListView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         backgroundListView.setVisibility(View.GONE);
 
@@ -340,16 +336,21 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
 
             }
         };
+        listView.setSections();
+        setBlur3Capture(listView);
+        iBlur3CaptureView = listView;
+        occupyStatusBar = true;
+        occupyNavigationBar = true;
         listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_DATE);
         listView.setVerticalScrollBarEnabled(false);
-        listView.setLayoutManager(layoutManager = new FillLastLinearLayoutManager(context, LinearLayoutManager.VERTICAL, false, AndroidUtilities.dp(56), listView) {
+        listView.setLayoutManager(layoutManager = new FillLastLinearLayoutManager(context, LinearLayoutManager.VERTICAL, false, AndroidUtilities.dp(56) + AndroidUtilities.statusBarHeight, listView) {
             @Override
             public void smoothScrollToPosition(RecyclerView recyclerView, RecyclerView.State state, int position) {
                 LinearSmoothScroller linearSmoothScroller = new LinearSmoothScroller(recyclerView.getContext()) {
                     @Override
                     public int calculateDyToMakeVisible(View view, int snapPreference) {
                         int dy = super.calculateDyToMakeVisible(view, snapPreference);
-                        dy -= (listView.getPaddingTop() - AndroidUtilities.dp(56));
+                        dy -= (listView.getPaddingTop() - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(56));
                         return dy;
                     }
 
@@ -364,7 +365,6 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         });
         listView.setClipToPadding(false);
         listView.setAdapter(listAdapter);
-        listView.setPadding(0, 0, 0, AndroidUtilities.dp(48));
         addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         searchAdapter = new SearchAdapter(context);
 
@@ -394,8 +394,11 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     int top = parentAlert.scrollOffsetY[0] - backgroundPaddingTop - offset;
                     if (top + backgroundPaddingTop < ActionBar.getCurrentActionBarHeight()) {
                         RecyclerListView.Holder holder = (RecyclerListView.Holder) listView.findViewHolderForAdapterPosition(0);
-                        if (holder != null && holder.itemView.getTop() > AndroidUtilities.dp(56)) {
-                            listView.smoothScrollBy(0, holder.itemView.getTop() - AndroidUtilities.dp(56));
+                        if (holder != null) {
+                            final int dy = holder.itemView.getTop() - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(56);
+                            if (dy > 0) {
+                                listView.smoothScrollBy(0, dy);
+                            }
                         }
                     }
                 }
@@ -421,6 +424,9 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     isExternalStorageManager = Environment.isExternalStorageManager();
                 }
                 if (!BuildVars.NO_SCOPED_STORAGE && (item.icon == R.drawable.files_storage || item.icon == R.drawable.files_internal) && !isExternalStorageManager) {
+                    if (!parentAlert.checkEditingCaptionLimit()) {
+                        return;
+                    }
                     delegate.startDocumentSelectActivity();
                 } else if (file == null) {
                     if (item.icon == R.drawable.files_gallery) {
@@ -522,8 +528,8 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
             filtersView.cancelClickRunnables(true);
             searchAdapter.addSearchFilter(filtersView.getFilterAt(position));
         });
-        filtersView.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
-        addView(filtersView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        ThemeBind.backgroundColor(filtersView, Theme.key_dialogBackground, resourcesProvider);
+        addView(filtersView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.TOP));
         filtersView.setTranslationY(-AndroidUtilities.dp(44));
         filtersView.setVisibility(INVISIBLE);
 
@@ -639,6 +645,17 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     }
 
     @Override
+    public void checkColors() {
+        try {
+            if (searchItem != null && searchItem.getSearchField() != null) {
+                searchItem.getSearchField().setCursorColor(getThemedColor(Theme.key_dialogTextBlack));
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    @Override
     public void onDestroy() {
         try {
             if (receiverRegistered) {
@@ -678,7 +695,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         }
         View child = listView.getChildAt(0);
         RecyclerListView.Holder holder = (RecyclerListView.Holder) listView.findContainingViewHolder(child);
-        int top = (int) child.getY() - AndroidUtilities.dp(8);
+        int top = (int) child.getY() - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(4) - AndroidUtilities.dp(8);
         int newOffset = top > 0 && holder != null && holder.getAdapterPosition() == 0 ? top : 0;
         if (top >= 0 && holder != null && holder.getAdapterPosition() == 0) {
             newOffset = top;
@@ -720,11 +737,8 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
             }
             parentAlert.setAllowNestedScroll(true);
         }
-        if (listView.getPaddingTop() != padding) {
-            ignoreLayout = true;
-            listView.setPadding(0, padding, 0, AndroidUtilities.dp(48));
-            ignoreLayout = false;
-        }
+        padding += AndroidUtilities.statusBarHeight;
+        listView.setPaddingWithoutRequestLayout(0, padding, 0, listPaddingBottom);
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) filtersView.getLayoutParams();
         layoutParams.topMargin = ActionBar.getCurrentActionBarHeight();
     }
@@ -732,14 +746,6 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     @Override
     public int getButtonsHideOffset() {
         return AndroidUtilities.dp(62);
-    }
-
-    @Override
-    public void requestLayout() {
-        if (ignoreLayout) {
-            return;
-        }
-        super.requestLayout();
     }
 
     @Override
@@ -837,6 +843,20 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         } else {
             return false;
         }
+
+        if (parentAlert.isPollAttach) {
+            if (selectedFiles.isEmpty() && selectedMessages.isEmpty() || delegate == null || sendPressed) {
+                return true;
+            }
+            final ArrayList<MessageObject> fmessages = new ArrayList<>();
+            for (FilteredSearchView.MessageHashId hashId : selectedMessages.keySet()) {
+                fmessages.add(selectedMessages.get(hashId));
+            }
+            final ArrayList<String> files = new ArrayList<>(selectedFilesOrder);
+            delegate.didSelectFiles(files, null, null, fmessages, false, 0, 0, 0, false, 0);
+            return true;
+        }
+
         if (view instanceof SharedDocumentCell) {
             ((SharedDocumentCell) view).setChecked(add, true);
         }
@@ -1356,7 +1376,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
             FileLog.e(e);
         }
 
-        if (!isSoundPicker) {
+        if (!isSoundPicker && (parentAlert == null || !parentAlert.isPollAttach)) {
             fs = new ListItem();
             fs.title = LocaleController.getString(R.string.Gallery);
             fs.subtitle = LocaleController.getString(R.string.GalleryInfo);
@@ -1464,14 +1484,15 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     break;
                 case 2:
                     view = new ShadowSectionCell(mContext);
-                    Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
-                    CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
-                    combinedDrawable.setFullsize(true);
-                    view.setBackgroundDrawable(combinedDrawable);
+                    // Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
+                    // CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
+                    // combinedDrawable.setFullsize(true);
+                    // view.setBackgroundDrawable(combinedDrawable);
                     break;
                 case 3:
                 default:
                     view = new View(mContext);
+                    view.setTag(RecyclerListView.TAG_NOT_SECTION);
                     break;
             }
             return new RecyclerListView.Holder(view);
@@ -2152,6 +2173,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                 case 3:
                 default:
                     view = new View(mContext);
+                    view.setTag(RecyclerListView.TAG_NOT_SECTION);
                     break;
             }
             view.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));

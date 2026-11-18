@@ -69,6 +69,7 @@ public class GroupColorActivity extends ChannelColorActivity {
     protected void updateRows() {
         rowsCount = 0;
         profilePreviewRow = rowsCount++;
+        emptyRow = rowsCount++;
         profileColorGridRow = rowsCount++;
         profileEmojiRow = rowsCount++;
         if (selectedProfileEmoji != 0 || selectedProfileColor >= 0) {
@@ -167,7 +168,7 @@ public class GroupColorActivity extends ChannelColorActivity {
     @Override
     public View createView(Context context) {
         View view = super.createView(context);
-        updateColors();
+        updateColors(false);
 
         actionBar.setAddToContainer(false);
         actionBar.setTitle("");
@@ -256,6 +257,8 @@ public class GroupColorActivity extends ChannelColorActivity {
                 }
             }
         });
+
+        listView.setSections(true);
     }
 
     protected void openBoostDialog(int type) {
@@ -289,17 +292,35 @@ public class GroupColorActivity extends ChannelColorActivity {
     }
 
     @Override
-    public void updateColors() {
-        super.updateColors();
+    protected void applyThemeColors() {
+        applyActionBarThemeColors();
+        if (listView != null) {
+            listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        }
+        // buttonContainer: recolor the fill of the combined background set by updateColors in place
+        if (buttonContainer != null && buttonContainer.getBackground() instanceof CombinedDrawable) {
+            final Drawable background = ((CombinedDrawable) buttonContainer.getBackground()).getBackgroundDrawable();
+            if (background instanceof ColorDrawable) {
+                ((ColorDrawable) background).setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourceProvider));
+                buttonContainer.invalidate();
+            }
+        }
+    }
+
+    @Override
+    public void updateColors(boolean onlyActionBar) {
+        super.updateColors(onlyActionBar);
         actionBar.setBackgroundColor(Color.TRANSPARENT);
         Drawable shadowDrawable = Theme.getThemedDrawableByKey(getContext(), R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow);
         Drawable background = new ColorDrawable(Theme.getColor(Theme.key_windowBackgroundWhite, resourceProvider));
         CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
         combinedDrawable.setFullsize(true);
         buttonContainer.setBackground(combinedDrawable);
-        if (profilePreview != null) {
+        listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        if (profilePreview != null && !onlyActionBar) {
             profilePreview.backgroundView.setColor(currentAccount, selectedProfileColor, false);
             profilePreview.profileView.setColor(selectedProfileColor, false);
+            profilePreview.updateColors();
         }
     }
 
@@ -324,7 +345,7 @@ public class GroupColorActivity extends ChannelColorActivity {
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.chatInfoDidLoad);
+        NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.chatInfoDidLoad);
         return super.onFragmentCreate();
     }
 

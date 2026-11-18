@@ -6,12 +6,10 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
 import android.graphics.BlendMode;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrixColorFilter;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -57,10 +55,8 @@ public class ProfileGooeyView extends FrameLayout {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_AVERAGE) {
             impl = new GPUImpl(SharedConfig.getDevicePerformanceClass() == SharedConfig.PERFORMANCE_CLASS_HIGH ? 1f : 1.5f);
-        } else if (SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_HIGH) {
-            impl = new CPUImpl();
         } else {
-            impl = new NoopImpl();
+            impl = new CPUImpl();
         }
         setIntensity(15f);
         setBlurIntensity(0f);
@@ -91,6 +87,33 @@ public class ProfileGooeyView extends FrameLayout {
 
     public boolean hasNotchInfo() {
         return notchInfo != null;
+    }
+
+    /** Size of a hiding avatar, dp, when it has gone into the camera cutout. */
+    public float getHiddenAvatarSizeDp() {
+        if (notchInfo != null && notchInfo.isLikelyCircle) {
+            return 0.5f * notchInfo.bounds.width() / AndroidUtilities.density;
+        }
+        return 24f;
+    }
+
+    /** Y of the center of a round camera cutout, where a hiding avatar goes; {@code fallback} without one. */
+    public float getHiddenAvatarCenterY(float fallback) {
+        if (notchInfo != null && notchInfo.isLikelyCircle) {
+            return notchInfo.bounds.centerY();
+        }
+        return fallback;
+    }
+
+    /**
+     * Hides the avatar (the first child, pivot at its top left corner) into the camera cutout:
+     * 0 shown, 1 gone. The caller moves and scales the avatar towards the cutout.
+     */
+    public void setHideProgress(float progress) {
+        setPullProgress(progress);
+        setBlurIntensity(Math.min((MathUtils.clamp(progress, 0.2f, 0.7f) - 0.2f) / 0.5f, 0.75f));
+        setGooeyEnabled(progress > 0 && progress < 1);
+        setVisibility(progress >= 1.0f ? View.GONE : View.VISIBLE);
     }
 
     public void setIntensity(float intensity) {
@@ -143,22 +166,6 @@ public class ProfileGooeyView extends FrameLayout {
         }, canvas);
     }
 
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        impl.release();
-    }
-
-    private final static class NoopImpl implements Impl {
-        @Override
-        public void draw(Drawer drawer, Canvas canvas) {
-            canvas.save();
-            canvas.translate(0, -dp(BLACK_KING_BAR));
-            drawer.draw(canvas);
-            canvas.restore();
-        }
-    }
-
     private final class CPUImpl implements Impl {
         private Bitmap bitmap;
         private Canvas bitmapCanvas;
@@ -169,7 +176,7 @@ public class ProfileGooeyView extends FrameLayout {
         private int optimizedW;
 
         private int bitmapOrigW, bitmapOrigH;
-        private final float scaleConst = 5f;
+        private final float scaleConst = 6f;
 
         {
             bitmapPaint.setFlags(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
@@ -189,6 +196,7 @@ public class ProfileGooeyView extends FrameLayout {
         public void onSizeChanged(int w, int h) {
             if (bitmap != null) {
                 bitmap.recycle();
+                bitmap = null;
             }
 
             optimizedW = Math.min(dp(120), w);
@@ -203,7 +211,7 @@ public class ProfileGooeyView extends FrameLayout {
 
         @Override
         public void draw(Drawer drawer, Canvas canvas) {
-            if (bitmap == null) return;
+            if (bitmap == null || bitmap.isRecycled()) return;
 
             final float v = (MathUtils.clamp(blurIntensity, 0.2f, 0.3f) - 0.2f) / (0.3f - 0.2f);
             final int alpha = (int) ((1f - v) * 0xFF);
@@ -270,13 +278,6 @@ public class ProfileGooeyView extends FrameLayout {
             }
 
             canvas.restore();
-        }
-
-        @Override
-        public void release() {
-            if (bitmap != null) {
-                bitmap.recycle();
-            }
         }
     }
 
@@ -514,7 +515,6 @@ public class ProfileGooeyView extends FrameLayout {
         default void setBlurIntensity(float intensity) {}
         default void onSizeChanged(int w, int h) {}
         void draw(Drawer drawer, Canvas canvas);
-        default void release() {}
     }
 
     private interface Drawer {

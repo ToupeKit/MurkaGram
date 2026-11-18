@@ -156,7 +156,7 @@ public class ChartHorizontalLinesData {
             }
             return StarsIntroActivity.replaceStarsWithPlain("XTR " + LocaleController.formatNumber(v, ' '), .65f);
         }
-        return AndroidUtilities.formatWholeNumberRaw((int) v, 0); // MurkaGram: оси графиков всегда с округлением
+        return AndroidUtilities.formatWholeNumber((int) v, 0);
     }
 
     public static long lookupHeight(long maxValue) {

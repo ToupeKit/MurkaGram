@@ -66,11 +66,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
     private Drawable leftDrawable;
     private Drawable rightDrawable;
     private Drawable rightDrawable2;
-    private Drawable murkaBadgesDrawable; // MurkaGram: «Бейджики» — третий правый слот, рисуется после rightDrawable2
-    // MurkaGram: «Бейджики» — где нарисованы (основная отрисовка и копия бегущей строки) и нажатие
-    private final Rect murkaBadgesRect = new Rect(), murkaBadgesRect2 = new Rect();
-    private MurkaBadgesClickListener murkaBadgesOnClick;
-    private boolean murkaBadgesMaybeClick;
     private Drawable replacedDrawable;
     private String replacedText;
     private int replacingDrawableTextIndex;
@@ -201,7 +196,10 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     public void setTextSize(int sizeInDp) {
-        int newSize = dp(sizeInDp);
+        setTextSizePx(dp(sizeInDp));
+    }
+
+    public void setTextSizePx(int newSize) {
         if (newSize == textPaint.getTextSize()) {
             return;
         }
@@ -231,6 +229,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
         scrollNonFitText = value;
         updateFadePaints();
         requestLayout();
+        checkUi_layerType();
     }
 
     public void setEllipsizeByGradient(boolean value) {
@@ -248,6 +247,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
         ellipsizeByGradient = value;
         this.forceEllipsizeByGradientLeft = forceLeft;
         updateFadePaints();
+        checkUi_layerType();
     }
 
     public void setEllipsizeByGradient(int value, Boolean forceLeft) {
@@ -316,10 +316,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
             int dw = (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale);
             size += dw + drawablePadding;
         }
-        if (murkaBadgesDrawable != null) { // MurkaGram
-            int dw = (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale);
-            size += dw + drawablePadding;
-        }
         return size;
     }
 
@@ -367,11 +363,9 @@ public class SimpleTextView extends View implements Drawable.Callback {
                 if (rightDrawable2 != null && !rightDrawableOutside) {
                     rightDrawableWidth += (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale);
                 }
-                if (murkaBadgesDrawable != null && !rightDrawableOutside) { // MurkaGram
-                    rightDrawableWidth += (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale);
-                }
             }
             textDoesNotFit = textWidth + rightDrawableWidth > (width - paddingRight);
+            checkUi_layerType();
 
             if (fullLayout != null && fullLayoutAdditionalWidth > 0) {
                 fullLayoutLeftCharactersOffset = fullLayout.getPrimaryHorizontal(0) - firstLineLayout.getPrimaryHorizontal(0);
@@ -407,12 +401,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
                     if (rightDrawable2 != null && !rightDrawableOutside) {
                         rightDrawableWidth += (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale);
                         width -= rightDrawableWidth;
-                        width -= drawablePadding;
-                    }
-                    if (murkaBadgesDrawable != null && !rightDrawableOutside) { // MurkaGram
-                        int badgesWidth = (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale);
-                        rightDrawableWidth += badgesWidth;
-                        width -= badgesWidth;
                         width -= drawablePadding;
                     }
                 }
@@ -523,8 +511,9 @@ public class SimpleTextView extends View implements Drawable.Callback {
             lastWidth = AndroidUtilities.displaySize.x;
             scrollingOffset = 0;
             currentScrollDelay = SCROLL_DELAY_MS;
+            checkUi_layerType();
         }
-        createLayout(width - getPaddingLeft() - getPaddingRight() - minusWidth - (leftDrawableOutside && leftDrawable != null ? leftDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && murkaBadgesDrawable != null ? murkaBadgesDrawable.getIntrinsicWidth() + drawablePadding : 0)); // MurkaGram: + бейджики
+        createLayout(width - getPaddingLeft() - getPaddingRight() - minusWidth - (leftDrawableOutside && leftDrawable != null ? leftDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0));
 
         int finalHeight;
         if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) {
@@ -534,7 +523,8 @@ public class SimpleTextView extends View implements Drawable.Callback {
         }
         if (widthWrapContent) {
 //            textWidth = (int) Math.ceil(layout.getLineWidth(0));
-            width = Math.min(width, getPaddingLeft() + textWidth + getPaddingRight() + minusWidth + (leftDrawableOutside && leftDrawable != null ? leftDrawable.getIntrinsicWidth() + drawablePadding : 0) + (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) + (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0) + (rightDrawableOutside && murkaBadgesDrawable != null ? murkaBadgesDrawable.getIntrinsicWidth() + drawablePadding : 0)); // MurkaGram: + бейджики
+            width = Math.min(width, getPaddingLeft() + textWidth + getPaddingRight() + minusWidth + (leftDrawableOutside && leftDrawable != null ? leftDrawable.getIntrinsicWidth() + drawablePadding : 0) + (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) + (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0));
+            width = Math.max(width, 0);
         }
         setMeasuredDimension(width, finalHeight);
 
@@ -551,7 +541,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     public int getTextWidth() {
-        return textWidth + (rightDrawableInside ? (rightDrawable != null ? (int) (rightDrawable.getIntrinsicWidth() * rightDrawableScale) : 0) + (rightDrawable2 != null ? (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale) : 0) + (murkaBadgesDrawable != null ? (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale) : 0) : 0); // MurkaGram: + бейджики
+        return textWidth + (rightDrawableInside ? (rightDrawable != null ? (int) (rightDrawable.getIntrinsicWidth() * rightDrawableScale) : 0) + (rightDrawable2 != null ? (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale) : 0) : 0);
     }
 
     public int getRightDrawableWidth() {
@@ -623,7 +613,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     @Override
     protected boolean verifyDrawable(@NonNull Drawable who) {
-        return who == rightDrawable || who == rightDrawable2 || who == murkaBadgesDrawable || who == leftDrawable || super.verifyDrawable(who); // MurkaGram: + бейджики
+        return who == rightDrawable || who == rightDrawable2 || who == leftDrawable || super.verifyDrawable(who);
     }
 
     public void replaceTextWithDrawable(Drawable drawable, String replacedText) {
@@ -695,93 +685,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
         return rightDrawable2;
     }
 
-    // MurkaGram: «Бейджики» — третий правый слот (после rightDrawable2), в клики по rightDrawable не входит
-    public boolean setMurkaBadgesDrawable(Drawable drawable) {
-        if (murkaBadgesDrawable == drawable) {
-            return false;
-        }
-        if (murkaBadgesDrawable != null) {
-            murkaBadgesDrawable.setCallback(null);
-        }
-        murkaBadgesDrawable = drawable;
-        if (drawable != null) {
-            drawable.setCallback(this);
-        }
-        if (!recreateLayoutMaybe()) {
-            invalidate();
-        }
-        return true;
-    }
-
-    public Drawable getMurkaBadgesDrawable() {
-        return murkaBadgesDrawable;
-    }
-
-    // MurkaGram: смещение бейджиков от позиции rightDrawable; пустой эмодзи-статус (SwapAnimatedEmojiDrawable) не учитываем, чтобы не было дырки
-    private int getMurkaBadgesShift() {
-        int x = 0;
-        // MurkaGram: rightDrawable2 всегда ставится после rightDrawable (даже пустого), поэтому пропускать пустой статус можно только без rightDrawable2
-        if (rightDrawable != null && (rightDrawable2 != null || !(rightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable && ((AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) rightDrawable).isEmpty()))) {
-            x += (int) (rightDrawable.getIntrinsicWidth() * rightDrawableScale) + drawablePadding;
-        }
-        if (rightDrawable2 != null) {
-            x += (int) (rightDrawable2.getIntrinsicWidth() * rightDrawableScale) + drawablePadding;
-        }
-        return x;
-    }
-
-    // MurkaGram: нарисовать бейджики с левым краем x; возвращает ширину
-    private int drawMurkaBadges(Canvas canvas, int x, boolean copy) {
-        int dw = (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale);
-        int dh = (int) (murkaBadgesDrawable.getIntrinsicHeight() * rightDrawableScale);
-        int y;
-        if ((gravity & Gravity.VERTICAL_GRAVITY_MASK) == Gravity.CENTER_VERTICAL) {
-            y = (getMeasuredHeight() - dh) / 2 + rightDrawableTopPadding;
-        } else {
-            y = getPaddingTop() + (textHeight - dh) / 2 + rightDrawableTopPadding;
-        }
-        murkaBadgesDrawable.setBounds(x, y, x + dw, y + dh);
-        (copy ? murkaBadgesRect2 : murkaBadgesRect).set(x, y, x + dw, y + dh);
-        murkaBadgesDrawable.draw(canvas);
-        return dw;
-    }
-
-    // MurkaGram: «Бейджики» — нажатие на бейджик
-    public interface MurkaBadgesClickListener {
-        void onClick(SimpleTextView view, Drawable badges, int index);
-    }
-
-    public void setMurkaBadgesOnClick(MurkaBadgesClickListener listener) {
-        murkaBadgesOnClick = listener;
-    }
-
-    public Rect getMurkaBadgesRect() {
-        return murkaBadgesRect;
-    }
-
-    // MurkaGram: индекс бейджика под точкой (локальные координаты вьюхи) или -1
-    public int getMurkaBadgeIndexAt(float x, float y) {
-        if (murkaBadgesDrawable == null || x < 0 || x > getWidth()) {
-            return -1;
-        }
-        Rect rect = null;
-        for (int i = 0; i < 2; i++) {
-            Rect r = i == 0 ? murkaBadgesRect : murkaBadgesRect2;
-            if (!r.isEmpty() && x >= r.left - dp(2) && x <= r.right + dp(2) && y >= r.top - dp(6) && y <= r.bottom + dp(6)) {
-                rect = r;
-                break;
-            }
-        }
-        if (rect == null) {
-            return -1;
-        }
-        if (!(murkaBadgesDrawable instanceof org.telegram.messenger.MurkaBadges.BadgesDrawable)) {
-            return 0;
-        }
-        float lx = Math.max(0, Math.min(rect.width(), x - rect.left));
-        return ((org.telegram.messenger.MurkaBadges.BadgesDrawable) murkaBadgesDrawable).indexAt(lx, rect.width());
-    }
-
     public void setRightDrawableScale(float scale) {
         rightDrawableScale = scale;
     }
@@ -807,10 +710,12 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     public void resetScrolling() {
         scrollingOffset = 0;
+        checkUi_layerType();
     }
 
     public void copyScrolling(SimpleTextView textView) {
         scrollingOffset = textView.scrollingOffset;
+        checkUi_layerType();
     }
 
     public void setDrawablePadding(int value) {
@@ -906,12 +811,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
                     width -= rightDrawableWidth;
                     width -= drawablePadding;
                 }
-                if (murkaBadgesDrawable != null && !rightDrawableOutside) { // MurkaGram
-                    int badgesWidth = (int) (murkaBadgesDrawable.getIntrinsicWidth() * rightDrawableScale);
-                    rightDrawableWidth += badgesWidth;
-                    width -= badgesWidth;
-                    width -= drawablePadding;
-                }
             }
             if (replacedText != null && replacedDrawable != null) {
                 if ((replacingDrawableTextIndex = text.toString().indexOf(replacedText)) < 0) {
@@ -933,21 +832,24 @@ public class SimpleTextView extends View implements Drawable.Callback {
         }
     }
 
+    private void checkUi_layerType() {
+        final boolean fade = scrollNonFitText && (textDoesNotFit || scrollingOffset != 0);
+        final boolean needHardwareLayer = fade || ellipsizeByGradient;
+        final int layerType = needHardwareLayer ? LAYER_TYPE_HARDWARE : LAYER_TYPE_NONE;
+        if (getLayerType() != layerType) {
+            setLayerType(layerType, null);
+            invalidate();
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        murkaBadgesRect.setEmpty(); // MurkaGram: «Бейджики» — не реагировать на старые координаты
-        murkaBadgesRect2.setEmpty();
         int textOffsetX = 0;
         layoutX = 0;
         layoutY = 0;
 
         boolean fade = scrollNonFitText && (textDoesNotFit || scrollingOffset != 0);
-        int restore = Integer.MIN_VALUE;
-        if (fade || ellipsizeByGradient) {
-            restore = canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(), 255, Canvas.ALL_SAVE_FLAG);
-        }
-
         totalWidth = textWidth;
         if (leftDrawable != null && !leftDrawableOutside) {
             int x = (int) -scrollingOffset;
@@ -1031,14 +933,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
             rightDrawable2.draw(canvas);
             totalWidth += drawablePadding + dw;
         }
-        if (murkaBadgesDrawable != null && !rightDrawableHidden && rightDrawableScale > 0 && !rightDrawableOutside && !rightDrawableInside) { // MurkaGram
-            int x = textOffsetX + textWidth + drawablePadding + (int) -scrollingOffset + getMurkaBadgesShift();
-            if ((gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.CENTER_HORIZONTAL ||
-                    (gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT) {
-                x += offsetX;
-            }
-            totalWidth += drawablePadding + drawMurkaBadges(canvas, x, false);
-        }
         int nextScrollX = totalWidth + dp(DIST_BETWEEN_SCROLLING_TEXT);
 
         if (scrollingOffset != 0) {
@@ -1083,9 +977,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
                 }
                 rightDrawable2.setBounds(x, y, x + dw, y + dh);
                 rightDrawable2.draw(canvas);
-            }
-            if (murkaBadgesDrawable != null && !rightDrawableOutside) { // MurkaGram
-                drawMurkaBadges(canvas, textOffsetX + textWidth + drawablePadding + (int) -scrollingOffset + nextScrollX + getMurkaBadgesShift(), true);
             }
         }
 
@@ -1183,14 +1074,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
                 rightDrawable2.draw(canvas);
                 totalWidth += drawablePadding + dw;
             }
-            if (murkaBadgesDrawable != null && !rightDrawableHidden && rightDrawableScale > 0 && !rightDrawableOutside && rightDrawableInside) { // MurkaGram
-                int x = textOffsetX + textWidth + drawablePadding + (int) -scrollingOffset + getMurkaBadgesShift();
-                if ((gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.CENTER_HORIZONTAL ||
-                        (gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT) {
-                    x += offsetX;
-                }
-                totalWidth += drawablePadding + drawMurkaBadges(canvas, x, false);
-            }
             if (fade) {
                 if (scrollingOffset < dp(10)) {
                     fadePaint.setAlpha((int) (255 * (scrollingOffset / dp(10))));
@@ -1219,9 +1102,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
             if (leftDrawableOutside || rightDrawableOutside || ellipsizeByGradient || paddingRight > 0) {
                 canvas.restore();
             }
-        }
-        if (fade || ellipsizeByGradient) {
-            canvas.restoreToCount(restore);
         }
 
         if (leftDrawable != null && leftDrawableOutside) {
@@ -1271,13 +1151,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
             rightDrawable2.setBounds(x, y, x + dw, y + dh);
             rightDrawable2.draw(canvas);
         }
-        if (murkaBadgesDrawable != null && rightDrawableOutside) { // MurkaGram
-            int x = Math.min(
-                    textOffsetX + textWidth + drawablePadding + (scrollingOffset == 0 ? -nextScrollX : (int) -scrollingOffset) + nextScrollX,
-                    getMaxTextWidth() - paddingRight + drawablePadding
-            );
-            drawMurkaBadges(canvas, x + getMurkaBadgesShift(), false);
-        }
     }
 
     public int getRightDrawableX() {
@@ -1289,13 +1162,20 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     public int getMaxTextWidth() {
-        return getMeasuredWidth() - (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && murkaBadgesDrawable != null ? murkaBadgesDrawable.getIntrinsicWidth() + drawablePadding : 0); // MurkaGram: + бейджики
+        return getMeasuredWidth() - (rightDrawableOutside && rightDrawable != null ? rightDrawable.getIntrinsicWidth() + drawablePadding : 0) - (rightDrawableOutside && rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() + drawablePadding : 0);
     }
 
     public float getExactWidth() {
         return getPaint().measureText(getText().toString())
                 + getSideDrawablesSize()
-                - (leftDrawable != null || rightDrawable != null || rightDrawable2 != null || murkaBadgesDrawable != null ? drawablePadding : 0); // MurkaGram: + бейджики
+                - (leftDrawable != null || rightDrawable != null || rightDrawable2 != null ? drawablePadding : 0);
+    }
+
+    public float getExactWidthIncludeDrawables() {
+        return getExactWidth()
+            + (leftDrawable != null ? leftDrawable.getIntrinsicWidth() : 0)
+            + (rightDrawable != null ? rightDrawable.getIntrinsicWidth() : 0)
+            + (rightDrawable2 != null ? rightDrawable2.getIntrinsicWidth() : 0);
     }
 
     private void drawLayout(Canvas canvas) {
@@ -1330,6 +1210,10 @@ public class SimpleTextView extends View implements Drawable.Callback {
     }
 
     private void clipOutSpoilers(Canvas canvas) {
+        if (spoilers.isEmpty()) {
+            // nothing to clip
+            return;
+        }
         path.rewind();
         for (SpoilerEffect eff : spoilers) {
             Rect b = eff.getBounds();
@@ -1371,6 +1255,7 @@ public class SimpleTextView extends View implements Drawable.Callback {
                 scrollingOffset = 0;
                 currentScrollDelay = SCROLL_DELAY_MS;
             }
+            checkUi_layerType();
         }
         invalidate();
     }
@@ -1383,8 +1268,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
             invalidate(rightDrawable.getBounds());
         } else if (who == rightDrawable2) {
             invalidate(rightDrawable2.getBounds());
-        } else if (who == murkaBadgesDrawable) { // MurkaGram
-            invalidate(murkaBadgesDrawable.getBounds());
         } else if (who == replacedDrawable) {
             invalidate(replacedDrawable.getBounds());
         }
@@ -1447,41 +1330,6 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // MurkaGram: «Бейджики» — нажатие на бейджик проверяется первым (точный прямоугольник важнее зоны статуса)
-        if (murkaBadgesOnClick != null && murkaBadgesDrawable != null) {
-            int action = event.getAction();
-            if (action == MotionEvent.ACTION_DOWN) {
-                murkaBadgesMaybeClick = false; // MurkaGram: сброс, если прошлый жест оборвался (например, бейджики убрали посреди нажатия)
-            }
-            if (action == MotionEvent.ACTION_DOWN && getMurkaBadgeIndexAt(event.getX(), event.getY()) >= 0) {
-                murkaBadgesMaybeClick = true;
-                touchDownX = event.getX();
-                touchDownY = event.getY();
-                if (getParent() != null) {
-                    getParent().requestDisallowInterceptTouchEvent(true);
-                }
-                return true;
-            } else if (action == MotionEvent.ACTION_MOVE && murkaBadgesMaybeClick) {
-                if (Math.abs(event.getX() - touchDownX) >= AndroidUtilities.touchSlop || Math.abs(event.getY() - touchDownY) >= AndroidUtilities.touchSlop) {
-                    murkaBadgesMaybeClick = false;
-                    if (getParent() != null) {
-                        getParent().requestDisallowInterceptTouchEvent(false);
-                    }
-                }
-            } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && murkaBadgesMaybeClick) {
-                murkaBadgesMaybeClick = false;
-                if (getParent() != null) {
-                    getParent().requestDisallowInterceptTouchEvent(false);
-                }
-                if (action == MotionEvent.ACTION_UP) {
-                    murkaBadgesOnClick.onClick(this, murkaBadgesDrawable, getMurkaBadgeIndexAt(touchDownX, touchDownY));
-                }
-                return true;
-            }
-            if (murkaBadgesMaybeClick) {
-                return true;
-            }
-        }
         if (rightDrawableOnClickListener != null && rightDrawable != null) {
             AndroidUtilities.rectTmp.set(rightDrawableX - dp(16), rightDrawableY - dp(16), rightDrawableX + dp(16), rightDrawableY + dp(16));
             if (event.getAction() == MotionEvent.ACTION_DOWN && AndroidUtilities.rectTmp.contains((int) event.getX(), (int) event.getY())) {

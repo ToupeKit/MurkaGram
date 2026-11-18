@@ -7,6 +7,8 @@ import android.view.Gravity;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
@@ -15,6 +17,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 
 import java.util.ArrayList;
 
@@ -77,9 +80,9 @@ public class AvatarConstructorPreviewCell extends FrameLayout {
         }
     };
 
-    public AvatarConstructorPreviewCell(Context context, boolean forUser) {
-        super(context);
-        this.forUser = forUser;
+    @NonNull
+    public static TLRPC.TL_emojiList getOrCreateEmojiList(int currentAccount, boolean forUser) {
+        TLRPC.TL_emojiList emojiList;
         if (forUser) {
             emojiList = MediaDataController.getInstance(currentAccount).profileAvatarConstructorDefault;
         } else {
@@ -111,8 +114,14 @@ public class AvatarConstructorPreviewCell extends FrameLayout {
                     }
                 }
             }
-
         }
+        return emojiList;
+    }
+
+    public AvatarConstructorPreviewCell(Context context, boolean forUser) {
+        super(context);
+        this.forUser = forUser;
+        this.emojiList = getOrCreateEmojiList(currentAccount, forUser);
         currentImage = new BackupImageView(context);
         nextImage = new BackupImageView(context);
         addView(currentImage, LayoutHelper.createFrame(50, 50, Gravity.CENTER_HORIZONTAL));
@@ -134,7 +143,7 @@ public class AvatarConstructorPreviewCell extends FrameLayout {
 
         textView = new TextView(context);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        textView.setTextColor(Theme.getColor(Theme.key_avatar_text));
+        ThemeBind.textColor(textView, Theme.key_avatar_text);
         textView.setTypeface(AndroidUtilities.bold());
         textView.setGravity(Gravity.CENTER);
         textView.setText(LocaleController.getString(R.string.UseEmoji));

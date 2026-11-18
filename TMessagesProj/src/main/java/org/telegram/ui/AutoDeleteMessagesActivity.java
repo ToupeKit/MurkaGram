@@ -9,7 +9,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
+
+import androidx.annotation.Nullable;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
@@ -22,6 +23,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.RadioCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
@@ -29,6 +31,8 @@ import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.StickerImageView;
 
 import java.util.ArrayList;
@@ -57,7 +61,7 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
             startFromTtl = 0;
         }
         getUserConfig().loadGlobalTTl();
-        getNotificationCenter().addObserver(this, NotificationCenter.didUpdateGlobalAutoDeleteTimer);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.didUpdateGlobalAutoDeleteTimer);
         return super.onFragmentCreate();
     }
 
@@ -67,12 +71,19 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
         getNotificationCenter().removeObserver(this, NotificationCenter.didUpdateGlobalAutoDeleteTimer);
     }
 
+    private SectionsScrollView scrollView;
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
     @Override
     public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(LocaleController.getString(R.string.AutoDeleteMessages));
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        setHasOwnBackground(true);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        simpleActionBar.setTitle(LocaleController.getString(R.string.AutoDeleteMessages));
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -83,25 +94,26 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
 
         fragmentView = new FrameLayout(context);
         FrameLayout frameLayout = (FrameLayout) fragmentView;
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
-        ScrollView scrollView = new ScrollView(getContext());
-        LinearLayout mainContainer = new LinearLayout(getContext());
+        LinearLayout mainContainer = new SectionsScrollView.SectionsLinearLayout(getContext());
+        scrollView = new SectionsScrollView(getContext(), mainContainer, resourceProvider);
+        scrollView.setDrawBackground(true);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
         mainContainer.setOrientation(LinearLayout.VERTICAL);
         scrollView.addView(mainContainer);
         frameLayout.addView(scrollView);
-
 
         FrameLayout stickerHeaderCell = new FrameLayout(context);
         StickerImageView backupImageView = new StickerImageView(context, currentAccount);
         backupImageView.setStickerNum(10);
         stickerHeaderCell.addView(backupImageView, LayoutHelper.createFrame(130, 130, Gravity.CENTER));
+        stickerHeaderCell.setTag(RecyclerListView.TAG_NOT_SECTION);
 
         mainContainer.addView(stickerHeaderCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 170));
 
         checkBoxContainer = new LinearLayout(getContext());
         checkBoxContainer.setOrientation(LinearLayout.VERTICAL);
-        checkBoxContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        ThemeBind.backgroundColor(checkBoxContainer, Theme.key_windowBackgroundWhite);
         mainContainer.addView(checkBoxContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         HeaderCell headerCell = new HeaderCell(getContext());
@@ -141,7 +153,7 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
 
         updateItems();
 
-        TextInfoPrivacyCell textInfoPrivacyCell = new TextInfoPrivacyCell(context);
+        TextInfoPrivacyCell textInfoPrivacyCell = new TextInfoPrivacyCell(context, 12, resourceProvider);
         CharSequence infoText = AndroidUtilities.replaceSingleTag(LocaleController.getString(R.string.GlobalAutoDeleteInfo), new Runnable() {
             @Override
             public void run() {
@@ -180,7 +192,7 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
 
     private void updateItems() {
         for (int i = 0; i < arrayList.size(); i++) {
-            arrayList.get(i).setBackground(Theme.createSelectorWithBackgroundDrawable(Theme.getColor(Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector)));
+            ThemeBind.selectorBackground(arrayList.get(i), Theme.createSelectorWithBackgroundDrawable(Theme.getColor(Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector)), ThemeBind.of(Theme.key_windowBackgroundWhite), ThemeBind.of(Theme.key_listSelector));
             arrayList.get(i).setOnClickListener(v -> {
                 if (v == customTimeButton) {
                     AlertsCreator.createAutoDeleteDatePickerDialog(getContext(), 1, null, new AlertsCreator.ScheduleDatePickerDelegate() {
@@ -289,6 +301,17 @@ public class AutoDeleteMessagesActivity extends BaseFragment implements Notifica
 //                BulletinFactory.of(this).createSimpleBulletin(R.raw.fire_off, text).show();
             }
         }
+    }
+
+    @Override
+    public boolean isSupportEdgeToEdge() {
+        return true;
+    }
+
+    @Nullable
+    @Override
+    protected SectionsScrollView getScrollViewForSimpleGlass() {
+        return scrollView;
     }
 
     @Override

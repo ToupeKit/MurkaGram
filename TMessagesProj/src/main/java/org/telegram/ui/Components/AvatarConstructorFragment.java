@@ -5,6 +5,7 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.messenger.AndroidUtilities.premiumText;
 import static org.telegram.messenger.LocaleController.getString;
 import static org.telegram.ui.Components.ImageUpdater.FOR_TYPE_CHANNEL;
+import static org.telegram.ui.Components.ImageUpdater.FOR_TYPE_COMMUNITY;
 import static org.telegram.ui.Components.ImageUpdater.FOR_TYPE_GROUP;
 import static org.telegram.ui.Components.ImageUpdater.TYPE_SUGGEST_PHOTO_FOR_USER;
 
@@ -63,6 +64,7 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.PremiumPreviewFragment;
 import org.telegram.ui.SelectAnimatedEmojiDialog;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
@@ -169,9 +171,9 @@ public class AvatarConstructorFragment extends BaseFragment {
         actionBar.setCastShadows(false);
         actionBar.setAddToContainer(false);
         actionBar.setOccupyStatusBar(true);
-        actionBar.setTitleColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        actionBar.setItemsColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), false);
-        actionBar.setItemsBackgroundColor(Theme.getColor(Theme.key_listSelector), false);
+        ThemeBind.actionBarTitleColor(actionBar, Theme.key_windowBackgroundWhiteBlackText);
+        ThemeBind.actionBarItemsColor(actionBar, Theme.key_windowBackgroundWhiteBlackText, false);
+        ThemeBind.actionBarItemsBackgroundColor(actionBar, Theme.key_listSelector, false);
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         actionBar.setAllowOverlayTitle(false);
         actionBar.setTitle(getString(R.string.PhotoEditor));
@@ -394,7 +396,7 @@ public class AvatarConstructorFragment extends BaseFragment {
             }
         };
         nestedSizeNotifierLayout.setFitsSystemWindows(true);
-        nestedSizeNotifierLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+        ThemeBind.backgroundColor(nestedSizeNotifierLayout, Theme.key_windowBackgroundGray);
 
 
         linearLayout.setClipChildren(false);
@@ -411,7 +413,7 @@ public class AvatarConstructorFragment extends BaseFragment {
 
         chooseBackgroundHint = new TextView(getContext());
         chooseBackgroundHint.setText(getString(R.string.ChooseBackground));
-        chooseBackgroundHint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        ThemeBind.textColor(chooseBackgroundHint, Theme.key_windowBackgroundWhiteGrayText);
         chooseBackgroundHint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         chooseBackgroundHint.setGravity(Gravity.CENTER);
         linearLayout.addView(chooseBackgroundHint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 21, 10, 21, 10));
@@ -441,7 +443,7 @@ public class AvatarConstructorFragment extends BaseFragment {
 
         chooseEmojiHint = new TextView(getContext());
         chooseEmojiHint.setText(getString(R.string.ChooseEmojiOrSticker));
-        chooseEmojiHint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        ThemeBind.textColor(chooseEmojiHint, Theme.key_windowBackgroundWhiteGrayText);
         chooseEmojiHint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         chooseEmojiHint.setGravity(Gravity.CENTER);
         linearLayout.addView(chooseEmojiHint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 21, 18, 21, 10));
@@ -495,9 +497,12 @@ public class AvatarConstructorFragment extends BaseFragment {
         colorPickerPreviewView.setVisibility(View.GONE);
 
         button = new ButtonWithCounterView(context, resourceProvider);
+        button.setRound();
         button.text.setHacks(false, true, false);
         if (imageUpdater.setForType == FOR_TYPE_CHANNEL) {
             buttonText = getString(R.string.SetChannelPhoto);
+        } else if (imageUpdater.setForType == FOR_TYPE_COMMUNITY) {
+            buttonText = getString(R.string.SetCommunityPhoto);
         } else if (imageUpdater.setForType == FOR_TYPE_GROUP) {
             buttonText = getString(R.string.SetGroupPhoto);
         } else if (avatarFor != null && avatarFor.type == TYPE_SUGGEST_PHOTO_FOR_USER) {
@@ -576,7 +581,7 @@ public class AvatarConstructorFragment extends BaseFragment {
             return;
         }
         if (wasChanged) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+            final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
             builder.setMessage(getString(R.string.PhotoEditorDiscardAlert));
             builder.setTitle(getString(R.string.DiscardChanges));
             builder.setPositiveButton(getString(R.string.PassportDiscard), (dialogInterface, i) -> finishFragment());
@@ -739,6 +744,24 @@ public class AvatarConstructorFragment extends BaseFragment {
         }
         backgroundSelectView.selectGradient(gradient);
         selectAnimatedEmojiDialog.setForUser(forUser = previewCell.forUser);
+    }
+
+    public void startFrom(long docId, boolean forUser) {
+        if (previewView == null) {
+            return;
+        }
+        AvatarConstructorFragment.BackgroundGradient gradient = new AvatarConstructorFragment.BackgroundGradient();
+        gradient.color1 = AvatarConstructorFragment.defaultColors[0][0];
+        gradient.color2 = AvatarConstructorFragment.defaultColors[0][1];
+        gradient.color3 = AvatarConstructorFragment.defaultColors[0][2];
+        gradient.color4 = AvatarConstructorFragment.defaultColors[0][3];
+
+        previewView.setGradient(gradient, false);
+        updateButton();
+        previewView.documentId = docId;
+        previewView.backupImageView.setAnimatedEmojiDrawable(new AnimatedEmojiDrawable(AnimatedEmojiDrawable.CACHE_TYPE_AVATAR_CONSTRUCTOR_PREVIEW, currentAccount, docId));
+        backgroundSelectView.selectGradient(gradient);
+        selectAnimatedEmojiDialog.setForUser(this.forUser = forUser);
     }
 
     public void startFrom(TLRPC.VideoSize emojiMarkup) {
@@ -1236,7 +1259,7 @@ public class AvatarConstructorFragment extends BaseFragment {
         textView.setText(getString(R.string.SetColor));
         textView.setGravity(Gravity.CENTER);
         textView.setTypeface(AndroidUtilities.bold());
-        textView.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
+        ThemeBind.textColor(textView, Theme.key_featuredStickers_buttonText);
         button.addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
 
         colorPickerContainer.addView(button, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, 0, 16, -8, 16, 16));
@@ -1465,7 +1488,7 @@ public class AvatarConstructorFragment extends BaseFragment {
             }
         }
         if (bottomSheet != null) {
-            AndroidUtilities.setLightStatusBar(bottomSheet.getWindow(), isLight);
+            AndroidUtilities.setLightStatusBar(bottomSheet, isLight);
         }
         return isLight;
     }
@@ -1577,9 +1600,21 @@ public class AvatarConstructorFragment extends BaseFragment {
     }
 
     @Override
-    public boolean onBackPressed() {
-        discardEditor();
-        return false;
+    public boolean onBackPressed(boolean invoked) {
+        if (wasChanged) {
+            if (invoked) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setMessage(getString(R.string.PhotoEditorDiscardAlert));
+                builder.setTitle(getString(R.string.DiscardChanges));
+                builder.setPositiveButton(getString(R.string.PassportDiscard), (dialogInterface, i) -> finishFragment());
+                builder.setNegativeButton(getString(R.string.Cancel), null);
+                AlertDialog dialog = builder.create();
+                showDialog(dialog);
+                dialog.redPositive();
+            }
+            return false;
+        }
+        return super.onBackPressed(invoked);
     }
 
     public interface Delegate {

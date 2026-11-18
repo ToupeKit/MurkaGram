@@ -30,6 +30,7 @@ import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLitePreparedStatement;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.AppGlobalConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BillingController;
 import org.telegram.messenger.BirthdayController;
@@ -58,9 +59,11 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.Vector;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_stars;
+import org.telegram.tgnet.tl.TL_update;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.Bulletin;
@@ -86,6 +89,34 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class StarsController {
+
+    /** Bulletin.TimerView remembering its color, so that a ThemeBind binding can follow theme changes */
+    private static class ThemedTimerView extends Bulletin.TimerView {
+        private int appliedColor; // no initializer: set from the super constructor
+
+        public ThemedTimerView(Context context, Theme.ResourcesProvider resourcesProvider) {
+            super(context, resourcesProvider);
+        }
+
+        @Override
+        public void setColor(int color) {
+            super.setColor(color);
+            appliedColor = color;
+            invalidate();
+        }
+
+        private static int getAppliedColor(ThemedTimerView view) {
+            return view.appliedColor;
+        }
+
+        private static void setAppliedColor(ThemedTimerView view, int color) {
+            view.setColor(color);
+        }
+
+        public static void bindColor(ThemedTimerView view, int key, Theme.ResourcesProvider resourcesProvider) {
+            ThemeBind.custom(view, 101, key, resourcesProvider, ThemedTimerView::getAppliedColor, ThemedTimerView::setAppliedColor);
+        }
+    }
 
     public static final String currency = "XTR";
 
@@ -742,6 +773,18 @@ public class StarsController {
         }, 0).show();
     }
 
+    private boolean isInvoiceBillingDisabled(TLRPC.InputPeer purposePeer) {
+        return AppGlobalConfig.getInstance(currentAccount).starsSpendTopUpInvoiceDisabled.get() && purposePeer != null;
+    }
+
+    public boolean canBuy(TLRPC.InputPeer purposePeer) {
+        if (purposePeer != null && isInvoiceBillingDisabled(purposePeer)) {
+            return BillingController.getInstance().isReady();
+        }
+
+        return true;
+    }
+
     public void buy(
         Activity activity,
         TL_stars.TL_starsTopupOption option,
@@ -762,7 +805,8 @@ public class StarsController {
             return;
         }
 
-        if (BuildVars.useInvoiceBilling() || !BillingController.getInstance().isReady()) {
+        final boolean isInvoiceBillingDisabled = isInvoiceBillingDisabled(purposePeer);
+        if ((BuildVars.useInvoiceBilling() || !BillingController.getInstance().isReady()) && !isInvoiceBillingDisabled) {
             final TLRPC.TL_inputStorePaymentStarsTopup purpose = new TLRPC.TL_inputStorePaymentStarsTopup();
             purpose.stars = option.stars;
             purpose.amount = option.amount;
@@ -826,6 +870,13 @@ public class StarsController {
                 }
             }));
 
+            return;
+        }
+
+        if (!BillingController.getInstance().isReady()) {
+            if (whenDone != null) {
+                whenDone.run(false, "INVOICE DISABLED");
+            }
             return;
         }
 
@@ -1597,14 +1648,14 @@ public class StarsController {
                 });
 
                 long dialogId = 0;
-                if (result.updates.update instanceof TLRPC.TL_updateChannel) {
-                    TLRPC.TL_updateChannel upd = (TLRPC.TL_updateChannel) result.updates.update;
+                if (result.updates.update instanceof TL_update.TL_updateChannel) {
+                    TL_update.TL_updateChannel upd = (TL_update.TL_updateChannel) result.updates.update;
                     dialogId = -upd.channel_id;
                 }
                 if (result.updates.updates != null) {
                     for (int i = 0; i < result.updates.updates.size(); ++i) {
-                        if (result.updates.updates.get(i) instanceof TLRPC.TL_updateChannel) {
-                            TLRPC.TL_updateChannel upd = (TLRPC.TL_updateChannel) result.updates.updates.get(i);
+                        if (result.updates.updates.get(i) instanceof TL_update.TL_updateChannel) {
+                            TL_update.TL_updateChannel upd = (TL_update.TL_updateChannel) result.updates.updates.get(i);
                             dialogId = -upd.channel_id;
                         }
                     }
@@ -1810,7 +1861,6 @@ public class StarsController {
 
         public MessageId message;
         public MessageObject messageObject;
-        public long random_id;
         public ChatActivity chatActivity;
         public Bulletin bulletin;
         public Bulletin.TwoLineAnimatedLottieLayout bulletinLayout;
@@ -1862,7 +1912,6 @@ public class StarsController {
         ) {
             this.message = message;
             this.messageObject = messageObject;
-            this.random_id = Utilities.random.nextLong() & 0xFFFFFFFFL | (currentTime << 32);
             this.chatActivity = chatActivity;
 
             final Context context = getContext(chatActivity);
@@ -1872,9 +1921,9 @@ public class StarsController {
             bulletinButton = new Bulletin.UndoButton(context, true, false, chatActivity.themeDelegate);
             bulletinButton.setText(LocaleController.getString(R.string.StarsSentUndo));
             bulletinButton.setUndoAction(this::cancel);
-            timerView = new Bulletin.TimerView(context, chatActivity.themeDelegate);
+            timerView = new ThemedTimerView(context, chatActivity.themeDelegate);
             timerView.timeLeft = REACTIONS_TIMEOUT;
-            timerView.setColor(Theme.getColor(Theme.key_undo_cancelColor, chatActivity.themeDelegate));
+            ThemedTimerView.bindColor((ThemedTimerView) timerView, Theme.key_undo_cancelColor, chatActivity.themeDelegate);
             bulletinButton.addView(timerView, LayoutHelper.createFrame(20, 20, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 12, 0));
             bulletinButton.undoTextView.setPadding(dp(12), dp(8), dp(20 + 10), dp(8));
             bulletinLayout.setButton(bulletinButton);
@@ -2036,7 +2085,7 @@ public class StarsController {
             final TLRPC.TL_messages_sendPaidReaction req = new TLRPC.TL_messages_sendPaidReaction();
             req.peer = messagesController.getInputPeer(message.did);
             req.msg_id = message.mid;
-            req.random_id = random_id;
+            req.random_id = Utilities.random.nextLong() & 0xFFFFFFFFL | ((long) connectionsManager.getCurrentTime() << 32L);
             req.count = (int) amount;
             req.flags |= 1;
             final long privacyDialogId = getPeerId();
@@ -2775,7 +2824,12 @@ public class StarsController {
         }));
     }
 
+    @Deprecated
     public void getResellingGiftForm(TL_stars.StarGift gift, long dialogId, Utilities.Callback<TLRPC.TL_payments_paymentFormStarGift> whenDone) {
+        getResellingGiftForm(gift, dialogId, null, true, whenDone);
+    }
+
+    public void getResellingGiftForm(TL_stars.StarGift gift, long dialogId, TLRPC.TL_textWithEntities message, boolean hideMyName, Utilities.Callback<TLRPC.TL_payments_paymentFormStarGift> whenDone) {
         final Context context = LaunchActivity.instance != null ? LaunchActivity.instance : ApplicationLoader.applicationContext;
         final Theme.ResourcesProvider resourcesProvider = getResourceProvider();
 
@@ -2801,6 +2855,8 @@ public class StarsController {
         inputInvoice.slug = gift.slug;
         inputInvoice.to_id = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
         inputInvoice.ton = ton;
+        inputInvoice.message = message;
+        inputInvoice.show_name = !hideMyName;
 
         final TLRPC.TL_payments_getPaymentForm req = new TLRPC.TL_payments_getPaymentForm();
         final JSONObject themeParams = BotWebViewSheet.makeThemeParams(resourcesProvider);
@@ -2831,7 +2887,12 @@ public class StarsController {
         return stars;
     }
 
+    @Deprecated
     public void buyResellingGift(TLRPC.TL_payments_paymentFormStarGift form, TL_stars.StarGift gift, long dialogId, Utilities.Callback2<Boolean, String> whenDone) {
+        buyResellingGift(form, gift, dialogId, null, true, whenDone);
+    }
+
+    public void buyResellingGift(TLRPC.TL_payments_paymentFormStarGift form, TL_stars.StarGift gift, long dialogId, TLRPC.TL_textWithEntities message, boolean hideMyName, Utilities.Callback2<Boolean, String> whenDone) {
         final Context context = LaunchActivity.instance != null ? LaunchActivity.instance : ApplicationLoader.applicationContext;
         final Theme.ResourcesProvider resourcesProvider = getResourceProvider();
 
@@ -2859,6 +2920,8 @@ public class StarsController {
         inputInvoice.slug = gift.slug;
         inputInvoice.to_id = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
         inputInvoice.ton = ton;
+        inputInvoice.message = message;
+        inputInvoice.show_name = !hideMyName;
 
         final TLRPC.TL_payments_getPaymentForm req = new TLRPC.TL_payments_getPaymentForm();
         final JSONObject themeParams = BotWebViewSheet.makeThemeParams(resourcesProvider);
@@ -2972,6 +3035,19 @@ public class StarsController {
         }
     }
 
+    // removes a deleted gift from the loaded lists without reloading them (which would reset the scroll)
+    public void removeProfileGiftLocally(long dialogId, TL_stars.SavedStarGift gift) {
+        if (gift == null) return;
+        final GiftsList list = getProfileGiftsList(dialogId, false);
+        if (list != null) {
+            list.removeGiftLocally(gift);
+        }
+        final GiftsCollections collections = giftCollections.get(dialogId);
+        if (collections != null) {
+            collections.removeGiftLocally(gift);
+        }
+    }
+
     public void invalidateProfileGifts(TLRPC.UserFull userFull) {
         if (userFull == null) return;
         long dialogId = userFull.id;
@@ -3042,6 +3118,28 @@ public class StarsController {
             }
             if (all != null) {
                 all.updateGiftsUnsaved(gift, unsaved);
+            }
+        }
+
+        public void removeGiftLocally(TL_stars.SavedStarGift gift) {
+            boolean changed = false;
+            for (final TL_stars.TL_starGiftCollection collection : collections) {
+                final GiftsList list = getListById(collection.collection_id);
+                final boolean removed = list != null && list.removeGiftLocally(gift);
+                if (removed || gift.collection_id.contains(collection.collection_id)) {
+                    collection.gifts_count = Math.max(0, collection.gifts_count - 1);
+                    changed = true;
+                }
+                if (removed) {
+                    updateIcon(collection.collection_id);
+                }
+            }
+            if (all != null) {
+                all.removeGiftLocally(gift);
+            }
+            if (changed) {
+                refilterCollections();
+                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starUserGiftCollectionsLoaded, dialogId, this);
             }
         }
 
@@ -3411,6 +3509,18 @@ public class StarsController {
             }
         }
 
+        public boolean removeGiftLocally(TL_stars.SavedStarGift gift) {
+            for (int i = 0; i < gifts.size(); ++i) {
+                if (StarsController.eq(gifts.get(i), gift)) {
+                    gifts.remove(i);
+                    totalCount = Math.max(0, totalCount - 1);
+                    NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starUserGiftsLoaded, dialogId, GiftsList.this);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public void updateGiftsUnsaved(TL_stars.SavedStarGift gift, boolean unsaved) {
             boolean changed = false;
             for (final TL_stars.SavedStarGift g : gifts) {
@@ -3587,33 +3697,48 @@ public class StarsController {
             if (load || shown) load();
         }
 
+        private long craftingGiftId = 0;
+        public void forCrafting(long gift_id) {
+            craftingGiftId = gift_id;
+        }
+
         public void load() {
             if (loading || endReached) return;
 
             boolean first = lastOffset == null;
             loading = true;
-            final TL_stars.getSavedStarGifts req = new TL_stars.getSavedStarGifts();
-            req.sort_by_value = !sort_by_date;
-            req.exclude_unupgradable = !isInclude_limited();
-            req.exclude_upgradable = !isInclude_upgradable();
-            req.exclude_unlimited = !isInclude_unlimited();
-            req.exclude_unique = !isInclude_unique();
-            req.exclude_saved = !isInclude_displayed();
-            req.exclude_unsaved = !isInclude_hidden();
-            req.peer_color_available = peer_color_available;
-            if (dialogId == 0) {
-                req.peer = new TLRPC.TL_inputPeerSelf();
+            final TLObject request;
+            if (craftingGiftId != 0) {
+                final TL_stars.getCraftStarGifts req = new TL_stars.getCraftStarGifts();
+                req.gift_id = craftingGiftId;
+                req.offset = first ? "" : lastOffset;
+                req.limit = first ? 15 : 30;
+                request = req;
             } else {
-                req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
+                final TL_stars.getSavedStarGifts req = new TL_stars.getSavedStarGifts();
+                req.sort_by_value = !sort_by_date;
+                req.exclude_unupgradable = !isInclude_limited();
+                req.exclude_upgradable = !isInclude_upgradable();
+                req.exclude_unlimited = !isInclude_unlimited();
+                req.exclude_unique = !isInclude_unique();
+                req.exclude_saved = !isInclude_displayed();
+                req.exclude_unsaved = !isInclude_hidden();
+                req.peer_color_available = peer_color_available;
+                if (dialogId == 0) {
+                    req.peer = new TLRPC.TL_inputPeerSelf();
+                } else {
+                    req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
+                }
+                req.offset = first ? "" : lastOffset;
+                req.limit = first ? Math.max(MessagesController.getInstance(currentAccount).stargiftsPinnedToTopLimit, 15) : 30;
+                if (isCollection) {
+                    req.flags |= 64;
+                    req.collection_id = collectionId;
+                }
+                request = req;
             }
-            req.offset = first ? "" : lastOffset;
-            req.limit = first ? Math.max(MessagesController.getInstance(currentAccount).stargiftsPinnedToTopLimit, 15) : 30;
             final int[] reqId = new int[1];
-            if (isCollection) {
-                req.flags |= 64;
-                req.collection_id = collectionId;
-            }
-            reqId[0] = currentRequestId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            reqId[0] = currentRequestId = ConnectionsManager.getInstance(currentAccount).sendRequest(request, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
                 if (reqId[0] != currentRequestId) return;
                 loading = false;
                 currentRequestId = -1;
@@ -3643,6 +3768,46 @@ public class StarsController {
                 currentRequestId = -1;
             }
             loading = false;
+        }
+
+        public void processCrafting(ArrayList<TL_stars.StarGift> giftsToRemove, TL_stars.StarGift giftToAdd) {
+            if (giftsToRemove != null && !giftsToRemove.isEmpty()) {
+                boolean changed = false;
+                for (final TL_stars.StarGift gift : giftsToRemove) {
+                    for (int i = 0; i < gifts.size(); ++i) {
+                        final TL_stars.SavedStarGift savedGift = gifts.get(i);
+                        if (savedGift.gift != null && savedGift.gift.id == gift.id) {
+                            gifts.remove(i);
+                            totalCount = Math.max(0, totalCount - 1);
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+                if (changed) {
+                    NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starUserGiftsLoaded, dialogId, GiftsList.this);
+                }
+            }
+            if (giftToAdd != null) {
+                final TL_stars.getSavedStarGift req = new TL_stars.getSavedStarGift();
+                final TL_stars.TL_inputSavedStarGiftSlug input = new TL_stars.TL_inputSavedStarGiftSlug();
+                input.slug = giftToAdd.slug;
+                req.stargift.add(input);
+                ConnectionsManager.getInstance(currentAccount).sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+                    if (res instanceof TL_stars.TL_payments_savedStarGifts) {
+                        final TL_stars.TL_payments_savedStarGifts r = (TL_stars.TL_payments_savedStarGifts) res;
+                        MessagesController.getInstance(currentAccount).putUsers(r.users, false);
+                        MessagesController.getInstance(currentAccount).putChats(r.chats, false);
+                        if (r.gifts.size() > 0) {
+                            final TL_stars.SavedStarGift savedGift = r.gifts.get(0);
+                            int index = 0;
+                            while (index < gifts.size() && gifts.get(index).pinned_to_top) index++;
+                            gifts.add(index, savedGift);
+                            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starUserGiftsLoaded, dialogId, GiftsList.this);
+                        }
+                    }
+                }));
+            }
         }
 
         public int getCount() {
@@ -3903,7 +4068,7 @@ public class StarsController {
     }
 
     public void stopPaidMessages(long user_id, long parent_id, boolean refund, boolean stop) {
-        TL_account.toggleNoPaidMessagesException req = new TL_account.toggleNoPaidMessagesException();
+        final TL_account.toggleNoPaidMessagesException req = new TL_account.toggleNoPaidMessagesException();
         req.user_id = MessagesController.getInstance(currentAccount).getInputUser(user_id);
         if (parent_id != 0) {
             req.parent_peer = MessagesController.getInstance(currentAccount).getInputPeer(parent_id);
@@ -3922,9 +4087,9 @@ public class StarsController {
                     }
                     MessagesController.getNotificationsSettings(currentAccount).edit().putLong("dialog_bar_paying_" + user_id, 0L).apply();
                     MessagesController.getInstance(currentAccount).loadPeerSettings(
-                            MessagesController.getInstance(currentAccount).getUser(user_id),
-                            MessagesController.getInstance(currentAccount).getChat(-user_id),
-                            true
+                        MessagesController.getInstance(currentAccount).getUser(user_id),
+                        MessagesController.getInstance(currentAccount).getChat(-user_id),
+                        true
                     );
                     ContactsController.getInstance(currentAccount).loadPrivacySettings(true);
                     NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.messagesFeeUpdated, user_id);
@@ -3977,9 +4142,9 @@ public class StarsController {
             bulletinLayout = new Bulletin.TwoLineAnimatedLottieLayout(context, fragment.getResourceProvider());
             bulletinLayout.setAnimation(R.raw.stars_topup);
 
-            timerView = new Bulletin.TimerView(context, fragment.getResourceProvider());
+            timerView = new ThemedTimerView(context, fragment.getResourceProvider());
             timerView.timeLeft = PAID_MESSAGES_TIMEOUT;
-            timerView.setColor(Theme.getColor(Theme.key_undo_cancelColor, fragment.getResourceProvider()));
+            ThemedTimerView.bindColor((ThemedTimerView) timerView, Theme.key_undo_cancelColor, fragment.getResourceProvider());
             bulletinButton = new Bulletin.UndoButton(context, true, false, fragment.getResourceProvider());
             bulletinButton.setText(LocaleController.getString(R.string.StarsSentUndo));
             bulletinButton.setUndoAction(this::undo);
@@ -4199,7 +4364,7 @@ public class StarsController {
         if (msg == null) return;
         if (msg.messageOwner == null) return;
         final long price = msg.messageOwner.paid_message_stars;
-        if (price <= 0) return;
+        if (price <= 0 || msg.isEphemeral()) return;
 
         final boolean needsUndo = needsUndoButton(msg, price);
 

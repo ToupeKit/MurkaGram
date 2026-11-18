@@ -8,6 +8,7 @@
 
 package org.telegram.ui.Cells;
 
+import org.telegram.messenger.FileLog;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
@@ -32,8 +33,6 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.NonNull;
 
 import org.telegram.PhoneFormat.PhoneFormat;
-import org.telegram.messenger.MurkaBadges; // MurkaGram
-import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ContactsController;
@@ -48,10 +47,12 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.utils.DrawableUtils;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.AvatarDrawable;
@@ -69,8 +70,10 @@ import org.telegram.ui.Components.Text;
 import org.telegram.ui.FilterCreateActivity;
 import org.telegram.ui.NotificationsSettingsActivity;
 import org.telegram.ui.Stories.StoriesUtilities;
+import org.telegram.ui.community.CommunityUtils;
 
 import java.util.Locale;
+import java.util.HashSet;
 
 public class ProfileSearchCell extends BaseCell implements NotificationCenter.NotificationCenterDelegate, Theme.Colorable {
 
@@ -136,8 +139,6 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
     private StaticLayout statusLayout;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerificationDrawable;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable statusDrawable;
-    private MurkaBadges.BadgesDrawable murkaBadges; // MurkaGram: «Бейджики»
-    private int murkaBadgesVersion; // MurkaGram
     public StoriesUtilities.AvatarStoryParams avatarStoryParams = new StoriesUtilities.AvatarStoryParams(false);
 
     private final RectF adBounds = new RectF();
@@ -248,6 +249,11 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         update(0);
     }
 
+    public void setSubLabel(CharSequence subLabel) {
+        this.subLabel = subLabel;
+        update(0);
+    }
+
     private final ButtonBounce openButtonBounce = new ButtonBounce(this);
     private final Paint openButtonBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF openButtonRect = new RectF();
@@ -343,9 +349,9 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         avatarImage.onAttachedToWindow();
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.emojiLoaded);
         if (showPremiumBlocked) {
-            NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
+            NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
         }
         statusDrawable.attach();
         botVerificationDrawable.attach();
@@ -372,12 +378,20 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         }
     }
 
+    private boolean callCellStyle;
+
+    public void setCallCellStyle() {
+        callCellStyle = true;
+        customPaints = true;
+    }
+
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (checkBox != null) {
             checkBox.measure(MeasureSpec.makeMeasureSpec(dp(24), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(24), MeasureSpec.EXACTLY));
         }
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), dp(60) + (useSeparator ? 1 : 0));
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), callCellStyle ? dp(56) : (dp(60) + (useSeparator ? 1 : 0)));
     }
 
     @Override
@@ -529,7 +543,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                 namePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
                 namePaint.setTypeface(AndroidUtilities.bold());
             }
-            namePaint.setTextSize(dp(16));
+            namePaint.setTextSize(dp(callCellStyle ? 15 : 16));
             if (encryptedChat != null) {
                 namePaint.setColor(Theme.getColor(Theme.key_chats_secretName, resourcesProvider));
             } else {
@@ -611,17 +625,9 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         }
         if (!statusDrawable.isEmpty()) {
             if (LocaleController.isRTL) {
-                nameLeft += statusDrawable.getIntrinsicWidth();
+                // nameLeft += statusDrawable.getIntrinsicWidth();
             } else {
                 nameWidth -= statusDrawable.getIntrinsicWidth();
-            }
-        }
-        if (murkaBadges != null) { // MurkaGram: место под бейджики
-            int w = dp(4) + murkaBadges.getIntrinsicWidth();
-            if (LocaleController.isRTL) {
-                nameLeft += w;
-            } else {
-                nameWidth -= w;
             }
         }
 
@@ -659,7 +665,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                     if (isOnline[0]) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                     }
-                    if (user != null && (MurkaConfig.forceSelfOnline(currentAccount, user.id) /* MurkaGram: режим призрака */ || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
+                    if (user != null && (user.id == UserConfig.getInstance(currentAccount).getClientUserId() || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                         statusString = getString(R.string.Online);
                     }
@@ -670,7 +676,9 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                 nameTop = dp(20);
             }
         } else {
-            if (ChatObject.isChannel(chat) && !chat.megagroup) {
+            if (ChatObject.isCommunity(chat)) {
+                statusString = getString(R.string.Community).toLowerCase();
+            } else if (ChatObject.isChannelAndNotMegaGroup(chat)) {
                 if (chat.participants_count != 0) {
                     statusString = LocaleController.formatPluralStringComma("Subscribers", chat.participants_count);
                 } else {
@@ -701,7 +709,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             if (statusPaint == null) {
                 statusPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             }
-            statusPaint.setTextSize(dp(15));
+            statusPaint.setTextSize(dp(callCellStyle ? 13f : 15));
             if (currentStatusPaint == Theme.dialogs_offlinePaint) {
                 statusPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3, resourcesProvider));
             } else if (currentStatusPaint == Theme.dialogs_onlinePaint) {
@@ -724,9 +732,9 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         if (LocaleController.isRTL) {
             avatarLeft = getMeasuredWidth() - dp(57) - getPaddingRight();
         } else {
-            avatarLeft = dp(rectangularAvatar ? 15 : 11) + getPaddingLeft();
+            avatarLeft = dp(callCellStyle ? 14 : rectangularAvatar ? 15 : 11) + getPaddingLeft();
         }
-        avatarStoryParams.originalAvatarRect.set(avatarLeft, dp(7), avatarLeft + dp(rectangularAvatar ? 42 : 46), dp(7) + dp(46));
+        avatarStoryParams.originalAvatarRect.set(avatarLeft, dp(callCellStyle ? 6 : 7), avatarLeft + dp(callCellStyle ? 44 : rectangularAvatar ? 42 : 46), dp(callCellStyle ? 6 : 7) + dp(callCellStyle ? 44 : 46));
 
         double widthpx;
         float left;
@@ -773,6 +781,11 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         nameLeft += getPaddingLeft();
         statusLeft += getPaddingLeft();
         nameLockLeft += getPaddingLeft();
+
+        if (callCellStyle) {
+            nameLeft += dp(1);
+            nameTop += dp(1);
+        }
     }
 
     public void updateStatus(boolean verified, TLRPC.User user, TLRPC.Chat chat, boolean animated) {
@@ -805,12 +818,6 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             botVerificationDrawable.set(botVerificationIcon, animated);
         }
         botVerificationDrawable.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
-        // MurkaGram: «Бейджики»
-        murkaBadgesVersion = MurkaBadges.version;
-        murkaBadges = savedMessages ? null : user != null ? MurkaBadges.getDrawable(user.id, 18, murkaBadges) : chat != null && !ChatObject.isForum(chat) ? MurkaBadges.getDrawable(-chat.id, 18, murkaBadges) : null; // MurkaGram: и у каналов/групп (без форумов)
-        if (murkaBadges != null) {
-            murkaBadges.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
-        }
     }
 
     private boolean rectangularAvatar;
@@ -836,7 +843,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                         thumb = user.photo.strippedBitmap;
                     }
                 }
-                avatarImage.setImage(ImageLocation.getForUserOrChat(user, ImageLocation.TYPE_SMALL), "50_50", ImageLocation.getForUserOrChat(user, ImageLocation.TYPE_STRIPPED), "50_50", thumb, user, 0);
+                avatarImage.setImage(ImageLocation.getForUserOrChat(currentAccount, user, ImageLocation.TYPE_SMALL), "50_50", ImageLocation.getForUserOrChat(user, ImageLocation.TYPE_STRIPPED), "50_50", thumb, user, 0);
             }
         } else if (chat != null) {
             Drawable thumb = avatarDrawable;
@@ -850,7 +857,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                 ForumUtilities.setMonoForumAvatar(currentAccount, chat, avatarDrawable, avatarImage);
             } else {
                 avatarDrawable.setInfo(currentAccount, chat);
-                avatarImage.setImage(ImageLocation.getForUserOrChat(chat, ImageLocation.TYPE_SMALL), "50_50", ImageLocation.getForUserOrChat(chat, ImageLocation.TYPE_STRIPPED), "50_50", thumb, chat, 0);
+                avatarImage.setImage(ImageLocation.getForUserOrChat(currentAccount, chat, ImageLocation.TYPE_SMALL), "50_50", ImageLocation.getForUserOrChat(chat, ImageLocation.TYPE_STRIPPED), "50_50", thumb, chat, 0);
             }
         } else if (contact != null) {
             avatarDrawable.setInfo(0, contact.first_name, contact.last_name);
@@ -860,9 +867,9 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             avatarImage.setImage(null, null, avatarDrawable, null, null, 0);
         }
 
-        avatarImage.setRoundRadius(chat != null && chat.monoforum ? 0 : rectangularAvatar ? dp(10) : chat != null && chat.forum ? dp(16) : dp(23));
+        avatarImage.setRoundRadius(ChatObject.isCommunity(chat) ? DrawableUtils.getCommunityCardDrawableRadius(dp(46)) : chat != null && chat.monoforum ? 0 : rectangularAvatar ? dp(10) : chat != null && chat.forum ? dp(16) : dp(23));
         if (mask != 0) {
-            boolean continueUpdate = murkaBadgesVersion != MurkaBadges.version; // MurkaGram: бейджики изменились
+            boolean continueUpdate = false;
             if ((mask & MessagesController.UPDATE_MASK_AVATAR) != 0 && user != null || (mask & MessagesController.UPDATE_MASK_CHAT_AVATAR) != 0 && chat != null) {
                 if (lastAvatar != null && photo == null || lastAvatar == null && photo != null || lastAvatar != null && (lastAvatar.volume_id != photo.volume_id || lastAvatar.local_id != photo.local_id)) {
                     continueUpdate = true;
@@ -989,19 +996,6 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             }
             setDrawableBounds(statusDrawable, x, nameTop + (nameLayout.getHeight() - statusDrawable.getIntrinsicHeight()) / 2f);
             statusDrawable.draw(canvas);
-            if (murkaBadges != null) { // MurkaGram: «Бейджики» рядом со значком статуса
-                int bw = murkaBadges.getIntrinsicWidth();
-                int bh = murkaBadges.getIntrinsicHeight();
-                int bx;
-                if (LocaleController.isRTL) {
-                    bx = statusDrawable.isEmpty() ? x + statusDrawable.getIntrinsicWidth() - bw : x - dp(4) - bw;
-                } else {
-                    bx = statusDrawable.isEmpty() ? x : x + statusDrawable.getIntrinsicWidth() + dp(4);
-                }
-                int by = (int) (nameTop + (nameLayout.getHeight() - bh) / 2f);
-                murkaBadges.setBounds(bx, by, bx + bw, by + bh);
-                murkaBadges.draw(canvas);
-            }
         }
 
         if (ad != null && adText != null && adBackgroundPaint != null) {
@@ -1031,7 +1025,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
 
         if (statusLayout != null) {
             canvas.save();
-            canvas.translate(statusLeft + sublabelOffsetX, dp(33) + sublabelOffsetY);
+            canvas.translate(statusLeft + sublabelOffsetX, dp(callCellStyle ? 35 : 33) + sublabelOffsetY);
             statusLayout.draw(canvas);
             canvas.restore();
         }
@@ -1075,6 +1069,12 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         } else if (user != null) {
             StoriesUtilities.drawAvatarWithStory(user.id, canvas, avatarImage, avatarStoryParams);
         } else if (chat != null) {
+            if (ChatObject.isCommunity(chat)) {
+                DrawableUtils.drawCommunityCardDrawable(canvas, Theme.dialogs_communityCardsDrawable,
+                    avatarStoryParams.originalAvatarRect.centerX(),
+                    avatarStoryParams.originalAvatarRect.centerY(),
+                    avatarStoryParams.originalAvatarRect.width());
+            }
             StoriesUtilities.drawAvatarWithStory(-chat.id, canvas, avatarImage, avatarStoryParams);
         } else {
             avatarImage.setImageCoords(avatarStoryParams.originalAvatarRect);
@@ -1215,8 +1215,28 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
 
     @Override
     public void updateColors() {
+        if (colorsGeneration != ThemeBind.generation()) {
+            colorsGeneration = ThemeBind.generation();
+            try {
+                update(0);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return;
+        }
         if (nameLayout != null && getMeasuredWidth() > 0) {
             buildLayout();
         }
+    }
+
+    private int colorsGeneration = ThemeBind.generation();
+    @Override
+    public void addColorKeys(HashSet<Integer> colors) {
+        colors.add(Theme.key_chats_verifiedBackground);
+        colors.add(Theme.key_windowBackgroundWhiteGrayText);
+        colors.add(Theme.key_chats_secretName);
+        colors.add(Theme.key_chats_name);
+        colors.add(Theme.key_windowBackgroundWhiteGrayText3);
+        colors.add(Theme.key_windowBackgroundWhiteBlueText3);
     }
 }

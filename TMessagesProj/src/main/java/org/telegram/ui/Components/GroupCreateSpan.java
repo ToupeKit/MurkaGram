@@ -8,6 +8,8 @@
 
 package org.telegram.ui.Components;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -24,9 +26,11 @@ import android.text.TextUtils;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import androidx.annotation.NonNull;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.ImageLocation;
@@ -39,8 +43,9 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.GroupCreateUserCell;
 
-public class GroupCreateSpan extends View {
+public class GroupCreateSpan extends View implements Theme.Colorable {
 
+    private String countryIso2;
     private long uid;
     private String key;
     public boolean isFlag;
@@ -86,7 +91,7 @@ public class GroupCreateSpan extends View {
 
         currentContact = contact;
         deleteDrawable = getResources().getDrawable(R.drawable.delete);
-        textPaint.setTextSize(AndroidUtilities.dp(small ? 13 : 14));
+        textPaint.setTextSize(dp(small ? 13 : 14));
 
         String firstName;
 
@@ -94,7 +99,7 @@ public class GroupCreateSpan extends View {
         Object imageParent;
 
         avatarDrawable = new AvatarDrawable();
-        avatarDrawable.setTextSize(AndroidUtilities.dp(20));
+        avatarDrawable.setTextSize(dp(20));
         if (object instanceof String) {
             imageLocation = null;
             imageParent = null;
@@ -149,11 +154,13 @@ public class GroupCreateSpan extends View {
                 case "premium":
                     isFlag = true;
                     avatarDrawable.setColor(Theme.getColor(Theme.key_premiumGradientBackground2, resourcesProvider));
+                    avatarThemeColorType = 1;
                     firstName = LocaleController.getString(R.string.PrivacyPremium);
                     break;
                 case "miniapps":
                     isFlag = true;
                     avatarDrawable.setColor(Theme.getColor(Theme.key_avatar_backgroundBlue, resourcesProvider), Theme.getColor(Theme.key_avatar_background2Blue, resourcesProvider));
+                    avatarThemeColorType = 2;
                     firstName = LocaleController.getString(R.string.PrivacyMiniapps);
                     break;
                 case "archived":
@@ -200,15 +207,17 @@ public class GroupCreateSpan extends View {
             String flag = LocaleController.getLanguageFlag(country.iso2);
             firstName = country.default_name;
             avatarDrawable.setAvatarType(AvatarDrawable.AVATAR_TYPE_COUNTRY);
-            avatarDrawable.setTextSize(AndroidUtilities.dp(24));
+            avatarDrawable.setTextSize(dp(24));
             avatarDrawable.setInfo(0, flag, null, null);
             avatarDrawable.setColor(Theme.multAlpha(Theme.getColor(Theme.key_text_RedRegular, resourcesProvider), 0.7f));
+            avatarThemeColorType = 3;
             avatarDrawable.setDrawAvatarBackground(drawAvatarBackground = false);
             uid = country.default_name.hashCode();
+            countryIso2 = country.iso2;
             imageLocation = null;
             imageParent = null;
         } else {
-            avatarDrawable.setInfo(0, contact.first_name, contact.last_name);
+            avatarDrawable.setInfo(contact.contact_id, contact.first_name, contact.last_name);
             uid = contact.contact_id;
             key = contact.key;
             if (!TextUtils.isEmpty(contact.first_name)) {
@@ -221,15 +230,15 @@ public class GroupCreateSpan extends View {
         }
 
         imageReceiver = new ImageReceiver();
-        imageReceiver.setRoundRadius(AndroidUtilities.dp(16));
+        imageReceiver.setRoundRadius(dp(16));
         imageReceiver.setParentView(this);
-        imageReceiver.setImageCoords(drawAvatarBackground ? 0 : AndroidUtilities.dp(4), 0, AndroidUtilities.dp(small ? 28 : 32), AndroidUtilities.dp(small ? 28 : 32));
+        imageReceiver.setImageCoords(drawAvatarBackground ? 0 : dp(4), 0, dp(small ? 28 : 32), dp(small ? 28 : 32));
 
         int maxNameWidth;
         if (AndroidUtilities.isTablet()) {
-            maxNameWidth = AndroidUtilities.dp(530 - (small ? 28 : 32) - 18 - 57 * 2) / 2;
+            maxNameWidth = dp(530 - (small ? 28 : 32) - 18 - 57 * 2) / 2;
         } else {
-            maxNameWidth = (Math.min(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y) - AndroidUtilities.dp((small ? 28 : 32) + 18 + 57 * 2)) / 2;
+            maxNameWidth = (Math.min(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y) - dp((small ? 28 : 32) + 18 + 57 * 2)) / 2;
         }
 
         firstName = firstName.replace('\n', ' ');
@@ -248,14 +257,34 @@ public class GroupCreateSpan extends View {
         } else {
             imageReceiver.setImage(imageLocation, "50_50", avatarDrawable, 0, null, imageParent, 1);
         }
-        updateColors();
+        updateColorsInternal();
 
         NotificationCenter.listenEmojiLoading(this);
     }
 
+    private int avatarThemeColorType;
+
     public void updateColors() {
+        try {
+            if (avatarDrawable != null) {
+                if (avatarThemeColorType == 1) {
+                    avatarDrawable.setColor(Theme.getColor(Theme.key_premiumGradientBackground2, resourcesProvider));
+                } else if (avatarThemeColorType == 2) {
+                    avatarDrawable.setColor(Theme.getColor(Theme.key_avatar_backgroundBlue, resourcesProvider), Theme.getColor(Theme.key_avatar_background2Blue, resourcesProvider));
+                } else if (avatarThemeColorType == 3) {
+                    avatarDrawable.setColor(Theme.multAlpha(Theme.getColor(Theme.key_text_RedRegular, resourcesProvider), 0.7f));
+                }
+            }
+            updateColorsInternal();
+            invalidate();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void updateColorsInternal() {
         int color = avatarDrawable.getColor();
-        int back = Theme.getColor(Theme.key_groupcreate_spanBackground, resourcesProvider);
+        int back = Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider), 0.05f);
         int delete = Theme.getColor(Theme.key_groupcreate_spanDelete, resourcesProvider);
         colors[0] = Color.red(back);
         colors[1] = Color.red(color);
@@ -265,8 +294,19 @@ public class GroupCreateSpan extends View {
         colors[5] = Color.blue(color);
         colors[6] = Color.alpha(back);
         colors[7] = Color.alpha(color);
-        deleteDrawable.setColorFilter(new PorterDuffColorFilter(delete, PorterDuff.Mode.MULTIPLY));
+        if (!deleteColorApplied || delete != appliedDeleteColor) {
+            deleteColorApplied = true;
+            appliedDeleteColor = delete;
+            deleteDrawable.setColorFilter(new PorterDuffColorFilter(delete, PorterDuff.Mode.MULTIPLY));
+        }
         backPaint.setColor(back);
+    }
+
+    private boolean deleteColorApplied;
+    private int appliedDeleteColor;
+
+    public String getCountryIso2() {
+        return countryIso2;
     }
 
     public boolean isDeleting() {
@@ -305,11 +345,14 @@ public class GroupCreateSpan extends View {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        setMeasuredDimension(AndroidUtilities.dp((small ? 28 - 8 : 32) + 25) + textWidth, AndroidUtilities.dp(small ? 28 : 32));
+        setMeasuredDimension(
+            dp((small ? 28 - 8 : 32) + 25) + textWidth,
+            dp(small ? 28 : 32)
+        );
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         if (deleting && progress != 1.0f || !deleting && progress != 0.0f) {
             long newTime = System.currentTimeMillis();
             long dt = newTime - lastUpdateTime;
@@ -330,9 +373,9 @@ public class GroupCreateSpan extends View {
             invalidate();
         }
         canvas.save();
-        rect.set(0, 0, getMeasuredWidth(), AndroidUtilities.dp(small ? 28 : 32));
+        rect.set(0, 0, getMeasuredWidth(), dp(small ? 28 : 32));
         backPaint.setColor(Color.argb(colors[6] + (int) ((colors[7] - colors[6]) * progress), colors[0] + (int) ((colors[1] - colors[0]) * progress), colors[2] + (int) ((colors[3] - colors[2]) * progress), colors[4] + (int) ((colors[5] - colors[4]) * progress)));
-        canvas.drawRoundRect(rect, AndroidUtilities.dp(small ? 14 : 16), AndroidUtilities.dp(small ? 14 : 16), backPaint);
+        canvas.drawRoundRect(rect, dp(small ? 14 : 16), dp(small ? 14 : 16), backPaint);
         if (progress != 1f) {
             imageReceiver.draw(canvas);
         }
@@ -341,15 +384,15 @@ public class GroupCreateSpan extends View {
             float alpha = Color.alpha(color) / 255.0f;
             backPaint.setColor(color);
             backPaint.setAlpha((int) (255 * progress * alpha));
-            canvas.drawCircle(AndroidUtilities.dp(small ? 14 : 16), AndroidUtilities.dp(small ? 14 : 16), AndroidUtilities.dp(small ? 14 : 16), backPaint);
+            canvas.drawCircle(dp(small ? 14 : 16), dp(small ? 14 : 16), dp(small ? 14 : 16), backPaint);
             canvas.save();
-            canvas.rotate(45 * (1.0f - progress), AndroidUtilities.dp(16), AndroidUtilities.dp(16));
-            deleteDrawable.setBounds(AndroidUtilities.dp(small ? 9 : 11), AndroidUtilities.dp(small ? 9 : 11), AndroidUtilities.dp(small ? 19 : 21), AndroidUtilities.dp(small ? 19 : 21));
+            canvas.rotate(45 * (1.0f - progress), dp(16), dp(16));
+            deleteDrawable.setBounds(dp(small ? 9 : 11), dp(small ? 9 : 11), dp(small ? 19 : 21), dp(small ? 19 : 21));
             deleteDrawable.setAlpha((int) (255 * progress));
             deleteDrawable.draw(canvas);
             canvas.restore();
         }
-        canvas.translate(textX + AndroidUtilities.dp((small ? 26 : 32) + 9), AndroidUtilities.dp(small ? 6 : 8));
+        canvas.translate(textX + dp((small ? 26 : 32) + 9), dp(small ? 6 : 8));
         int text = Theme.getColor(Theme.key_groupcreate_spanText, resourcesProvider);
         int textSelected = Theme.getColor(Theme.key_avatar_text, resourcesProvider);
         textPaint.setColor(ColorUtils.blendARGB(text, textSelected, progress));
@@ -362,7 +405,7 @@ public class GroupCreateSpan extends View {
     public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info);
         info.setText(nameLayout.getText());
-        if (isDeleting() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+        if (isDeleting())
             info.addAction(new AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK.getId(), LocaleController.getString(R.string.Delete)));
     }
 }
