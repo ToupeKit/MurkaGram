@@ -89,6 +89,7 @@ dependencies {
     api platform('com.google.firebase:firebase-bom:34.19.0')
     implementation 'com.google.firebase:firebase-messaging'
     implementation "com.google.firebase:firebase-pnv"
+    implementation 'com.google.firebase:firebase-config' // MurkaGram: remote badge list (MurkaBadges)
     implementation 'com.google.firebase:firebase-appindexing:20.0.0'
 
     implementation "io.noties.markwon:core:4.6.2"
@@ -152,10 +153,28 @@ android {
 
         multiDexEnabled true
 
+        // MurkaGram: API credentials are read from the api_id / api_hash files
+        // in the project root (git-ignored), so they never end up in the sources.
+        def apiIdFile = rootProject.file("api_id")
+        def apiHashFile = rootProject.file("api_hash")
+        if (!apiIdFile.exists() || !apiHashFile.exists()) {
+            throw new GradleException("Create api_id and api_hash files in the project root (get them at https://my.telegram.org)")
+        }
+        buildConfigField "int", "APP_ID", apiIdFile.text.trim()
+        buildConfigField "String", "APP_HASH", "\"" + apiHashFile.text.trim() + "\""
+
+        // MurkaGram: base package, used for the system account type (contacts sync)
+        buildConfigField "String", "APP_PACKAGE", "\"" + APP_PACKAGE + "\""
+        resValue "string", "murkagram_account_type", APP_PACKAGE
+        resValue "string", "murkagram_app_package", APP_PACKAGE
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23' //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                // MurkaGram: no native debug info in Debug (-g0 overrides the -g from CMakeLists.txt): with the NDK's
+                // -fno-limit-debug-info the webrtc/tgcalls objects take several GB, more than the free disk space
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23', //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                        '-DCMAKE_C_FLAGS_DEBUG=-O0 -g0', '-DCMAKE_CXX_FLAGS_DEBUG=-O0 -g0'
                 targets 'tmessages.49', 'twidget'
             }
         }
