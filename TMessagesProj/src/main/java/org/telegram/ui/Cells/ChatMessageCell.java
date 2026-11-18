@@ -129,6 +129,8 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
+import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.RichMessageLayout;
@@ -1466,6 +1468,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public boolean hasDiscussion;
     public boolean isPinned;
     private boolean wasPinned;
+    private boolean lastMurkaDeleted; // MurkaGram
+    private boolean murkaInsideAlphaLayer; // MurkaGram: сейчас рисуем внутри полупрозрачного слоя удалённого сообщения
     public boolean isReportChat;
     public long linkedChatId;
     public boolean isRepliesChat;
@@ -1701,6 +1705,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private TLRPC.FileLocation currentPhoto;
     private String currentNameString;
     private Object currentNameStatus;
+    // MurkaGram: «Бейджики» у имени отправителя
+    private MurkaBadges.BadgesDrawable murkaNameBadges;
+    private int murkaNameBadgesVersion;
     private long currentNameBotVerificationId;
     private String nameStatusSlug;
     public AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable currentNameStatusDrawable;
@@ -5745,6 +5752,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return true;
         }
 
+        if (murkaNameBadgesVersion != MurkaBadges.version) { // MurkaGram: бейджики изменились
+            return true;
+        }
+
         String newNameString = isNeedAuthorName() ? getAuthorName() : null;
         if (currentNameString == null && newNameString != null || currentNameString != null && newNameString == null || currentNameString != null && !currentNameString.equals(newNameString)) {
             return true;
@@ -6261,6 +6272,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentMessageObject == messageObject && (isUserDataChanged() || photoNotSet) ||
                 lastPostAuthor != messageObject.messageOwner.post_author ||
                 wasPinned != isPinned ||
+                lastMurkaDeleted != messageObject.isMurkaDeleted() || // MurkaGram
                 newReply != lastReplyMessage ||
                 messageObject.translated != lastTranslated;
         boolean groupChanged = groupedMessages != currentMessagesGroup;
@@ -6355,6 +6367,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 stickerSetIcons.readyToDie();
             }
             wasPinned = isPinned;
+            lastMurkaDeleted = messageObject.isMurkaDeleted(); // MurkaGram
             pinnedBottom = bottomNear;
             this.firstInChat = firstInChat;
             this.lastInChatList = lastInChatList;
@@ -15632,6 +15645,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
         String timeString;
+        boolean murkaEditedIcon = false; // MurkaGram
         TLRPC.User author = null;
         if (currentMessageObject.isFromUser()) {
             author = MessagesController.getInstance(currentAccount).getUser(fromId);
@@ -15654,7 +15668,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             }
         }
-        timeString = timeString(currentMessageObject, messageObject, edited, currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date);
+        // MurkaGram: ui-13 — «Заменять «изменено» иконкой»: время без слова «изменено», значок добавляется ниже
+        timeString = timeString(currentMessageObject, messageObject, edited && !MurkaConfig.editedIcon, currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date);
+        murkaEditedIcon = edited && MurkaConfig.editedIcon && !TextUtils.isEmpty(timeString);
         if (currentMessageObject.messageOwner.video_processing_pending) {
             timeString = formatString(R.string.ScheduledTimeApprox, timeString);
         }
@@ -15668,6 +15684,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         } else {
             currentTimeString = timeString;
+        }
+        if (murkaEditedIcon && currentTimeString != null) { // MurkaGram: значок карандаша перед временем вместо «изменено»
+            final String plain = currentTimeString.toString();
+            final int at = Math.max(0, plain.lastIndexOf(timeString));
+            SpannableStringBuilder sb = new SpannableStringBuilder(currentTimeString);
+            sb.insert(at, "e ");
+            ColoredImageSpan editedSpan = new ColoredImageSpan(R.drawable.mini_checklist_edited);
+            editedSpan.setSize(dp(13));
+            sb.setSpan(editedSpan, at, at + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            currentTimeString = sb;
         }
         if (currentMessageObject.isStakedDice()) {
             currentTimeString = TextUtils.concat("💎", StarsIntroActivity.formatTON(currentMessageObject.getStakedDiceAmount()), "  ", currentTimeString);
@@ -15698,7 +15724,18 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentTimeString = TextUtils.concat(formatString(R.string.MessageScheduledRepeatSeconds, period), ", ", currentTimeString);
             }
         }
-        timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        if (messageObject.isMurkaDeleted() && currentTimeString != null) { // MurkaGram: значок корзины у времени удалённого сообщения
+            SpannableString trash = new SpannableString("d ");
+            ColoredImageSpan trashSpan = new ColoredImageSpan(R.drawable.msg_delete);
+            trashSpan.setSize(dp(12));
+            trash.setSpan(trashSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            currentTimeString = TextUtils.concat(trash, currentTimeString);
+            timeTextWidth = timeWidth = (int) Math.ceil(Layout.getDesiredWidth(currentTimeString, Theme.chat_timePaint));
+        } else if (murkaEditedIcon && currentTimeString != null) { // MurkaGram: ширина с учётом значка
+            timeTextWidth = timeWidth = (int) Math.ceil(Layout.getDesiredWidth(currentTimeString, Theme.chat_timePaint));
+        } else {
+            timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        }
         if (currentMessageObject.scheduled && currentMessageObject.messageOwner.date == 0x7FFFFFFE || currentMessageObject.notime) {
             timeWidth -= dp(8);
         }
@@ -16005,6 +16042,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         boolean needAuthorName = isNeedAuthorName();
         boolean viaBot = (messageObject.messageOwner.fwd_from == null || messageObject.type == MessageObject.TYPE_MUSIC) && viaUsername != null;
         boolean viaGuestBot = messageObject.messageOwner.guestchat_via_from != null;
+        // MurkaGram: сбрасываем и для ячеек без имени, иначе isUserDataChanged() всегда true после смены version, а бейджики остаются от прошлого сообщения
+        murkaNameBadgesVersion = MurkaBadges.version;
+        final MurkaBadges.BadgesDrawable murkaPrevBadges = murkaNameBadges;
+        murkaNameBadges = null;
         if (!hasPsaHint && (needAuthorName || viaBot || viaGuestBot)) {
             drawNameLayout = true;
             drawNameAvatar = !messageObject.isOutOwner() && ((isForum || isMonoForum) && isSideMenuEnabled || hasCompactNameAvatar()) && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
@@ -16079,6 +16120,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 currentNameString = "";
             }
+            // MurkaGram: «Бейджики» — только простой случай (без via-бота и не в альбоме)
+            murkaNameBadgesVersion = MurkaBadges.version;
+            if (needAuthorName && messageObject.customName == null && currentUser != null && !viaBot && !viaGuestBot /* MurkaGram: ui-13 */ && currentMessagesGroup == null && !currentMessageObject.isSponsored()) {
+                murkaNameBadges = MurkaBadges.getDrawable(currentUser.id, 16, murkaPrevBadges);
+            } else {
+                murkaNameBadges = null;
+            }
+            final int murkaBadgesWidth = murkaNameBadges != null ? murkaNameBadges.getIntrinsicWidth() + dp(4) : 0;
             int additionalWidth = dp(currentMessageObject.isSponsored() ? -24 : 0);
             CharSequence nameStringFinal = AndroidUtilities.removeDiacritics(currentNameString.replace('\n', ' ').replace('\u200F', ' '));
             try {
@@ -16093,7 +16142,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (adminString != null) {
                 nameWidth -= dp(8);
             }
-            nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0), TextUtils.TruncateAt.END);
+            nameStringFinal = TextUtils.ellipsize(nameStringFinal, Theme.chat_namePaint, nameWidth + additionalWidth - (viaBot ? viaWidth : 0) - murkaBadgesWidth /* MurkaGram */, TextUtils.TruncateAt.END);
 
             if (viaGuestBot) {
                 int colorKey;
@@ -16171,6 +16220,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (currentNameStatus != null && !viaBot) {
                     nameWidth += dp(4 + 12 + 4);
                 }
+                nameWidth += murkaBadgesWidth; // MurkaGram
                 if (currentNameBotVerificationId != 0) {
                     nameWidth += dp(4 + 12 + 4);
                 }
@@ -17094,7 +17144,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public boolean isDrawPinnedBottom() {
         boolean forceMediaByGroup = currentPosition != null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0 && currentMessagesGroup.isDocuments;
-        return mediaBackground || drawPinnedBottom || forceMediaByGroup;
+        return mediaBackground || drawPinnedBottom || forceMediaByGroup || murkaNoTail(); // MurkaGram: без хвоста — без ложной анимации pinned-bottom
     }
 
     public void drawCheckBox(Canvas canvas) {
@@ -17350,6 +17400,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (sponosoredAlpha != 255) {
             restoreToSponosoredAlpha = canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(), sponosoredAlpha);
         }
+        int restoreToMurkaAlpha = -1; // MurkaGram: удалённое сообщение рисуем полупрозрачным
+        if (getMurkaAlpha() != 1f && canvas.isHardwareAccelerated()) { // MurkaGram: на программном canvas (блюр) без слоя
+            restoreToMurkaAlpha = canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(), (int) (255 * getMurkaAlpha()));
+            murkaInsideAlphaLayer = true;
+        }
 
         setupTextColors();
 
@@ -17555,6 +17610,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         updateSelectionTextPosition();
 
+        if (restoreToMurkaAlpha != -1) { // MurkaGram
+            canvas.restoreToCount(restoreToMurkaAlpha);
+            murkaInsideAlphaLayer = false;
+        }
         if (restoreToSponosoredAlpha != -1) {
             canvas.restoreToCount(restoreToSponosoredAlpha);
         }
@@ -17690,7 +17749,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         int additionalBottom = 0;
         boolean forceMediaByGroup = currentPosition != null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0 && currentMessagesGroup.isDocuments && !drawPinnedBottom;
         if (currentMessageObject.isOutOwner()) {
-            if (transitionParams.changePinnedBottomProgress >= 1 && !mediaBackground && !drawPinnedBottom && !forceMediaByGroup) {
+            if (transitionParams.changePinnedBottomProgress >= 1 && !mediaBackground && !drawPinnedBottom && !forceMediaByGroup && !murkaNoTail()) { // MurkaGram: без хвоста
                 currentBackgroundDrawable = outBubbleDrawable(Theme.key_drawable_msgOut);
                 currentBackgroundSelectedDrawable = outBubbleDrawable(Theme.key_drawable_msgOutSelected);
                 transitionParams.drawPinnedBottomBackground = false;
@@ -17717,7 +17776,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (!mediaBackground) {
                     backgroundDrawableRight -= dp(6);
                 }
-            } else if (!mediaBackground && drawPinnedBottom) {
+            } else if (!mediaBackground && drawPinnedBottom || murkaNoTail()) { // MurkaGram: без хвоста — сужаем как у «прилипшего» пузыря
                 backgroundDrawableRight -= dp(6);
             }
 
@@ -17768,8 +17827,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 setDrawableBoundsInner(currentBackgroundSelectedDrawable, backgroundLeft, backgroundDrawableTop, backgroundDrawableRight, backgroundHeight);
             }
             setDrawableBoundsInner(currentBackgroundShadowDrawable, backgroundLeft, backgroundDrawableTop, backgroundDrawableRight, backgroundHeight);
+            if (transitionParams.changePinnedBottomProgress == 1 && murkaNoTail()) {
+                backgroundDrawableRight += dp(6); // MurkaGram: разметка контента — как у пузыря с хвостом
+            }
         } else {
-            if (transitionParams.changePinnedBottomProgress >= 1 && !mediaBackground && !drawPinnedBottom && !forceMediaByGroup) {
+            if (transitionParams.changePinnedBottomProgress >= 1 && !mediaBackground && !drawPinnedBottom && !forceMediaByGroup && !murkaNoTail()) { // MurkaGram: без хвоста
                 currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(Theme.key_drawable_msgIn);
                 currentBackgroundSelectedDrawable = (MessageDrawable) getThemedDrawable(Theme.key_drawable_msgInSelected);
                 transitionParams.drawPinnedBottomBackground = false;
@@ -17796,7 +17858,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     backgroundDrawableLeft += (int) Math.ceil(currentPosition.leftSpanOffset / 1000.0f * getGroupPhotosWidth());
                 }
             }
-            if ((!mediaBackground && drawPinnedBottom) || !forceMediaByGroup && transitionParams.changePinnedBottomProgress != 1) {
+            if ((!mediaBackground && drawPinnedBottom) || murkaNoTail() || !forceMediaByGroup && transitionParams.changePinnedBottomProgress != 1) { // MurkaGram: + murkaNoTail()
                 if (!(!drawPinnedBottom && mediaBackground)) {
                     backgroundDrawableRight -= dp(6);
                 }
@@ -17852,7 +17914,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             setDrawableBoundsInner(currentBackgroundShadowDrawable, backgroundDrawableLeft, backgroundDrawableTop, backgroundDrawableRight, backgroundHeight);
         }
 
-        if (!currentMessageObject.isOutOwner() && transitionParams.changePinnedBottomProgress != 1 && !mediaBackground && !drawPinnedBottom) {
+        if (!currentMessageObject.isOutOwner() && (transitionParams.changePinnedBottomProgress != 1 || murkaNoTail()) && !mediaBackground && !drawPinnedBottom) { // MurkaGram: + murkaNoTail()
             backgroundDrawableLeft -= dp(6);
             backgroundDrawableRight += dp(6);
         }
@@ -17925,6 +17987,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             float alphaInternal = this.alphaInternal;
             if (fromParent) {
                 alphaInternal *= getAlpha();
+                alphaInternal *= getMurkaAlpha(); // MurkaGram
             }
             if (hasSelectionOverlay()) {
 //                if ((isPressed() && isCheckPressed || !isCheckPressed && isPressed) && !textIsSelectionMode()) {
@@ -17981,7 +18044,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     currentBackgroundShadowDrawable.draw(canvas);
                 }
 
-                if (transitionParams.changePinnedBottomProgress != 1f && currentPosition == null) {
+                if (transitionParams.changePinnedBottomProgress != 1f && currentPosition == null && !MurkaConfig.noBubbleTail) { // MurkaGram: без хвоста — не проявляем его при анимации
                     if (currentMessageObject.isOutOwner()) {
                         MessageDrawable drawable = outBubbleDrawable(Theme.key_drawable_msgOut);
 
@@ -18286,7 +18349,38 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return bottomActionPadding;
     }
 
+    // MurkaGram: непрозрачность ячейки (для сохранённых удалённых сообщений — настраиваемая прозрачность)
+    public float getMurkaAlpha() {
+        return currentMessageObject != null && currentMessageObject.isMurkaDeleted() ? MurkaConfig.getDeletedMessageAlpha() : 1f;
+    }
+
     public void drawOutboundsContent(Canvas canvas) {
+        // MurkaGram: если рисует родитель (вне слоя drawInternal) — применяем прозрачность удалённого сообщения
+        // MurkaGram: на программном canvas (блюр) слой не создаём — дорого и незаметно
+        if (!murkaInsideAlphaLayer && getMurkaAlpha() != 1f && canvas.isHardwareAccelerated()) {
+            final int murkaAlpha = (int) (255 * getMurkaAlpha());
+            int restoreCount;
+            if (effectDrawable != null && effectDrawable.isNotEmpty() > 0) {
+                // MurkaGram: эффект сообщения может выходить далеко за ячейку — слой по клипу, как раньше
+                restoreCount = canvas.saveLayerAlpha(null, murkaAlpha);
+            } else {
+                // MurkaGram: ограниченный слой (ячейка + запас) вместо полноэкранного
+                final int pad = dp(48);
+                restoreCount = canvas.saveLayerAlpha(-pad, -pad, getMeasuredWidth() + pad, getMeasuredHeight() + pad, murkaAlpha, Canvas.ALL_SAVE_FLAG);
+            }
+            murkaInsideAlphaLayer = true;
+            try {
+                drawOutboundsContentInternal(canvas);
+            } finally {
+                murkaInsideAlphaLayer = false;
+                canvas.restoreToCount(restoreCount);
+            }
+            return;
+        }
+        drawOutboundsContentInternal(canvas);
+    }
+
+    private void drawOutboundsContentInternal(Canvas canvas) { // MurkaGram: бывший drawOutboundsContent
         if (channelRecommendationsCell != null && currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
             channelRecommendationsCell.draw(canvas);
             return;
@@ -18442,7 +18536,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             Choreographer60FpsContent.getInstance().removeFrameCallback(invalidateOutboundsRunnable);
         }
 
-        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !(currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
+        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || murkaNameBadges != null /* MurkaGram */ || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !(currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
             int color;
             float nameX, nameY;
             if (currentMessageObject.shouldDrawWithoutBackground()) {
@@ -18552,6 +18646,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 );
                 currentNameStatusDrawable.setColor(ColorUtils.setAlphaComponent(color, 115));
                 currentNameStatusDrawable.draw(canvas);
+            }
+            if (murkaNameBadges != null && viaNameWidth <= 0) { // MurkaGram: «Бейджики» после имени и эмодзи-статуса
+                int bw = murkaNameBadges.getIntrinsicWidth();
+                int bh = murkaNameBadges.getIntrinsicHeight();
+                int bx = (int) (Math.abs(nx) + nameLayoutWidth + (currentNameStatus != null ? dp(24) : dp(2)));
+                int by = (int) (ny + nameLayout.getHeight() / 2 - bh / 2);
+                murkaNameBadges.setColor(ColorUtils.setAlphaComponent(color, 115));
+                murkaNameBadges.setBounds(bx, by, bx + bw, by + bh);
+                murkaNameBadges.draw(canvas);
             }
 
             float end;
@@ -19152,14 +19255,22 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawBackground(Canvas canvas, int left, int top, int right, int bottom, boolean pinnedTop, boolean pinnedBottom, boolean selected, int keyboardHeight) {
+        final boolean murkaNoTailBg = MurkaConfig.noBubbleTail && !mediaBackground && !pinnedBottom && currentMessageObject != null; // MurkaGram: без хвоста — сужаем со стороны хвоста
+        if (murkaNoTailBg) {
+            if (currentMessageObject.isOutOwner()) {
+                right -= dp(6);
+            } else {
+                left += dp(6);
+            }
+        }
         if (currentMessageObject != null && currentMessageObject.isOutOwner()) {
-            if (!mediaBackground && !pinnedBottom) {
+            if (!mediaBackground && !pinnedBottom && !murkaNoTailBg) { // MurkaGram: без хвоста
                 currentBackgroundDrawable = outBubbleDrawable(selected ? Theme.key_drawable_msgOutSelected : Theme.key_drawable_msgOut);
             } else {
                 currentBackgroundDrawable = outBubbleDrawable(selected ? Theme.key_drawable_msgOutMediaSelected : Theme.key_drawable_msgOutMedia);
             }
         } else {
-            if (!mediaBackground && !pinnedBottom) {
+            if (!mediaBackground && !pinnedBottom && !murkaNoTailBg) { // MurkaGram: без хвоста
                 currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(selected ? Theme.key_drawable_msgInSelected : Theme.key_drawable_msgIn);
             } else {
                 currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(selected ? Theme.key_drawable_msgInMediaSelected : Theme.key_drawable_msgInMedia);
@@ -20426,13 +20537,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (update) {
             boolean forceMediaByGroup = currentPosition != null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0 && currentMessagesGroup.isDocuments && !drawPinnedBottom;
             if (currentMessageObject.isOutOwner()) {
-                if (!mediaBackground && !drawPinnedBottom && !forceMediaByGroup) {
+                if (!mediaBackground && !drawPinnedBottom && !forceMediaByGroup && !murkaNoTail()) { // MurkaGram
                     currentBackgroundDrawable = outBubbleDrawable(Theme.key_drawable_msgOut);
                 } else {
                     currentBackgroundDrawable = outBubbleDrawable(Theme.key_drawable_msgOutMedia);
                 }
             } else {
-                if (!mediaBackground && !drawPinnedBottom && !forceMediaByGroup) {
+                if (!mediaBackground && !drawPinnedBottom && !forceMediaByGroup && !murkaNoTail()) { // MurkaGram
                     currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(Theme.key_drawable_msgIn);
                 } else {
                     currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(Theme.key_drawable_msgInMedia);
@@ -23657,12 +23768,26 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    // MurkaGram: «Убрать хвост сообщений» — последний пузырь серии рисуется без хвоста (как «прилипший» снизу), разметка контента не меняется
+    private boolean murkaNoTail() {
+        if (!MurkaConfig.noBubbleTail || drawPinnedBottom || mediaBackground || isRoundVideo) {
+            return false;
+        }
+        // документы в группе (не нижний) и так рисуются без хвоста и без сужения
+        return !(currentPosition != null && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0 && currentMessagesGroup != null && currentMessagesGroup.isDocuments);
+    }
+
+    // MurkaGram: на сколько сужен фон со стороны хвоста (используется в TextMessageEnterTransition)
+    public int murkaTailInset() {
+        return murkaNoTail() ? dp(6) : 0;
+    }
+
     public int getCurrentBackgroundLeft() {
         if (currentBackgroundDrawable == null) {
             return 0;
         }
         int left = currentBackgroundDrawable.getBounds().left;
-        if (!currentMessageObject.isOutOwner() && transitionParams.changePinnedBottomProgress != 1 && (isRoundVideo || !mediaBackground) && !drawPinnedBottom) {
+        if (!currentMessageObject.isOutOwner() && (transitionParams.changePinnedBottomProgress != 1 || murkaNoTail()) && (isRoundVideo || !mediaBackground) && !drawPinnedBottom) { // MurkaGram: + murkaNoTail()
             if (isRoundVideo) {
                 left -= dp(6) * (getVideoTranscriptionProgress());
             } else {
@@ -23677,7 +23802,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return getWidth();
         }
         int right = currentBackgroundDrawable.getBounds().right;
-        if (currentMessageObject.isOutOwner() && transitionParams.changePinnedBottomProgress != 1 && (isRoundVideo || !mediaBackground) && !drawPinnedBottom) {
+        if (currentMessageObject.isOutOwner() && (transitionParams.changePinnedBottomProgress != 1 || murkaNoTail()) && (isRoundVideo || !mediaBackground) && !drawPinnedBottom) { // MurkaGram: + murkaNoTail()
             if (isRoundVideo) {
                 right += dp(6) * (getVideoTranscriptionProgress());
             } else {

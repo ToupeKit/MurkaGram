@@ -132,6 +132,8 @@ import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -158,6 +160,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaRegDate; // MurkaGram
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -216,6 +219,7 @@ import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailCell;
+import org.telegram.ui.Cells.UserInfoCell; // MurkaGram
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.UserCell;
 import org.telegram.ui.Components.AlertsCreator;
@@ -377,6 +381,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private Long emojiStatusGiftId;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable emojiStatusDrawable;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerificationDrawable;
+    private MurkaBadges.BadgesDrawable murkaBadgesDrawable; // MurkaGram: «Бейджики» (ui-13: одна nameTextView вместо массива)
     private Drawable verifiedCheckDrawable;
     private CrossfadeDrawable verifiedCrossfadeDrawable;
     private CrossfadeDrawable premiumCrossfadeDrawable;
@@ -643,6 +648,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int privacyRow;
     private int dataRow;
     private int chatRow;
+    private int murkaSettingsRow; // MurkaGram: пункт «MurkaGram настройки»
     private int filtersRow;
     private int liteModeRow;
     private int stickersRow;
@@ -671,6 +677,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int userInfoRow;
     private int channelInfoRow;
     private int usernameRow;
+    private int murkaIdRow; // MurkaGram: строка «ID аккаунта»
     private int notificationsDividerRow;
     private int notificationsRow;
     private int bizHoursRow;
@@ -4266,7 +4273,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             public boolean supportsPredictiveItemAnimations() {
-                return imageUpdater != null;
+                // MurkaGram: пока AboutLinkCell меняет высоту (mIgnoreTopPadding), якорем служит строка 0 над paddingTop;
+                // с predictive-анимациями LinearLayoutManager «прижимает» такой якорь к paddingTop — шапка раздувается до размера аватарки
+                return imageUpdater != null && !mIgnoreTopPadding;
             }
 
             @Override
@@ -4308,6 +4317,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return;
             }
             listView.stopScroll();
+            // MurkaGram: тап по «ещё» в описании только раскрывает текст
+            if (view instanceof AboutLinkCell && ((AboutLinkCell) view).murkaIsShowMoreAt(x, y)) {
+                ((AboutLinkCell) view).onClick();
+                return;
+            }
+            if (position == murkaIdRow) { // MurkaGram: копирование ID аккаунта
+                murkaCopyId();
+                return;
+            }
             if (position == affiliateRow) {
                 TLRPC.User user = getMessagesController().getUser(userId);
                 if (userInfo != null && userInfo.starref_program != null) {
@@ -4518,6 +4536,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new PrivacySettingsActivity().setCurrentPassword(currentPassword));
             } else if (position == dataRow) {
                 presentFragment(new DataSettingsActivity());
+            } else if (position == murkaSettingsRow) { // MurkaGram: открыть экран настроек MurkaGram
+                presentFragment(new MurkaGramSettingsActivity());
             } else if (position == chatRow) {
                 presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC));
             } else if (position == filtersRow) {
@@ -4645,6 +4665,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
             @Override
             public boolean onItemClick(View view, int position) {
+                if (position == murkaIdRow) { // MurkaGram: копирование ID аккаунта
+                    murkaCopyId();
+                    return true;
+                }
                 if (position == versionRow) {
                     pressCount++;
                     if (pressCount >= 2 || BuildVars.DEBUG_PRIVATE_VERSION) {
@@ -5528,6 +5552,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         nameTextView.setScrollNonFitText(true);
         nameTextView.setFocusable(true);
         nameTextView.setEllipsizeByGradient(true);
+        nameTextView.setMurkaBadgesOnClick((v, badges, index) -> MurkaBadges.showBadgeInfo(ProfileActivity.this, badges, index)); // MurkaGram: описание бейджика по нажатию
         avatarContainer2.addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, 0, 0));
 
         onlineTextView = new AnimatedClickableSmallTextView(context) {
@@ -7434,6 +7459,46 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         presentFragment(fragment);
     }
 
+    // MurkaGram: ID профиля строкой в формате Bot API (канал/супергруппа — «-100…», обычная группа — «-…»)
+    private String getMurkaIdString() {
+        if (userId != 0) {
+            return String.valueOf(userId);
+        }
+        TLRPC.Chat chat = getMessagesController().getChat(chatId);
+        if (chat == null) {
+            chat = currentChat;
+        }
+        return (ChatObject.isChannel(chat) ? "-100" : "-") + chatId;
+    }
+
+    // MurkaGram: копирование ID аккаунта в буфер обмена
+    private void murkaCopyId() {
+        try {
+            AndroidUtilities.addToClipboard(getMurkaIdString());
+            BulletinFactory.of(this).createCopyBulletin(getString(R.string.MurkaIdCopied), resourcesProvider).show();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    // MurkaGram: дата регистрации — точная из PeerSettings, иначе оценка по ID
+    private void murkaShowRegDate() {
+        if (userId == 0) {
+            return;
+        }
+        try {
+            final TLRPC.PeerSettings settings = getMessagesController().getPeerSettings(userId);
+            if (settings != null && !TextUtils.isEmpty(settings.registration_month)) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.MurkaRegDate), UserInfoCell.displayDate(settings.registration_month)).show();
+                return;
+            }
+            final long date = MurkaRegDate.estimate(userId);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.formatString(R.string.MurkaRegDateApprox, LocaleController.formatYearMont(date, true)), getString(R.string.MurkaRegDateNote)).show();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
@@ -7551,13 +7616,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
         } else if (position == phoneRow || position == numberRow) {
             if (editRow(view, position)) return true;
+            if (MurkaConfig.hidePhone && position == numberRow) return false; // MurkaGram: «Скрыть номер телефона»
 
             final TLRPC.User user = getMessagesController().getUser(userId);
             if (user == null || user.phone == null || user.phone.length() == 0 || getParentActivity() == null) {
                 return false;
             }
 
-            if (position == phoneRow && user.phone.startsWith("888")) {
+            if (position == phoneRow && user.phone.startsWith("888") && !MurkaConfig.hidePhone) { // MurkaGram
                 final TL_fragment.TL_inputCollectiblePhone input = new TL_fragment.TL_inputCollectiblePhone();
                 final String phone = input.phone = user.phone;
                 final TL_fragment.TL_getCollectibleInfo req = new TL_fragment.TL_getCollectibleInfo();
@@ -7589,7 +7655,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         });
                     }
                 }
-                if (!isFragmentPhoneNumber) {
+                if (!isFragmentPhoneNumber && !MurkaConfig.hidePhone) { // MurkaGram
                     o.add(R.drawable.msg_calls_regular, getString(R.string.Call), () -> {
                         try {
                             Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:+" + user.phone));
@@ -7601,18 +7667,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     });
                 }
             }
-            o.add(R.drawable.msg_copy, getString(R.string.Copy), () -> {
-                try {
-                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                    android.content.ClipData clip = android.content.ClipData.newPlainText("label", "+" + user.phone);
-                    clipboard.setPrimaryClip(clip);
-                    if (AndroidUtilities.shouldShowClipboardToast()) {
-                        BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PhoneCopied)).show();
+            if (!MurkaConfig.hidePhone) { // MurkaGram: «Скрыть номер телефона» — без «Позвонить»/«Копировать»
+                o.add(R.drawable.msg_copy, getString(R.string.Copy), () -> {
+                    try {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                        android.content.ClipData clip = android.content.ClipData.newPlainText("label", "+" + user.phone);
+                        clipboard.setPrimaryClip(clip);
+                        if (AndroidUtilities.shouldShowClipboardToast()) {
+                            BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PhoneCopied)).show();
+                        }
+                    } catch (Exception e) {
+                        FileLog.e(e);
                     }
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
-            });
+                });
+            }
+            if (o.getItemsCount() == 0) { // MurkaGram
+                return false;
+            }
             if (isFragmentPhoneNumber) {
                 final SpannableStringBuilder spanned = new SpannableStringBuilder(AndroidUtilities.replaceTags(LocaleController.getString(R.string.AnonymousNumberNotice)));
                 final int startIndex = TextUtils.indexOf(spanned, '*');
@@ -9313,6 +9384,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (holder != null) {
                             listAdapter.onBindViewHolder(holder, phoneRow);
                         }
+                        if (numberRow >= 0) { // MurkaGram: «Скрыть номер телефона» — номер в настройках
+                            RecyclerListView.Holder numberHolder = (RecyclerListView.Holder) listView.findViewHolderForPosition(numberRow);
+                            if (numberHolder != null) {
+                                listAdapter.onBindViewHolder(numberHolder, numberRow);
+                            }
+                        }
                     }
                 }
             } else if (chatId != 0) {
@@ -10644,7 +10721,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             for (int a = 0; a < chatInfo.participants.participants.size(); a++) {
                 TLRPC.ChatParticipant participant = chatInfo.participants.participants.get(a);
                 TLRPC.User user = getMessagesController().getUser(participant.user_id);
-                if (user != null && user.status != null && (user.status.expires > currentTime || user.id == getUserConfig().getClientUserId()) && user.status.expires > 10000) {
+                if (user != null && user.status != null && (user.status.expires > currentTime || MurkaConfig.forceSelfOnline(currentAccount, user.id)) && user.status.expires > 10000) { // MurkaGram: режим призрака
                     onlineCount++;
                 }
                 sortedUsers.add(a);
@@ -10841,6 +10918,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         privacyRow = -1;
         dataRow = -1;
         chatRow = -1;
+        murkaSettingsRow = -1; // MurkaGram: пункт «MurkaGram настройки»
         filtersRow = -1;
         liteModeRow = -1;
         stickersRow = -1;
@@ -10884,6 +10962,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         locationRow = -1;
         channelInfoRow = -1;
         usernameRow = -1;
+        murkaIdRow = -1; // MurkaGram: строка «ID аккаунта»
         settingsTimerRow = -1;
         settingsKeyRow = -1;
         notificationsDividerRow = -1;
@@ -10986,6 +11065,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 numberSectionRow = rowCount++;
                 numberRow = rowCount++;
                 setUsernameRow = rowCount++;
+                murkaIdRow = rowCount++; // MurkaGram: строка «ID аккаунта»
                 bioRow = rowCount++;
 
                 settingsSectionRow = rowCount++;
@@ -11003,6 +11083,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
 
                 settingsSectionRow2 = rowCount++;
+                murkaSettingsRow = rowCount++; // MurkaGram: первый пункт в блоке настроек
                 chatRow = rowCount++;
                 privacyRow = rowCount++;
                 notificationRow = rowCount++;
@@ -11077,6 +11158,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
+                }
+                if (user != null) {
+                    murkaIdRow = rowCount++; // MurkaGram: строка «ID аккаунта»
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -11202,6 +11286,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             usernameRow = rowCount++;
+            murkaIdRow = rowCount++; // MurkaGram: строка «ID аккаунта»
             if (actionsView == null) {
                 notificationsSimpleRow = rowCount++;
             }
@@ -11213,7 +11298,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 sharedMediaRow = rowCount++;
             }
         } else if (chatId != 0) {
-            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat)) {
+            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || currentChat != null) { // MurkaGram: инфо-блок всегда (для строки «ID аккаунта»)
                 if (emptyRow < 0 && emptyRow2 < 0) {
                     if (hasMusic || hasBalance || peerColor != null || actionsView == null) {
                         emptyRow2 = rowCount++;
@@ -11235,6 +11320,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
+                }
+                if (currentChat != null) {
+                    murkaIdRow = rowCount++; // MurkaGram: строка «ID аккаунта»
                 }
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
@@ -11469,6 +11557,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return premiumCrossfadeDrawable;
     }
 
+    // MurkaGram: «Бейджики» у имени в профиле (null — бейджиков нет)
+    private Drawable getMurkaBadgesDrawable(long dialogId) {
+        murkaBadgesDrawable = MurkaBadges.getDrawable(dialogId, 20, murkaBadgesDrawable);
+        updateEmojiStatusDrawableColor();
+        return murkaBadgesDrawable;
+    }
+
     private Drawable getBotVerificationDrawable(long icon, boolean animated) {
         if (botVerificationDrawable == null) {
             botVerificationDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(nameTextView, AndroidUtilities.dp(17), AnimatedEmojiDrawable.CACHE_TYPE_KEYBOARD);
@@ -11541,6 +11636,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         final int color = ColorUtils.blendARGB(ColorUtils.blendARGB(fromColor, 0xffffffff, progress), getThemedColor(Theme.key_player_actionBarTitle), Math.max(mediaHeaderAnimationProgress, headerBlurFactor));
         if (emojiStatusDrawable != null) {
             emojiStatusDrawable.setColor(color);
+        }
+        if (murkaBadgesDrawable != null) { // MurkaGram
+            murkaBadgesDrawable.setColor(color);
         }
         if (botVerificationDrawable != null) {
             botVerificationDrawable.setColor(ColorUtils.blendARGB(ColorUtils.blendARGB(fromColor, 0x99ffffff, progress), getThemedColor(Theme.key_player_actionBarTitle), mediaHeaderAnimationProgress));
@@ -11722,6 +11820,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                         newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT);
+                    } else if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — реальный статус с сервера
+                        isOnline[0] = false;
+                        newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline);
+                        if (onlineTextView != null && !mediaHeaderVisible) { // MurkaGram: ui-13 — одна onlineTextView
+                            int key = isOnline[0] && peerColor == null ? Theme.key_profile_status : Theme.key_actionBarDefaultSubtitle;
+                            onlineTextView.setTag(key);
+                            if (!isPulledDown) {
+                                onlineTextView.setTextColor(applyPeerColor(getThemedColor(key), true, isOnline[0]));
+                            }
+                        }
                     } else {
                         newString2 = LocaleController.getString(R.string.Online);
                     }
@@ -11798,6 +11906,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView.setRightDrawable(null);
                     nameTextViewRightDrawableContentDescription = null;
                 }
+                nameTextView.setMurkaBadgesDrawable(getMurkaBadgesDrawable(user.id)); // MurkaGram: «Бейджики» (ui-13: копия из шапки чата не нужна — nameTextView одна)
                 if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
@@ -11878,6 +11987,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     // the status is hidden over the fallback photo, which the description explains
                     if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                         newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT);
+                    } else if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — реальный статус с сервера
+                        newString2 = LocaleController.formatUserStatus(currentAccount, user, null);
                     } else {
                         newString2 = LocaleController.getString(R.string.Online);
                     }
@@ -12040,6 +12151,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView.setLeftDrawable(null);
                 nameTextView.setRightDrawableOutside(false);
                 nameTextView.setRightDrawableOnClick(null);
+                nameTextView.setMurkaBadgesDrawable(isTopic || ChatObject.isForum(chat) ? null : getMurkaBadgesDrawable(-chatId)); // MurkaGram: «Бейджики» каналов и групп (форумы и топики пока без них)
                 nameTextViewRightDrawable2ContentDescription = null;
                 if (chat.scam || chat.fake) {
                     nameTextView.setRightDrawable2(getScamDrawable(chat.scam ? 0 : 1));
@@ -13355,6 +13467,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 case VIEW_TYPE_DIVIDER: {
                     view = new DividerCell(mContext, resourcesProvider);
                     view.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(4), 0, 0);
+                    ((DividerCell) view).setMurkaHideInMD3(true); // MurkaGram: ui-13 — MD3: линия по «Типу разделителей»
                     break;
                 }
                 case VIEW_TYPE_NOTIFICATIONS_CHECK: {
@@ -13626,6 +13739,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
+                    boolean containsMurkaCalendar = false; // MurkaGram: календарь — дата регистрации
                     if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
@@ -13665,6 +13779,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             phoneNumber = user.phone;
                         } else {
                             text = LocaleController.getString(R.string.PhoneHidden);
+                            phoneNumber = null;
+                        }
+                        if (MurkaConfig.hidePhone) { // MurkaGram: «Скрыть номер телефона»
+                            text = LocaleController.getString(R.string.MurkaPhoneHidden);
                             phoneNumber = null;
                         }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
@@ -13746,6 +13864,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             usernames = new ArrayList<>();
                         }
                         detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                    } else if (position == murkaIdRow) { // MurkaGram: строка «ID аккаунта»
+                        final boolean murkaDivider = position + 1 == bioRow || infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0;
+                        detailCell.setTextAndValue(getMurkaIdString(), getString(R.string.MurkaAccountId), murkaDivider);
+                        detailCell.setContentDescriptionValueFirst(false);
+                        containsMurkaCalendar = userId != 0; // MurkaGram: календарь — дата регистрации
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -13755,7 +13878,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
                         String value;
                         if (user != null && user.phone != null && user.phone.length() != 0) {
-                            value = PhoneFormat.getInstance().format("+" + user.phone);
+                            value = MurkaConfig.formatPhone(user.phone); // MurkaGram: «Скрыть номер телефона»
                         } else {
                             value = LocaleController.getString(R.string.NumberUnknown);
                         }
@@ -13810,6 +13933,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
                         qrRowIconDrawable = drawable;
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
+                        detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
+                    } else if (containsMurkaCalendar) { // MurkaGram: календарь — дата регистрации (ui-13: цвет как у QR)
+                        Drawable drawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2).mutate();
+                        drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
+                        detailCell.setImage(drawable, getString(R.string.MurkaRegDate));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
                     } else {
                         detailCell.setImage(null);
@@ -14012,6 +14140,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PrivacySettings), R.drawable.msg2_secret, true);
                     } else if (position == dataRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.DataSettings), R.drawable.msg2_data, true);
+                    } else if (position == murkaSettingsRow) { // MurkaGram: пункт «MurkaGram настройки»
+                        textCell.setTextAndIcon(LocaleController.getString(R.string.MurkaGramSettings), R.drawable.msg_settings, true);
                     } else if (position == chatRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.ChatSettings), R.drawable.msg2_discussion, true);
                     } else if (position == filtersRow) {
@@ -14459,7 +14589,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         position == clearLogsRow || position == switchBackendRow || position == setAvatarRow ||
                         position == addToGroupButtonRow || position == premiumRow || position == premiumGiftingRow ||
                         position == businessRow || position == liteModeRow || position == birthdayRow || position == channelRow ||
-                        position == starsRow || position == tonRow || position == linkedCommunityRow;
+                        position == starsRow || position == tonRow || position == linkedCommunityRow ||
+                        position == murkaSettingsRow || // MurkaGram: пункт «MurkaGram настройки»
+                        position == murkaIdRow; // MurkaGram: строка «ID аккаунта»
             }
             if (holder.itemView instanceof UserCell) {
                 UserCell userCell = (UserCell) holder.itemView;
@@ -14487,7 +14619,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow ||
+                    position == murkaIdRow) { // MurkaGram: строка «ID аккаунта»
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -14505,7 +14638,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     position == clearLogsRow || position == switchBackendRow || position == setAvatarRow || position == addToGroupButtonRow ||
                     position == addToContactsRow || position == liteModeRow || position == premiumGiftingRow || position == businessRow ||
                     position == botStarsBalanceRow || position == botTonBalanceRow || position == channelBalanceRow || position == botPermissionLocation ||
-                    position == botPermissionBiometry || position == botPermissionEmojiStatus || position == tonRow
+                    position == botPermissionBiometry || position == botPermissionEmojiStatus || position == tonRow ||
+                    position == murkaSettingsRow // MurkaGram: пункт «MurkaGram настройки»
             ) {
                 return VIEW_TYPE_TEXT;
             } else if (position == notificationsDividerRow) {
@@ -14975,6 +15109,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(402, getString(R.string.AskAQuestion), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> f.showDialog(AlertsCreator.createSupportAlert(f, null))).withLink("tg://settings/ask-question"),
                     new SearchResult(403, getString(R.string.TelegramFAQ), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.TelegramFaqUrl))).withLink("tg://settings/faq"),
                     new SearchResult(404, getString(R.string.PrivacyPolicy), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.PrivacyPolicyUrl))).withLink("tg://settings/privacy-policy"),
+
+                    // MurkaGram: поиск по настройкам — экран «MurkaGram настройки»
+                    new SearchResult(1000, getString(R.string.MurkaGramSettings), R.drawable.msg_settings, () -> f.presentFragment(new MurkaGramSettingsActivity())),
             };
         }
 
@@ -15602,6 +15739,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             args.putLong("chat_id", chatId);
             args.putLong("user_id", userId);
             presentFragment(new QrShareActivity(args));
+        } else if (parent.getTag() != null && ((int) parent.getTag()) == murkaIdRow) { // MurkaGram: дата регистрации
+            murkaShowRegDate();
         } else if (parent.getTag() != null && ((int) parent.getTag()) == birthdayRow) {
             if (userId == getUserConfig().getClientUserId()) {
                 presentFragment(new PremiumPreviewFragment("my_profile_gift"));
@@ -15779,6 +15918,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, graceSuggestionSectionRow, sparseIntArray);
             put(++pointer, settingsSectionRow, sparseIntArray);
             put(++pointer, settingsSectionRow2, sparseIntArray);
+            put(++pointer, murkaSettingsRow, sparseIntArray); // MurkaGram: пункт «MurkaGram настройки»
             put(++pointer, notificationRow, sparseIntArray);
             put(++pointer, languageRow, sparseIntArray);
             put(++pointer, premiumRow, sparseIntArray);
@@ -15817,6 +15957,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, userInfoRow, sparseIntArray);
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
+            put(++pointer, murkaIdRow, sparseIntArray); // MurkaGram: строка «ID аккаунта»
             put(++pointer, notificationsDividerRow, sparseIntArray);
             put(++pointer, reportDividerRow, sparseIntArray);
             put(++pointer, notificationsRow, sparseIntArray);
@@ -16413,7 +16554,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             copyButton = getString(R.string.ProfileCopyUsername);
             copiedText = getString(R.string.UsernameCopied);
         } else if (position == phoneRow) {
-            textToCopy = user.phone;
+            textToCopy = MurkaConfig.hidePhone ? null : user.phone; // MurkaGram: «Скрыть номер телефона»
             copiedText = getString(R.string.PhoneCopied);
         } else if (position == birthdayRow) {
             textToCopy = UserInfoActivity.birthdayString(userInfo.birthday);

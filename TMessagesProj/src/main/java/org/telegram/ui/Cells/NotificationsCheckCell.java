@@ -32,6 +32,7 @@ import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.MurkaMD3;
 import org.telegram.ui.Components.Switch;
 
 public class NotificationsCheckCell extends FrameLayout {
@@ -113,7 +114,7 @@ public class NotificationsCheckCell extends FrameLayout {
             }
         };
         checkBox.setColors(Theme.key_switchTrack, Theme.key_switchTrackChecked, Theme.key_windowBackgroundWhite, Theme.key_windowBackgroundWhite);
-        addView(checkBox, LayoutHelper.createFrame(37, 40, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 21, 0, 21, 0));
+        addView(checkBox, LayoutHelper.createFrame(MurkaMD3.switchWidth(), MurkaMD3.switchHeight(40), (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, MurkaMD3.switchMargin(21), 0, MurkaMD3.switchMargin(21), 0)); // MurkaGram: MD3 — крупный переключатель
         checkBox.setFocusable(false);
     }
 

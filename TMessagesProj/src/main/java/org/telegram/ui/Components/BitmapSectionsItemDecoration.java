@@ -137,7 +137,10 @@ public class BitmapSectionsItemDecoration extends RecyclerView.ItemDecoration im
 
     @Override
     public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView recyclerView, @NonNull RecyclerView.State state) {
-        if (!isSectionItem(view)) return;
+        if (!isSectionItem(view)) {
+            parent.murkaSectionItemOffsets(outRect, view, padding); // MurkaGram: ui-13 — MD3
+            return;
+        }
         outRect.left = outRect.right = padding;
         final RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(view);
         final RecyclerView.Adapter adapter = recyclerView.getAdapter();
@@ -146,6 +149,7 @@ public class BitmapSectionsItemDecoration extends RecyclerView.ItemDecoration im
         if (position == RecyclerView.NO_POSITION) return;
         if (position == 0) outRect.top = enableTopPadding ? padding : AndroidUtilities.dp(4);
         if (position == adapter.getItemCount() - 1) outRect.bottom = padding;
+        parent.murkaSectionItemOffsets(outRect, view, padding); // MurkaGram: ui-13 — MD3
     }
 
     @Override
@@ -334,6 +338,15 @@ public class BitmapSectionsItemDecoration extends RecyclerView.ItemDecoration im
     }
 
     private void drawStableSectionsBackgrounds(Canvas canvas) {
+        if (MurkaMD3.sectionSegments()) { // MurkaGram: ui-13 — MD3 «Сегменты»: каждая строка отдельной плиткой
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                final View child = parent.getChildAt(i);
+                if (child == parent.getEmptyView() || child.getVisibility() != View.VISIBLE || child.getAlpha() <= 0.0f ||
+                        !isSectionItem(child) || parent.isInsideForcedSection(parent.getChildAdapterPosition(child))) continue;
+                drawSectionBackground(canvas, child, child, false, false);
+            }
+            return;
+        }
         int startIndex = -1, previousIndex = -1;
         View start = null, previous = null;
         for (int i = 0; i < parent.getChildCount(); i++) {
@@ -689,7 +702,56 @@ public class BitmapSectionsItemDecoration extends RecyclerView.ItemDecoration im
             final float right = left + child.getWidth();
             if (!isSectionPosition(position - 1) && !RecyclerListView.hasSectionContentAboveTop(child)) drawTopCorners(canvas, left, right, RecyclerListView.top(child), 1.0f);
             if (!isSectionPosition(position + 1)) drawBottomCorners(canvas, left, right, RecyclerListView.bottom(child), 1.0f);
+            murkaDrawSegmentCorners(canvas, child, left, right); // MurkaGram: ui-13 — MD3
         }
+    }
+
+    // MurkaGram: ui-13 — MD3 «Сегменты»: малые углы между строками (тем же способом — битмапом цвета фона поверх строки)
+    private final float[] murkaRadii = new float[2];
+    private Bitmap murkaSmallBitmap;
+    private int murkaSmallSize;
+    private float murkaSmallRadius = -1.0f;
+    private int murkaSmallColor;
+
+    private void murkaDrawSegmentCorners(Canvas canvas, View child, float left, float right) {
+        if (!MurkaMD3.sectionSegments()) return;
+        final float small = MurkaMD3.sectionSmallRadius();
+        if (small <= 0.0f) return;
+        parent.murkaSegmentRadii(child, radius, murkaRadii);
+        final boolean top = murkaRadii[0] > 0.0f && murkaRadii[0] < radius;
+        final boolean bottom = murkaRadii[1] > 0.0f && murkaRadii[1] < radius;
+        if (!top && !bottom) return;
+        final int color = backgroundPaint.getColor();
+        final int size = Math.max(1, (int) Math.ceil(small));
+        if (murkaSmallBitmap == null || murkaSmallSize != size || murkaSmallRadius != small || murkaSmallColor != color) {
+            murkaSmallSize = size;
+            murkaSmallRadius = small;
+            murkaSmallColor = color;
+            murkaSmallBitmap = Bitmap.createBitmap(size * 2, size * 2, Bitmap.Config.ARGB_8888);
+            final Canvas bitmapCanvas = new Canvas(murkaSmallBitmap);
+            bitmapCanvas.drawColor(color);
+            final Paint clearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            clearPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+            bitmapCanvas.drawCircle(size, size, small, clearPaint);
+        }
+        final float childTop = RecyclerListView.top(child);
+        final float childBottom = RecyclerListView.bottom(child);
+        if (top) {
+            murkaDrawSmallCorner(canvas, 0, left, childTop, left + size, childTop + size);
+            murkaDrawSmallCorner(canvas, 1, right - size, childTop, right, childTop + size);
+        }
+        if (bottom) {
+            murkaDrawSmallCorner(canvas, 2, left, childBottom - size, left + size, childBottom);
+            murkaDrawSmallCorner(canvas, 3, right - size, childBottom - size, right, childBottom);
+        }
+    }
+
+    private void murkaDrawSmallCorner(Canvas canvas, int corner, float left, float top, float right, float bottom) {
+        final int srcLeft = (corner & 1) == 0 ? 0 : murkaSmallSize;
+        final int srcTop = corner < 2 ? 0 : murkaSmallSize;
+        cornerSrc.set(srcLeft, srcTop, srcLeft + murkaSmallSize, srcTop + murkaSmallSize);
+        cornerDst.set(left, top, right, bottom);
+        canvas.drawBitmap(murkaSmallBitmap, cornerSrc, cornerDst, bitmapPaint);
     }
 
     private void drawAnimatedCorners(Canvas canvas) {

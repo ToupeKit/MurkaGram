@@ -180,6 +180,10 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagePreviewParams;
 import org.telegram.messenger.MessageSuggestionParams;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaConfig;
+import org.telegram.messenger.MurkaDesignPack; // MurkaGram
+import org.telegram.messenger.MurkaStorage;
+import org.telegram.messenger.MurkaTextDiff;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -824,6 +828,7 @@ public class ChatActivity extends BaseFragment implements
     private int runningAnimationIndex = -1;
 
     private MessageObject selectedObjectToEditCaption;
+    private ArrayList<MurkaStorage.ReadRecord> murkaReadDates; // MurkaGram: сохранённые даты прочтения исходящих сообщений
     private MessageObject selectedObject;
     private MessageObject.GroupedMessages selectedObjectGroup;
     private boolean forbidForwardingWithDismiss;
@@ -1297,6 +1302,8 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_WELCOME_REVERT = 116;
     public final static int OPTION_SEND_MONEY = 117;
     public final static int OPTION_STOP_LIVE_LOCATION = 118;
+    public final static int OPTION_MURKA_EDIT_HISTORY = 1000; // MurkaGram: «Изменения»
+    public final static int OPTION_MURKA_READ = 1001; // MurkaGram: «Прочитать» (режим призрака)
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -2904,6 +2911,9 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.murkaMessagesDeleted) // MurkaGram: ui-13
+            .add(NotificationCenter.murkaEditHistoryUpdated) // MurkaGram: ui-13
+            .add(NotificationCenter.murkaReadDateSaved) // MurkaGram: ui-13
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -2971,7 +2981,15 @@ public class ChatActivity extends BaseFragment implements
             .addGlobal(NotificationCenter.didSetNewWallpapper)
             .addGlobal(NotificationCenter.didApplyNewTheme)
             .addGlobal(NotificationCenter.goingToPreviewTheme);
-
+        if (MurkaConfig.saveReadDates && currentUser != null && currentEncryptedChat == null && !UserObject.isUserSelf(currentUser)) { // MurkaGram: «Сохранять дату прочтения» — загрузить сохранённые даты
+            MurkaStorage.loadReadDates(currentAccount, dialog_id, records -> {
+                if (murkaReadDates == null) {
+                    murkaReadDates = records;
+                } else {
+                    murkaReadDates.addAll(records);
+                }
+            });
+        }
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
             observersGroup.add(NotificationCenter.businessLinksUpdated);
         }
@@ -3705,6 +3723,7 @@ public class ChatActivity extends BaseFragment implements
         actionBar.setCastShadows(false);
         actionBar.setBackground(null);
         // actionBar.setOccupyStatusBar(false);
+        actionBar.setMurkaCenterTitleAuto(false); // MurkaGram: в чате «Центрировать название» не применяется
         if (inPreviewMode) {
             actionBar.setBackButtonDrawable(null);
         } else {
@@ -5059,7 +5078,8 @@ public class ChatActivity extends BaseFragment implements
                             currentEncryptedChat == null && message.getId() < 0 ||
                             currentChat != null && ChatObject.isForum(currentChat) && !allowReplyOnOpenTopic ||
                             hasTextSelection() ||
-                            message.isEphemeral() && message.isOut()
+                            message.isEphemeral() && message.isOut() ||
+                            message != null && message.isMurkaDeleted() // MurkaGram: нельзя ответить свайпом на удалённое
                         ) {
                             slidingViewSetOffset(0);
                             slidingView = null;
@@ -5623,7 +5643,7 @@ public class ChatActivity extends BaseFragment implements
                         }
                         canvas.save();
                         canvas.translate(cell.getLeft() + cell.getNonAnimationTranslationX(false), cell.getY() + cell.getPaddingTop());
-                        cell.drawTime(canvas, cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f, true);
+                        cell.drawTime(canvas, (cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f) * cell.getMurkaAlpha(), true); // MurkaGram: * прозрачность удалённого
                         canvas.restore();
                     }
                     drawTimeAfter.clear();
@@ -5637,7 +5657,7 @@ public class ChatActivity extends BaseFragment implements
                         }
                         float canvasOffsetX = cell.getLeft() + cell.getNonAnimationTranslationX(false);
                         float canvasOffsetY = cell.getY() + cell.getPaddingTop();
-                        float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
+                        float alpha = (cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f) * cell.getMurkaAlpha(); // MurkaGram: * прозрачность удалённого
 
                         canvas.save();
                         canvas.translate(canvasOffsetX, canvasOffsetY);
@@ -5659,7 +5679,7 @@ public class ChatActivity extends BaseFragment implements
                         if (cell.getCurrentPosition() != null) {
                             selectionOnly = (cell.getCurrentPosition().flags & MessageObject.POSITION_FLAG_LEFT) == 0;
                         }
-                        float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
+                        float alpha = (cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f) * cell.getMurkaAlpha(); // MurkaGram: * прозрачность удалённого
                         float canvasOffsetX = cell.getLeft() + cell.getNonAnimationTranslationX(false);
                         float canvasOffsetY = cell.getY() + cell.getPaddingTop();
                         canvas.save();
@@ -5701,7 +5721,7 @@ public class ChatActivity extends BaseFragment implements
                         if (cell.getCurrentPosition() != null) {
                             selectionOnly = (cell.getCurrentPosition().flags & MessageObject.POSITION_FLAG_LEFT) == 0;
                         }
-                        float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
+                        float alpha = (cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f) * cell.getMurkaAlpha(); // MurkaGram: * прозрачность удалённого
                         float canvasOffsetX = cell.getLeft() + cell.getNonAnimationTranslationX(false);
                         float canvasOffsetY = cell.getY() + cell.getPaddingTop();
                         canvas.save();
@@ -16251,6 +16271,9 @@ public class ChatActivity extends BaseFragment implements
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.destroyTime != 0 || messageObject.messageOwner.ttl <= 0) {
             return null;
         }
+        if (MurkaConfig.ghostMode && currentEncryptedChat == null) { // MurkaGram: режим призрака — не запускаем таймер и не сообщаем серверу о просмотре (только облачные чаты)
+            return null;
+        }
         if (readNow) {
             final boolean delete = messageObject.messageOwner.ttl != 0x7FFFFFFF;
             final int ttl = messageObject.messageOwner.ttl == 0x7FFFFFFF ? 0 : messageObject.messageOwner.ttl;
@@ -16280,6 +16303,9 @@ public class ChatActivity extends BaseFragment implements
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.ttl != 0x7FFFFFFF) {
             return null;
         }
+        if (MurkaConfig.ghostMode && currentEncryptedChat == null) { // MurkaGram: режим призрака — одноразовое медиа не удаляется после просмотра (только облачные чаты)
+            return null;
+        }
         final long taskId = getMessagesController().createDeleteShowOnceTask(dialog_id, messageObject.getId());
         messageObject.forceExpired = true;
         if (messageObject.isOutOwner() || !messageObject.isRoundOnce() && !messageObject.isVoiceOnce()) {
@@ -16288,6 +16314,30 @@ public class ChatActivity extends BaseFragment implements
             updateMessages(msgs, true);
         }
         return () -> getMessagesController().doDeleteShowOnceTask(taskId, dialog_id, messageObject.getId());
+    }
+
+    // MurkaGram: «Предупреждение призрака» перед просмотром одноразового/самоуничтожающегося медиа в облачном чате.
+    // Условия повторяют ранний выход sendSecretMessageRead: диалог только когда открытие реально запустит таймер.
+    private void murkaCheckGhostWarning(MessageObject message, Runnable open) {
+        if (MurkaConfig.ghostMode || !MurkaConfig.ghostWarning || currentEncryptedChat != null || message == null || message.isOut()
+                || !message.isSecretMedia() || message.hasExtendedMediaPreview()
+                || message.messageOwner.destroyTime != 0 || message.messageOwner.ttl <= 0
+                || getParentActivity() == null) {
+            open.run();
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+        builder.setTitle(LocaleController.getString(R.string.MurkaGhostWarningTitle));
+        builder.setMessage(LocaleController.getString(R.string.MurkaGhostWarningText));
+        builder.setPositiveButton(LocaleController.getString(R.string.MurkaGhostWarningEnable), (dialog, which) -> {
+            if (!MurkaConfig.ghostMode) {
+                MurkaConfig.toggleGhostModeAndApply();
+            }
+            open.run();
+        });
+        builder.setNeutralButton(LocaleController.getString(R.string.MurkaGhostWarningView), (dialog, which) -> open.run());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     private void clearChatData(boolean full) {
@@ -18431,7 +18481,7 @@ public class ChatActivity extends BaseFragment implements
             int restoreCount = canvas.save();
             float canvasOffsetX = chatListView.getLeft() + cell.getX();
             float canvasOffsetY = chatListView.getY() + cell.getY() + cell.getPaddingTop();
-            float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
+            float alpha = (cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f) * cell.getMurkaAlpha(); // MurkaGram: * прозрачность удалённого
             canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - inputIslandHeightCurrent - dp(9));
             canvas.translate(canvasOffsetX, canvasOffsetY);
             cell.setInvalidatesParent(true);
@@ -20328,6 +20378,14 @@ public class ChatActivity extends BaseFragment implements
                 avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser))), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUser(currentUser), !MessagesController.isSupportUser(currentUser) ? currentUser.emoji_status : null, animated);
             }
         }
+        // MurkaGram: «Бейджики» — в обычном личном чате с пользователем и в канале/группе (без форумов, топиков и комментариев)
+        long murkaBadgesDialogId = 0;
+        if (chatMode == 0 && currentChat != null && !isThreadChat() && !ChatObject.isForum(currentChat)) {
+            murkaBadgesDialogId = -currentChat.id;
+        } else if (chatMode == 0 && currentChat == null && currentUser != null && !currentUser.self && (!isThreadChat() || UserObject.isBotForum(currentUser)) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) {
+            murkaBadgesDialogId = currentUser.id;
+        }
+        avatarContainer.setMurkaBadges(murkaBadgesDialogId);
         setParentActivityTitle(avatarContainer.getTitleTextView().getText());
         updateTitleIcons();
     }
@@ -23106,6 +23164,21 @@ public class ChatActivity extends BaseFragment implements
             removeUnreadPlane(true);
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
+            }
+        } else if (id == NotificationCenter.murkaMessagesDeleted || id == NotificationCenter.murkaEditHistoryUpdated) {
+            // MurkaGram: «Мониторинг» — сообщение сохранено как удалённое / появилась история изменений
+            murkaOnMessagesFlagsUpdated(id == NotificationCenter.murkaMessagesDeleted, (Long) args[0], (ArrayList<Integer>) args[1]);
+        } else if (id == NotificationCenter.murkaReadDateSaved) {
+            // MurkaGram: «Сохранять дату прочтения» — сохранена новая дата прочтения исходящих сообщений
+            if ((Long) args[0] == dialog_id) {
+                if (murkaReadDates == null) {
+                    murkaReadDates = new ArrayList<>();
+                }
+                MurkaStorage.ReadRecord record = new MurkaStorage.ReadRecord();
+                record.prevMax = (Integer) args[1];
+                record.maxId = (Integer) args[2];
+                record.date = (Integer) args[3];
+                murkaReadDates.add(record);
             }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];
@@ -27526,6 +27599,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (old == null || remove && !ignoreDateCheckBeforeRemove && old.messageOwner.date != messageObject.messageOwner.date || messageObject.scheduled && chatMode != MODE_SCHEDULED) {
                 continue;
+            }
+            if (old.messageOwner != null && messageObject.messageOwner != null) { // MurkaGram: переносим флаги «Мониторинга»
+                messageObject.messageOwner.murkaDeleted |= old.messageOwner.murkaDeleted;
+                messageObject.messageOwner.murkaHasHistory |= old.messageOwner.murkaHasHistory;
             }
             if (remove) {
                 messageObjects.remove(a);
@@ -31970,14 +32047,15 @@ public class ChatActivity extends BaseFragment implements
 
             final AtomicBoolean waitForLangDetection = new AtomicBoolean(false);
             final AtomicReference<Runnable> onLangDetectionDone = new AtomicReference(null);
+            final Runnable[] murkaBarGapUpdate = new Runnable[1]; // MurkaGram: обновление разделителя над рядом иконок (см. ниже)
 
             Rect rect = new Rect();
 
             List<TLRPC.TL_availableReaction> availableReacts = getMediaDataController().getEnabledReactionsList();
             final boolean isEphemeral = message != null && message.isEphemeral();
-            final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
+            final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia() && !primaryMessage.isMurkaDeleted(); // MurkaGram: без запросов к серверу для удалённых
             final boolean isReactionsAvailable;
-            if (suggestEdit || isEphemeral) {
+            if (suggestEdit || isEphemeral || primaryMessage.isMurkaDeleted()) { // MurkaGram: у удалённых — обычное меню без панели реакций
                 isReactionsAvailable = false;
             } else if (message.isForwardedChannelPost()) {
                 TLRPC.ChatFull chatInfo = getMessagesController().getChatFull(-message.getFromChatId());
@@ -32010,13 +32088,16 @@ public class ChatActivity extends BaseFragment implements
                     )
                     && (currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS));
             }
-            final boolean showMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat);
+            final boolean showMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat) && !message.isMurkaDeleted(); // MurkaGram: без запросов к серверу для удалённых
             final boolean showMessageAuthor = !suggestEdit && !isEphemeral && currentChat != null && !message.isOut() && ChatObject.isMonoForum(currentChat) && ChatObject.canManageMonoForum(currentAccount, currentChat) && -currentChat.linked_monoforum_id == message.getFromChatId();
-            final boolean showPrivateMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && currentChat == null && currentEncryptedChat == null && (currentUser != null && !UserObject.isUserSelf(currentUser) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser) && !currentUser.bot && !UserObject.isService(currentUser.id)) && (userInfo == null || !userInfo.read_dates_private) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+            final boolean showPrivateMessageSeen = !suggestEdit && !isEphemeral && !isReactionsViewAvailable && currentChat == null && currentEncryptedChat == null && (currentUser != null && !UserObject.isUserSelf(currentUser) && !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser) && !currentUser.bot && !UserObject.isService(currentUser.id)) && (userInfo == null || !userInfo.read_dates_private) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().pmReadDateExpirePeriod) && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && !message.isMurkaDeleted(); // MurkaGram: без запросов к серверу для удалённых
             final boolean showPrivateMessageEdit = !suggestEdit && !isEphemeral && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isEdited() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
             final boolean showPrivateMessageFwdOriginal = !suggestEdit && !isEphemeral && false && (currentUser == null || !UserObject.isReplyUser(currentUser) && !UserObject.isAnonymous(currentUser)) && !isInScheduleMode() && message.isForwarded() && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest);
+            final int murkaReadDate = (!isEphemeral && MurkaConfig.saveReadDates && murkaReadDates != null && currentChat == null && currentEncryptedChat == null // MurkaGram: локально сохранённая дата прочтения
+                    && currentUser != null && !UserObject.isUserSelf(currentUser) && !isInScheduleMode() && message.isOutOwner() && message.isSent() && !message.isUnread())
+                    ? MurkaStorage.findReadDate(murkaReadDates, message.getId()) : 0;
             final boolean showSponsorInfo = !suggestEdit && !isEphemeral && selectedObject != null && selectedObject.isSponsored() && (selectedObject.sponsoredInfo != null || selectedObject.sponsoredAdditionalInfo != null || selectedObject.sponsoredUrl != null && !selectedObject.sponsoredUrl.startsWith("https://" + getMessagesController().linkPrefix));
-            final boolean isReactionsAvailableFinal = !suggestEdit && isReactionsAvailable;
+            final boolean isReactionsAvailableFinal = !suggestEdit && isReactionsAvailable && !primaryMessage.isMurkaDeleted(); // MurkaGram: нет реакций у удалённых
 
             int flags = 0;
             if (isReactionsViewAvailable || showMessageSeen || showSponsorInfo) {
@@ -32039,6 +32120,11 @@ public class ChatActivity extends BaseFragment implements
                 .setPadding(dp(8)));
 
             boolean addGap = false;
+
+            // MurkaGram: «Быстрые действия иконками» — Reply/Delete/Copy/Edit уходят в нижний ряд иконок
+            final ArrayList<Integer> murkaBarOptions = new ArrayList<>();
+            final ArrayList<Integer> murkaBarIcons = new ArrayList<>();
+            final ArrayList<CharSequence> murkaBarLabels = new ArrayList<>();
 
             if (optionsView == null) {
                 if (showWelcomeMessageRevertOption(selectedObject)) {
@@ -32465,6 +32551,12 @@ public class ChatActivity extends BaseFragment implements
 
                     popupLayout.addView(messageSeenLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44));
                     addGap = true;
+                } else if (murkaReadDate != 0) { // MurkaGram: показываем локально сохранённую дату прочтения вместо штатной
+                    MessagePrivateSeenView messagePrivateSeenView = new MessagePrivateSeenView(getContext(), MessagePrivateSeenView.TYPE_MURKA_LOCAL, message, () -> {
+                        closeMenu(true);
+                    }, themeDelegate, murkaReadDate);
+                    popupLayout.addView(messagePrivateSeenView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36));
+                    addGap = true;
                 } else if (showPrivateMessageSeen) {
                     MessagePrivateSeenView messagePrivateSeenView = new MessagePrivateSeenView(getContext(), MessagePrivateSeenView.TYPE_SEEN, message, () -> {
                         closeMenu(true);
@@ -32489,7 +32581,7 @@ public class ChatActivity extends BaseFragment implements
                 boolean showRateTranscription = selectedObject != null && selectedObject.isVoice() && selectedObject.messageOwner != null && getUserConfig().isPremium() && !TextUtils.isEmpty(selectedObject.messageOwner.voiceTranscription) && selectedObject.messageOwner != null && !selectedObject.messageOwner.voiceTranscriptionRated && selectedObject.messageOwner.voiceTranscriptionId != 0 && selectedObject.messageOwner.voiceTranscriptionOpen;
 
                 if (!showRateTranscription && message.probablyRingtone() && currentEncryptedChat == null) {
-                    ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(), !showPrivateMessageSeen && !showPrivateMessageEdit && !showPrivateMessageFwdOriginal, false, themeDelegate);
+                    ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(), !showPrivateMessageSeen && !showPrivateMessageEdit && !showPrivateMessageFwdOriginal && murkaReadDate == 0, false, themeDelegate); // MurkaGram: учитываем локальную дату прочтения
                     cell.setMinimumWidth(AndroidUtilities.dp(200));
                     cell.setTextAndIcon(getString(R.string.SaveForNotifications), R.drawable.msg_tone_add);
                     popupLayout.addView(cell);
@@ -32779,6 +32871,29 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                 }
+                // MurkaGram: «Быстрые действия иконками» — убираем опции из списка до цикла (лямбды ниже берут options по индексу)
+                if (MurkaConfig.messageMenuIconBar && !suggestEdit && selectedObject != null && items.size() == options.size() && icons.size() == options.size()) {
+                    final int murkaFourth = options.contains(OPTION_EDIT) ? OPTION_EDIT : OPTION_FORWARD; // MurkaGram: нет «Изменить» — «Переслать»
+                    final int[] murkaBarOrder = {OPTION_REPLY, OPTION_DELETE, OPTION_COPY, murkaFourth};
+                    for (int murkaOpt : murkaBarOrder) {
+                        int idx = options.indexOf(murkaOpt);
+                        if (idx < 0) {
+                            continue;
+                        }
+                        if (murkaOpt == OPTION_DELETE && selectedObject.messageOwner != null && (selectedObject.messageOwner.ttl_period != 0 || selectedObject.isPaidSuggestedPostProtected())) {
+                            continue; // у «Удалить» есть подпись — оставляем в списке
+                        }
+                        if (murkaOpt == OPTION_DELETE && showWelcomeMessageRevertOption(selectedObject)) {
+                            continue; // MurkaGram: ui-13 — 13.x скрывает «Удалить» у приветственного сообщения
+                        }
+                        murkaBarOptions.add(murkaOpt);
+                        murkaBarIcons.add(icons.get(idx));
+                        murkaBarLabels.add(items.get(idx));
+                        options.remove(idx);
+                        items.remove(idx);
+                        icons.remove(idx);
+                    }
+                }
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 scrimPopupRedItem = null;
                 for (int a = 0, N = items.size(); a < N; a++) {
@@ -32926,6 +33041,9 @@ public class ChatActivity extends BaseFragment implements
                                         (currentChat != null && (currentChat.has_link || ChatObject.isPublic(currentChat)) || selectedObject.messageOwner.fwd_from != null) && ("uk".equals(fromLang[0]) || "ru".equals(fromLang[0]))
                                     )) {
                                         cell.setVisibility(View.VISIBLE);
+                                        if (murkaBarGapUpdate[0] != null) { // MurkaGram: язык мог определиться уже после показа меню
+                                            murkaBarGapUpdate[0].run();
+                                        }
                                     }
                                     waitForLangDetection.set(false);
                                     if (onLangDetectionDone.get() != null) {
@@ -33295,6 +33413,66 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
+            // MurkaGram: «Быстрые действия иконками» — ряд иконок в самом низу меню
+            if (optionsView == null && !murkaBarOptions.isEmpty()) {
+                LinearLayout murkaBar = new LinearLayout(getParentActivity());
+                int murkaCnt = popupLayout.getItemsCount();
+                boolean murkaPrevIsGap = murkaCnt > 0 && popupLayout.getItemAt(murkaCnt - 1) instanceof ActionBarPopupWindow.GapView;
+                final View murkaGap;
+                if (murkaPrevIsGap) {
+                    murkaGap = popupLayout.getItemAt(murkaCnt - 1);
+                } else if (murkaCnt > 0) {
+                    murkaGap = new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate);
+                    popupLayout.addView(murkaGap, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                } else {
+                    murkaGap = null;
+                }
+                if (murkaGap != null) {
+                    // MurkaGram: разделитель над рядом иконок — только если над ним есть видимый пункт (GONE-пункты, напр. «Перевести», не в счёт)
+                    murkaBarGapUpdate[0] = () -> {
+                        boolean hasVisibleItem = false;
+                        for (int k = 0; k < popupLayout.getItemsCount(); k++) {
+                            View child = popupLayout.getItemAt(k);
+                            if (child == murkaGap) {
+                                break;
+                            }
+                            if (child.getVisibility() == View.VISIBLE) {
+                                hasVisibleItem = !(child instanceof ActionBarPopupWindow.GapView);
+                            }
+                        }
+                        murkaGap.setVisibility(hasVisibleItem ? View.VISIBLE : View.GONE);
+                        murkaBar.setMinimumWidth(hasVisibleItem ? 0 : dp(200)); // MurkaGram: при других пунктах ширина меню прежняя
+                    };
+                    murkaBarGapUpdate[0].run();
+                } else {
+                    murkaBar.setMinimumWidth(dp(200)); // MurkaGram: иконки не сжимаются влево, если других пунктов нет
+                }
+                murkaBar.setOrientation(LinearLayout.HORIZONTAL);
+                murkaBar.setPadding(dp(4), 0, dp(4), 0);
+                final int murkaIconColor = getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon);
+                final int murkaSelColor = getThemedColor(Theme.key_dialogButtonSelector);
+                for (int k = 0; k < murkaBarOptions.size(); k++) {
+                    final int murkaOpt = murkaBarOptions.get(k);
+                    ImageView btn = new ImageView(getParentActivity());
+                    btn.setScaleType(ImageView.ScaleType.CENTER);
+                    btn.setImageResource(murkaBarIcons.get(k));
+                    btn.setColorFilter(new PorterDuffColorFilter(murkaIconColor, PorterDuff.Mode.MULTIPLY));
+                    btn.setBackground(Theme.createSelectorDrawable(murkaSelColor, Theme.RIPPLE_MASK_CIRCLE_20DP));
+                    btn.setContentDescription(murkaBarLabels.get(k));
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        btn.setTooltipText(murkaBarLabels.get(k));
+                    }
+                    btn.setOnClickListener(v1 -> {
+                        if (selectedObject == null) {
+                            return;
+                        }
+                        processSelectedOption(murkaOpt);
+                    });
+                    murkaBar.addView(btn, LayoutHelper.createLinear(0, 48, 1f));
+                }
+                popupLayout.addView(murkaBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+            }
+
             ReactionsContainerLayout finalReactionsLayout1 = reactionsLayout;
             if (reactionsLayout != null) {
                 reactionsLayout.setParentLayout(scrimPopupContainerLayout);
@@ -33394,6 +33572,9 @@ public class ChatActivity extends BaseFragment implements
             Runnable showMenu = () -> {
                 if (scrimPopupWindow == null || fragmentView == null || scrimPopupWindow.isShowing() || !AndroidUtilities.isActivityRunning(getParentActivity())) {
                     return;
+                }
+                if (murkaBarGapUpdate[0] != null) { // MurkaGram: «Перевести» мог появиться после определения языка
+                    murkaBarGapUpdate[0].run();
                 }
                 scrimPopupWindow.showAtLocation(chatListView, Gravity.LEFT | Gravity.TOP, finalPopupX, finalPopupY);
                 keepScrimPopupAboveKeyboard(scrimPopupWindow);
@@ -34293,6 +34474,32 @@ public class ChatActivity extends BaseFragment implements
         }
         boolean preserveDim = false;
         switch (option) {
+            case OPTION_MURKA_EDIT_HISTORY: { // MurkaGram
+                murkaShowEditHistory(murkaGetHistoryObject());
+                break;
+            }
+            case OPTION_MURKA_READ: { // MurkaGram: режим призрака — отправить прочтение до этого сообщения
+                MessageObject target = selectedObject;
+                if (target == null) {
+                    break;
+                }
+                if (selectedObjectGroup != null && !selectedObjectGroup.messages.isEmpty()) {
+                    for (MessageObject m : selectedObjectGroup.messages) {
+                        if (m.getId() > target.getId()) {
+                            target = m;
+                        }
+                    }
+                }
+                final int maxId = target.getId();
+                final int maxDate = target.messageOwner != null ? target.messageOwner.date : 0;
+                getMessagesController().markDialogAsRead(dialog_id, maxId, maxId, maxDate, false, threadMessageId, 0, false, 0);
+                getMessagesController().murkaForceReadHistory(dialog_id, maxId, maxDate, threadMessageId, () -> {
+                    try { // MurkaGram: мягкая вибрация, когда сервер подтвердил прочтение
+                        BotWebViewVibrationEffect.IMPACT_LIGHT.vibrate();
+                    } catch (Throwable ignore) {}
+                });
+                break;
+            }
             case OPTION_RETRY: {
                 final MessageObject object = selectedObject;
                 final MessageObject.GroupedMessages group = selectedObjectGroup;
@@ -34324,6 +34531,10 @@ public class ChatActivity extends BaseFragment implements
                     selectedObjectToEditCaption = null;
                     selectedObjectGroup = null;
                     return;
+                }
+                if (selectedObject.isMurkaDeleted()) { // MurkaGram: удалённое на сервере — удаляем только локально, без диалога
+                    murkaDeleteLocally(selectedObject, selectedObjectGroup);
+                    break;
                 }
                 preserveDim = true;
                 createDeleteMessagesAlert(selectedObject, selectedObjectGroup, true);
@@ -40438,13 +40649,16 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 } catch (Exception ignore) {}
-                secretVoicePlayer = new SecretVoicePlayer(getContext());
-                secretVoicePlayer.setCell(
-                    cell,
-                    !messageObject.isOutOwner() ? sendSecretMessageRead(messageObject, true) : null,
-                    !messageObject.isOutOwner() ? sendSecretMediaDelete(messageObject) : null
-                );
-                showDialog(secretVoicePlayer);
+                murkaCheckGhostWarning(messageObject, () -> { // MurkaGram: «Предупреждение призрака»
+                    if (secretVoicePlayer != null && secretVoicePlayer.isShown()) return;
+                    secretVoicePlayer = new SecretVoicePlayer(getContext());
+                    secretVoicePlayer.setCell(
+                        cell,
+                        !messageObject.isOutOwner() ? sendSecretMessageRead(messageObject, true) : null,
+                        !messageObject.isOutOwner() ? sendSecretMediaDelete(messageObject) : null
+                    );
+                    showDialog(secretVoicePlayer);
+                });
                 return false;
             } else if (messageObject.isVoice() || messageObject.isRoundVideo()) {
                 boolean result = MediaController.getInstance().playMessage(messageObject, muted);
@@ -42541,11 +42755,14 @@ public class ChatActivity extends BaseFragment implements
                 emojiAnimationsOverlay.onTapItem(cell, ChatActivity.this, true);
                 chatListView.cancelClickRunnables(false);
             } else if (message.needDrawBluredPreview()) {
-                Runnable openAction = sendSecretMessageRead(message, false);
-                Runnable closeAction = sendSecretMediaDelete(message);
-                cell.invalidate();
-                SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
-                SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
+                murkaCheckGhostWarning(message, () -> { // MurkaGram: «Предупреждение призрака»; действия вычисляются после возможного включения призрака
+                    if (getParentActivity() == null) return;
+                    Runnable openAction = sendSecretMessageRead(message, false);
+                    Runnable closeAction = sendSecretMediaDelete(message);
+                    cell.invalidate();
+                    SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
+                    SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
+                });
             } else if (MessageObject.isAnimatedEmoji(message.getDocument()) && MessageObject.getInputStickerSet(message.getDocument()) != null) {
                 final ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
                 inputSets.add(MessageObject.getInputStickerSet(message.getDocument()));
@@ -42630,6 +42847,27 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(fragment);
                 }
             } else if (message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT) {
+                // MurkaGram: пакет дизайна .mgdesign — окно предпросмотра (только данные, с проверкой)
+                String murkaDocName = message.getDocumentName();
+                if (murkaDocName != null && murkaDocName.toLowerCase(Locale.ROOT).endsWith(MurkaDesignPack.EXTENSION)) {
+                    File murkaFile = null;
+                    if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {
+                        File f = new File(message.messageOwner.attachPath);
+                        if (f.exists()) {
+                            murkaFile = f;
+                        }
+                    }
+                    if (murkaFile == null) {
+                        File f = getFileLoader().getPathToMessage(message.messageOwner);
+                        if (f != null && f.exists()) {
+                            murkaFile = f;
+                        }
+                    }
+                    if (murkaFile != null) {
+                        MurkaDesignPacksActivity.openFile(ChatActivity.this, murkaFile);
+                        return;
+                    }
+                }
                 if (message.getDocumentName().toLowerCase().endsWith("attheme")) {
                     File locFile = null;
                     if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {
@@ -47109,10 +47347,244 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_WELCOME_REVERT);
             icons.add(R.drawable.outline_revert_24);
         }
+        murkaAdjustMessageMenu(icons, items, options); // MurkaGram
     }
 
     private boolean showWelcomeMessageRevertOption(MessageObject messageObject) {
         return chatMode == MODE_DEFAULT && messageObject != null && messageObject.isWelcomeAnchored();
+    }
+
+    // MurkaGram: пункты контекстного меню раздела «Мониторинг»
+    private void murkaAdjustMessageMenu(ArrayList<Integer> icons, ArrayList<CharSequence> items, ArrayList<Integer> options) {
+        if (selectedObject == null) {
+            return;
+        }
+        if (selectedObject.isMurkaDeleted()) {
+            // Сообщения уже нет на сервере — убираем действия, которые требуют сервера.
+            for (int i = 0; i < options.size(); ++i) {
+                switch (options.get(i)) {
+                    case OPTION_REPLY:
+                    case OPTION_FORWARD:
+                    case OPTION_EDIT:
+                    case OPTION_PIN:
+                    case OPTION_UNPIN:
+                    case OPTION_UNVOTE:
+                    case OPTION_STOP_POLL_OR_QUIZ:
+                    case OPTION_VIEW_REPLIES_OR_THREAD:
+                    case OPTION_REPORT_CHAT:
+                    case OPTION_COPY_LINK:
+                    case OPTION_STATISTICS:
+                    case OPTION_FACT_CHECK:
+                    case OPTION_EDIT_TODO:
+                    case OPTION_ADD_TO_TODO:
+                    case OPTION_GIFT:
+                    case OPTION_SUGGESTION_EDIT_PRICE:
+                    case OPTION_SUGGESTION_EDIT_TIME:
+                    case OPTION_SUGGESTION_EDIT_MESSAGE:
+                    case OPTION_SUGGESTION_ADD_OFFER:
+                    case OPTION_VIEW_STATISTICS: // MurkaGram: ui-13 — новые серверные пункты 13.x
+                    case OPTION_WELCOME_REVERT:
+                    case OPTION_STOP_LIVE_LOCATION:
+                        options.remove(i);
+                        if (i < items.size()) {
+                            items.remove(i);
+                        }
+                        if (i < icons.size()) {
+                            icons.remove(i);
+                        }
+                        i--;
+                        break;
+                }
+            }
+        }
+        if (MurkaConfig.saveEditHistory && murkaGetHistoryObject() != null) {
+            int index = options.indexOf(OPTION_DELETE);
+            if (index < 0 || index > items.size() || index > icons.size()) {
+                index = options.size();
+            }
+            items.add(Math.min(index, items.size()), LocaleController.getString(R.string.MurkaEditHistory));
+            options.add(index, OPTION_MURKA_EDIT_HISTORY);
+            icons.add(Math.min(index, icons.size()), R.drawable.msg_edit);
+        }
+        // MurkaGram: режим призрака — «Прочитать»: отправить прочтение на сервер вручную (последний пункт)
+        if (MurkaConfig.ghostMode && chatMode != MODE_SCHEDULED && chatMode != MODE_QUICK_REPLIES
+                && !selectedObject.scheduled && !selectedObject.isMurkaDeleted()
+                && !UserObject.isUserSelf(currentUser)
+                && (selectedObject.getId() > 0 || currentEncryptedChat != null)
+                && !options.isEmpty() && items.size() == options.size() && icons.size() == options.size()) {
+            items.add(LocaleController.getString(R.string.MurkaGhostRead));
+            options.add(OPTION_MURKA_READ);
+            icons.add(R.drawable.msg_view_file);
+        }
+    }
+
+    // MurkaGram: сообщение (или сообщение альбома), у которого есть сохранённая история изменений
+    private MessageObject murkaGetHistoryObject() {
+        if (selectedObject == null) {
+            return null;
+        }
+        if (selectedObject.hasMurkaHistory()) {
+            return selectedObject;
+        }
+        if (selectedObjectGroup != null) {
+            for (int a = 0; a < selectedObjectGroup.messages.size(); a++) {
+                MessageObject messageObject = selectedObjectGroup.messages.get(a);
+                if (messageObject != null && messageObject.hasMurkaHistory()) {
+                    return messageObject;
+                }
+            }
+        }
+        return null;
+    }
+
+    // MurkaGram: обработка уведомлений «Мониторинга» — обновляем флаги у загруженных сообщений
+    private void murkaOnMessagesFlagsUpdated(boolean deleted, long did, ArrayList<Integer> mids) {
+        if (mids == null || chatMode == MODE_SCHEDULED || chatMode == MODE_QUICK_REPLIES) {
+            return;
+        }
+        int loadIndex;
+        if (did == dialog_id) {
+            loadIndex = 0;
+        } else if (mergeDialogId != 0 && did == mergeDialogId) {
+            loadIndex = 1;
+        } else {
+            return;
+        }
+        boolean changed = false;
+        for (int a = 0, size = mids.size(); a < size; a++) {
+            MessageObject messageObject = messagesDict[loadIndex].get(mids.get(a));
+            if (messageObject == null || messageObject.messageOwner == null) {
+                continue;
+            }
+            if (deleted) {
+                messageObject.messageOwner.murkaDeleted = true;
+                messageObject.forceUpdate = true;
+                changed = true;
+            } else {
+                messageObject.messageOwner.murkaHasHistory = true;
+            }
+        }
+        if (changed) {
+            updateVisibleRows();
+        }
+    }
+
+    // MurkaGram: показ сохранённых версий сообщения (изменённые символы выделяются жирным)
+    private void murkaShowEditHistory(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return;
+        }
+        final String currentText = messageObject.messageOwner.message;
+        final ArrayList<TLRPC.MessageEntity> currentEntities = messageObject.messageOwner.entities;
+        final int currentDate = messageObject.messageOwner.edit_date != 0 ? messageObject.messageOwner.edit_date : messageObject.messageOwner.date;
+        MurkaStorage.getEditHistory(currentAccount, messageObject.getDialogId(), messageObject.getId(), versions -> {
+            if (getParentActivity() == null) {
+                return;
+            }
+            // diff считаем не на UI-потоке: на длинных текстах это до ~1.5M операций на пару версий
+            Utilities.globalQueue.postRunnable(() -> {
+                final ArrayList<ArrayList<int[]>> diffs = new ArrayList<>();
+                for (int a = 0; a <= versions.size(); a++) {
+                    String text = a < versions.size() ? versions.get(a).text : currentText;
+                    String prevText = a > 0 ? versions.get(a - 1).text : null;
+                    ArrayList<int[]> ranges = null;
+                    if (a > 0 && !TextUtils.isEmpty(text) && !TextUtils.isEmpty(prevText)) {
+                        try {
+                            ranges = MurkaTextDiff.changedRanges(prevText, text);
+                        } catch (Throwable e) {
+                            FileLog.e(e);
+                        }
+                    }
+                    diffs.add(ranges);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (getParentActivity() == null) {
+                        return;
+                    }
+                    SpannableStringBuilder text = new SpannableStringBuilder();
+                    for (int a = 0; a < versions.size(); a++) {
+                        MurkaStorage.EditVersion version = versions.get(a);
+                        text.append(LocaleController.formatDateTime(version.date, true)).append('\n');
+                        text.append(murkaEditHistoryVersionText(version.text, version.entities, diffs.get(a)));
+                        text.append("\n\n");
+                    }
+                    text.append(LocaleController.getString(R.string.MurkaEditHistoryCurrent)).append(" · ").append(LocaleController.formatDateTime(currentDate, true)).append('\n');
+                    text.append(murkaEditHistoryVersionText(currentText, currentEntities, diffs.get(versions.size())));
+
+                    TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                    paint.setTextSize(AndroidUtilities.dp(16));
+                    CharSequence message = Emoji.replaceEmoji(text, paint.getFontMetricsInt(), false);
+
+                    AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+                    builder.setTitle(LocaleController.getString(R.string.MurkaEditHistory));
+                    builder.setMessage(message);
+                    builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
+                    showDialog(builder.create());
+                });
+            });
+        });
+    }
+
+    // MurkaGram: текст одной версии — исходное форматирование (только стили) + жирным изменённые участки
+    private CharSequence murkaEditHistoryVersionText(String text, ArrayList<TLRPC.MessageEntity> entities, ArrayList<int[]> changed) {
+        if (TextUtils.isEmpty(text)) {
+            return LocaleController.getString(R.string.MurkaEditHistoryNoText);
+        }
+        SpannableString result = new SpannableString(text);
+        ArrayList<TLRPC.MessageEntity> styles = new ArrayList<>();
+        if (entities != null) {
+            for (int a = 0; a < entities.size(); a++) {
+                TLRPC.MessageEntity entity = entities.get(a);
+                TLRPC.MessageEntity copy;
+                // копии: addEntitiesToText может менять entity.length
+                if (entity instanceof TLRPC.TL_messageEntityBold) {
+                    copy = new TLRPC.TL_messageEntityBold();
+                } else if (entity instanceof TLRPC.TL_messageEntityItalic) {
+                    copy = new TLRPC.TL_messageEntityItalic();
+                } else if (entity instanceof TLRPC.TL_messageEntityUnderline) {
+                    copy = new TLRPC.TL_messageEntityUnderline();
+                } else if (entity instanceof TLRPC.TL_messageEntityStrike) {
+                    copy = new TLRPC.TL_messageEntityStrike();
+                } else if (entity instanceof TLRPC.TL_messageEntityCode) {
+                    copy = new TLRPC.TL_messageEntityCode();
+                } else {
+                    continue;
+                }
+                copy.offset = entity.offset;
+                copy.length = entity.length;
+                styles.add(copy);
+            }
+        }
+        if (changed != null) {
+            for (int a = 0; a < changed.size(); a++) {
+                int[] range = changed.get(a);
+                TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
+                bold.offset = range[0];
+                bold.length = range[1] - range[0];
+                styles.add(bold);
+            }
+        }
+        if (!styles.isEmpty()) {
+            MessageObject.addEntitiesToText(result, styles, false, false, false, false);
+        }
+        return result;
+    }
+
+    // MurkaGram: локальное удаление сохранённых удалённых сообщений (на сервере их уже нет)
+    private void murkaDeleteLocally(MessageObject messageObject, MessageObject.GroupedMessages group) {
+        ArrayList<Integer> ids = new ArrayList<>();
+        if (group != null) {
+            for (int a = 0; a < group.messages.size(); a++) {
+                MessageObject obj = group.messages.get(a);
+                if (obj != null && obj.isMurkaDeleted()) {
+                    ids.add(obj.getId());
+                }
+            }
+        }
+        if (ids.isEmpty()) {
+            ids.add(messageObject.getId());
+        }
+        getMessagesController().deleteMessages(ids, null, null, messageObject.getDialogId(), 0, false, 0, true);
     }
 
     private void updateBotforumTabsBottomMargin() {

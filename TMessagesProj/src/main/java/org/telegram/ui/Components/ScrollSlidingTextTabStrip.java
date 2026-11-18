@@ -403,6 +403,14 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         tabsContainer.setLayoutParams(new LayoutParams(useMinimalWidth ? LayoutParams.WRAP_CONTENT : LayoutParams.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
     }
 
+    // MurkaGram: MD3 — индикатор вкладки в виде «пилюли» за текстом.
+    // MurkaGram: ui-13 — 13.2.2 сам рисует индикатор-«пилюлю» (см. drawChild), поэтому флаг ничего не меняет; метод оставлен для вызовов из SharedMediaLayout.
+    private boolean murkaPill;
+
+    public void setMurkaPill(boolean value) {
+        murkaPill = value && MurkaMD3.enabled();
+    }
+
     public Drawable getSelectorDrawable() {
         return selectorDrawable;
     }

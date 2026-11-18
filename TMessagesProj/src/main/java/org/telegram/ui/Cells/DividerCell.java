@@ -24,6 +24,7 @@ public class DividerCell extends View {
     private boolean forceDarkTheme;
     private Paint paint = new Paint();
     private Theme.ResourcesProvider resourcesProvider;
+    private boolean murkaHideInMD3; // MurkaGram: MD3 — пустой промежуток вместо линии
 
     public DividerCell(Context context) {
         this(context, null);
@@ -42,6 +43,9 @@ public class DividerCell extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (murkaHideInMD3 && !forceDarkTheme && org.telegram.ui.Components.MurkaMD3.hideSectionDividers()) {
+            return; // MurkaGram: MD3 (ui-13: только в режимах «Скрыть»/«Сегменты»)
+        }
         if (forceDarkTheme) {
             paint.setColor(ColorUtils.blendARGB(Color.BLACK, Theme.getColor(Theme.key_voipgroup_dialogBackground, resourcesProvider),  0.2f));
         } else {
@@ -49,6 +53,12 @@ public class DividerCell extends View {
         }
 
         canvas.drawLine(getPaddingLeft(), getPaddingTop(), getWidth() - getPaddingRight(), getPaddingTop(), paint);
+    }
+
+    // MurkaGram: MD3 — не рисовать линию, когда разделители в карточках скрыты (MurkaMD3.hideSectionDividers).
+    public void setMurkaHideInMD3(boolean value) {
+        murkaHideInMD3 = value;
+        invalidate();
     }
 
     public void setForceDarkTheme(boolean forceDarkTheme) {

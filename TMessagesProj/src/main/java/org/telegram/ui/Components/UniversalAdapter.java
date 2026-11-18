@@ -340,6 +340,10 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
 
     public boolean shouldApplyBackground(int viewType) {
         if (!applyBackground) return false;
+        // MurkaGram: ui-13 — MD3 «Отделить заголовки»: заголовок лежит вне карточки (RecyclerListView), без белой подложки
+        if ((viewType == VIEW_TYPE_HEADER || viewType == VIEW_TYPE_ANIMATED_HEADER || viewType == VIEW_TYPE_BLACK_HEADER) && listView != null && listView.hasSections() && MurkaMD3.separateSectionHeaders()) {
+            return false;
+        }
         if (listView != null && listView.hasSections() && listView.getSectionsDrawBackground()) {
             return false; // the sections under the cells already have this color: no second full layer
         }

@@ -5838,10 +5838,13 @@ public class Theme {
             FileLog.e(e);
         }
         BlurSettingsBottomSheet.onThemeApplyed();
-        if (previousTheme == null && save && !switchingNightTheme) {
+        if (previousTheme == null && save && !switchingNightTheme && !murkaNoServerSave) { // MurkaGram: тема из пакета дизайна не отправляется на сервер
             MessagesController.getInstance(themeInfo.account).saveTheme(themeInfo, themeInfo.getAccent(false), nightTheme, false);
         }
     }
+
+    // MurkaGram: пока true, применение темы не вызывает account.saveTheme/installTheme (пакеты дизайна .mgdesign). Только UI-поток.
+    public static boolean murkaNoServerSave;
 
     private static void applyThemeInBackground(ThemeInfo themeInfo, boolean save, boolean removeWallpaperOverride, final boolean nightTheme, Runnable onDone) {
         if (themeInfo == null) {
@@ -7931,6 +7934,18 @@ public class Theme {
             dialogs_tagTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             dialogs_tagTextPaint.setTypeface(AndroidUtilities.bold());
 
+            // MurkaGram: свой шрифт (раздел «Дизайн») для обычного текста списка чатов
+            final Typeface murkaRegular = AndroidUtilities.regular();
+            if (murkaRegular != null) {
+                for (int a = 0; a < 2; a++) {
+                    dialogs_messagePaint[a].setTypeface(murkaRegular);
+                    dialogs_messagePrintingPaint[a].setTypeface(murkaRegular);
+                }
+                dialogs_timePaint.setTypeface(murkaRegular);
+                dialogs_onlinePaint.setTypeface(murkaRegular);
+                dialogs_offlinePaint.setTypeface(murkaRegular);
+            }
+
             dialogs_tabletSeletedPaint = new Paint();
             dialogs_pinnedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_countGrayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -8120,6 +8135,19 @@ public class Theme {
                 chat_msgTextCode3Paint.setTypeface(Typeface.MONOSPACE);
                 chat_msgCodeBgPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
                 chat_ephemeralPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+
+                // MurkaGram: свой шрифт (раздел «Дизайн») для обычного текста сообщений
+                final Typeface murkaRegular = AndroidUtilities.regular();
+                if (murkaRegular != null) {
+                    chat_msgTextPaint.setTypeface(murkaRegular);
+                    chat_msgGameTextPaint.setTypeface(murkaRegular);
+                    chat_replyTextPaint.setTypeface(murkaRegular);
+                    chat_quoteTextPaint.setTypeface(murkaRegular);
+                    chat_titleLabelTextPaint.setTypeface(murkaRegular);
+                    chat_forwardNamePaint.setTypeface(murkaRegular);
+                    chat_adminPaint.setTypeface(murkaRegular);
+                    chat_timePaint.setTypeface(murkaRegular);
+                }
             }
 
             final float[] emojiSizePercents = new float[] {.68f, .46f, .34f, .28f, .22f, .19f};
@@ -8209,6 +8237,15 @@ public class Theme {
             chat_topicTextPaint.setTypeface(AndroidUtilities.bold());
             chat_titleLabelTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             chat_commentTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+            // MurkaGram: свой шрифт (раздел «Дизайн») — пейнты выше пересоздаются здесь, применяем повторно
+            final Typeface murkaRegularCommon = AndroidUtilities.regular();
+            if (murkaRegularCommon != null) {
+                chat_timePaint.setTypeface(murkaRegularCommon);
+                chat_adminPaint.setTypeface(murkaRegularCommon);
+                chat_forwardNamePaint.setTypeface(murkaRegularCommon);
+                chat_replyTextPaint.setTypeface(murkaRegularCommon);
+                chat_titleLabelTextPaint.setTypeface(murkaRegularCommon);
+            }
             chat_instantViewPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             chat_instantViewPaint.setTypeface(AndroidUtilities.bold());
             chat_instantViewRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -9038,6 +9075,16 @@ public class Theme {
             return null;
         }
         Drawable drawable = context.getResources().getDrawable(resId).mutate();
+        // MurkaGram: MD3 — вместо теней между секциями пустой промежуток (с теми же отступами, что у 9-patch)
+        if (org.telegram.ui.Components.MurkaMD3.enabled() && (resId == R.drawable.greydivider || resId == R.drawable.greydivider_top || resId == R.drawable.greydivider_bottom)) {
+            try {
+                android.graphics.Rect padding = new android.graphics.Rect();
+                drawable.getPadding(padding);
+                return new android.graphics.drawable.InsetDrawable(new ColorDrawable(0), padding.left, padding.top, padding.right, padding.bottom);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
         drawable.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
         return drawable;
     }

@@ -492,7 +492,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float drawableTop = (drawableFromTop - container.getY()) * (1f - progress) + (drawableToTop) * progress;
         float drawableH = messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop();
         float drawableBottom = (drawableFromBottom - container.getY()) * (1f - progress) + (drawableToTop + drawableH) * progress;
-        int drawableRight = (int) (messageViewX + messageView.getBackgroundDrawableRight() + dp(4) * (1f - progressX));
+        int drawableRight = (int) (messageViewX + messageView.getBackgroundDrawableRight() + dp(4) * (1f - progressX)) - messageView.murkaTailInset(); // MurkaGram: без хвоста
         MessageDrawable drawable = null;
         if (!currentMessageObject.isAnimatedEmojiStickers()) {
             drawable = messageView.getCurrentBackgroundDrawable(true);

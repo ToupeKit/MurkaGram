@@ -179,7 +179,7 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
             }
             invalidate();
 
-            int rad = dp(18);
+            int rad = dp(murkaSquare ? 11 : 18); // MurkaGram: MD3 — форма кнопки
             int pressedColor = Theme.getColor(Theme.key_listSelector, resourcesProvider);
             if (recolorBackground) {
                 if (pressedColor != themedBackgroundPressedColor) {
@@ -210,9 +210,39 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
             } else {
                 themedBackgroundColor = color;
                 themedBackgroundPressedColor = pressedColor;
+                if (murkaSquare) { // MurkaGram: MD3 — форма кнопки (скруглённый квадрат)
+                    setBackground(themedBackground = Theme.createSimpleSelectorRoundRectDrawable(dp(MURKA_SQUARE_RADIUS), color, pressedColor));
+                } else {
                 setBackground(themedBackground = Theme.createSimpleSelectorCircleDrawable(dp(48), color, pressedColor));
+                }
             }
         }
+    }
+
+    // MurkaGram: MD3 — «квадратная» кнопка (скруглённый квадрат) вместо круга
+    private static final int MURKA_SQUARE_RADIUS = 14;
+    private boolean murkaSquare;
+
+    public void setMurkaSquare(boolean square) {
+        if (murkaSquare == square) {
+            return;
+        }
+        murkaSquare = square;
+        if (iBlur3Background != null) {
+            iBlur3Background.setRadius(dp(square ? 11 : 18));
+        }
+        if (!isSubButton) {
+            setOutlineProvider(square ? new android.view.ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, android.graphics.Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(MURKA_SQUARE_RADIUS));
+                }
+            } : ViewOutlineProviderImpl.BOUNDS_OVAL);
+            invalidateOutline();
+        }
+        themedBackground = null; // пересоздать фон с новой формой
+        updateColors();
+        invalidate();
     }
 
     public static final int SIZE = 48;

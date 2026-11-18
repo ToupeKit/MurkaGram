@@ -56,6 +56,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -710,6 +711,32 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void setTitleRightMargin(int value) {
         titleRightMargin = value;
+    }
+
+    // MurkaGram: центрирование заголовка по ширине экшн-бара (раздел «Дизайн»)
+    private boolean murkaCenterTitle;
+
+    public void setMurkaCenterTitle(boolean value) {
+        if (murkaCenterTitle == value) {
+            return;
+        }
+        murkaCenterTitle = value;
+        requestLayout();
+    }
+
+    public boolean isMurkaCenterTitle() {
+        return murkaCenterTitle;
+    }
+
+    // MurkaGram: центрирование по настройке «Центрировать название» для обычных экранов (без подзаголовка)
+    private boolean murkaCenterTitleAuto;
+
+    public void setMurkaCenterTitleAuto(boolean value) {
+        if (murkaCenterTitleAuto == value) {
+            return;
+        }
+        murkaCenterTitleAuto = value;
+        requestLayout();
     }
 
     public void setTitle(CharSequence value) {
@@ -1734,7 +1761,23 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         textTop = (getCurrentActionBarHeight() - titleTextView[i].getTextHeight()) / 2;
                     }
                 }
+                // MurkaGram: центрирование заголовка (раздел «Дизайн»)
                 int titleLeft = centerTitleAndGlass ? (getMeasuredWidth() - titleTextView[i].getMeasuredWidth()) / 2 : textLeft;
+                final boolean murkaCenter = murkaCenterTitle || murkaCenterTitleAuto && MurkaConfig.centerTitle && !isCenterTitle
+                        && (subtitleTextView == null || subtitleTextView.getVisibility() == GONE)
+                        && (additionalSubtitleTextView == null || additionalSubtitleTextView.getVisibility() == GONE);
+                if (murkaCenter && !centerTitleAndGlass && !isSearchFieldVisible && !LocaleController.isRTL) { // MurkaGram: ui-13 — при нативном центрировании 13.2.2 (centerTitleAndGlass) не вмешиваемся
+                    final SimpleTextView t = titleTextView[i];
+                    int w = t.getTextWidth();
+                    final Drawable rd = t.getRightDrawable();
+                    if (rd != null && !(rd instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable && ((AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) rd).getDrawable() == null)) {
+                        w += t.getRightDrawableWidth();
+                    }
+                    w = Math.min(w, t.getMeasuredWidth());
+                    final int menuW = (menu != null && menu.getVisibility() != GONE) ? menu.getMeasuredWidth() : 0;
+                    final int maxLeft = (right - left) - menuW - dp(16) - titleRightMargin - w;
+                    titleLeft = Math.max(textLeft, Math.min(((right - left) - w) / 2, maxLeft));
+                }
                 titleTextView[i].layout(titleLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), titleLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
         }

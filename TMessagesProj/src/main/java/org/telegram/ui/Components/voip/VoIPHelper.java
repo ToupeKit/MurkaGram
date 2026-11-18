@@ -103,6 +103,20 @@ public class VoIPHelper {
 			return;
 		}
 
+		// MurkaGram: подтверждение перед звонком (не спрашиваем повторно в течение 60 с и при активном звонке)
+		if (user != null && VoIPService.getSharedInstance() == null && !murkaIsCallConfirmed(user.id)) {
+			final int account = accountInstance != null ? accountInstance.getCurrentAccount() : UserConfig.selectedAccount;
+			try {
+				AlertsCreator.murkaCreateCallConfirmDialog(activity, account, user, videoCall, () -> {
+					murkaMarkCallConfirmed(user.id);
+					startCall(user, videoCall, canVideoCall, activity, userFull, accountInstance);
+				}).show();
+			} catch (Exception e) {
+				FileLog.e(e);
+			}
+			return;
+		}
+
 		if (Build.VERSION.SDK_INT >= 23) {
 			int code;
 			ArrayList<String> permissions = new ArrayList<>();
@@ -113,13 +127,28 @@ public class VoIPHelper {
 				permissions.add(Manifest.permission.CAMERA);
 			}
 			if (permissions.isEmpty()) {
+				murkaConfirmedUserId = 0; // MurkaGram: звонок начат — следующее нажатие снова спросит
 				initiateCall(user, null, null, videoCall, canVideoCall, false, null, activity, null, accountInstance);
 			} else {
 				activity.requestPermissions(permissions.toArray(new String[0]), videoCall ? 102 : 101);
 			}
 		} else {
+			murkaConfirmedUserId = 0; // MurkaGram
 			initiateCall(user, null, null, videoCall, canVideoCall, false, null, activity, null, accountInstance);
 		}
+	}
+
+	// MurkaGram: отметка «звонок подтверждён» — чтобы не спрашивать дважды (повторный вход после запроса разрешений, диалог Telegram)
+	private static long murkaConfirmedUserId;
+	private static long murkaConfirmedTime;
+
+	public static void murkaMarkCallConfirmed(long userId) {
+		murkaConfirmedUserId = userId;
+		murkaConfirmedTime = SystemClock.elapsedRealtime();
+	}
+
+	private static boolean murkaIsCallConfirmed(long userId) {
+		return murkaConfirmedUserId == userId && SystemClock.elapsedRealtime() - murkaConfirmedTime < 60_000;
 	}
 
 	public static void startCall(TLRPC.Chat chat, TLRPC.InputPeer peer, String hash, boolean createCall, Activity activity, BaseFragment fragment, AccountInstance accountInstance) {

@@ -404,6 +404,10 @@ public class MessagesController extends BaseController implements NotificationCe
     private int statusRequest;
     private int statusSettingState;
     private boolean offlineSent;
+    private long murkaLastOfflineAttempt; // MurkaGram: режим призрака — время последней попытки уйти в офлайн (защита от спама запросами)
+    private Runnable murkaGhostRunnable; // MurkaGram: режим призрака — отложенный уход в офлайн после отправки
+    private long murkaGhostScheduleTime; // MurkaGram: режим призрака — когда последний раз запланирован уход в офлайн после отправки (UI-поток)
+    private long murkaLastReactiveOffline; // MurkaGram: режим призрака — последняя реакция на собственный статус «в сети» (UI-поток)
     private String uploadingAvatar;
     private final LongSparseArray<ArrayList<MessageObject>> welcomeMessages = new LongSparseArray<>();
 
@@ -1435,10 +1439,59 @@ public class MessagesController extends BaseController implements NotificationCe
         if (dialogs == null) {
             return;
         }
-        Collections.sort(dialogs, dialogComparator);
+        Collections.sort(dialogs, murkaDialogComparator(murkaBuildLocalPinIndex())); // MurkaGram
     }
 
-    private Comparator<TLRPC.Dialog> dialogComparator = (dialog1, dialog2) -> {
+    // MurkaGram: «Безлимитное закрепление чатов» — снимок локальных закрепов (id -> позиция) для компаратора.
+    // Снимок берётся один раз на сортировку и захватывается компаратором (не общим полем), поэтому порядок
+    // постоянен на всё время Collections.sort, даже если параллельно идёт другая сортировка.
+    // Пустой снимок (переключатель выключен / нет закрепов) — стоковый dialogComparator.
+    private final java.util.HashSet<Long> murkaRequestedLocalPins = new java.util.HashSet<>();
+
+    private LongSparseIntArray murkaBuildLocalPinIndex() {
+        LongSparseIntArray index = new LongSparseIntArray();
+        if (MurkaConfig.unlimitedPins) {
+            java.util.List<Long> pins = MurkaConfig.getLocalPins(currentAccount);
+            for (int i = 0; i < pins.size(); i++) {
+                index.put(pins.get(i), i);
+            }
+        }
+        return index;
+    }
+
+    private Comparator<TLRPC.Dialog> murkaDialogComparator(LongSparseIntArray index) {
+        return index == null || index.size() == 0 ? dialogComparator : murkaCreateDialogComparator(index);
+    }
+
+    private static int murkaLocalPinRank(LongSparseIntArray index, TLRPC.Dialog dialog) {
+        if (index == null || index.size() == 0 || dialog == null || dialog.pinned || dialog.folder_id != 0 || dialog instanceof TLRPC.TL_dialogFolder) {
+            return -1;
+        }
+        return index.get(dialog.id, -1);
+    }
+
+    // MurkaGram: старые локально закреплённые чаты могут быть не загружены — подгружаем их (раз за сессию).
+    private void murkaLoadMissingLocalPins() {
+        if (!MurkaConfig.unlimitedPins || !dialogsLoaded || loadingDialogs.get(0)) {
+            return;
+        }
+        java.util.List<Long> pins = MurkaConfig.getLocalPins(currentAccount);
+        for (int i = 0; i < pins.size(); i++) {
+            long did = pins.get(i);
+            if (dialogs_dict.get(did) != null || DialogObject.isEncryptedDialog(did) || murkaRequestedLocalPins.contains(did)) {
+                continue;
+            }
+            if (did > 0 ? getUser(did) == null : getChat(-did) == null) {
+                continue; // нет данных для InputPeer — попробуем при следующей сортировке
+            }
+            murkaRequestedLocalPins.add(did);
+            loadUnknownDialog(getInputPeer(did), 0);
+        }
+    }
+
+    private Comparator<TLRPC.Dialog> dialogComparator = murkaCreateDialogComparator(null); // MurkaGram: стоковый (без локальных закрепов)
+
+    private Comparator<TLRPC.Dialog> murkaCreateDialogComparator(LongSparseIntArray murkaPinIndex) { return (dialog1, dialog2) -> {
         if (dialog1 instanceof TLRPC.TL_dialogFolder && !(dialog2 instanceof TLRPC.TL_dialogFolder)) {
             return -1;
         } else if (!(dialog1 instanceof TLRPC.TL_dialogFolder) && dialog2 instanceof TLRPC.TL_dialogFolder) {
@@ -1456,6 +1509,17 @@ public class MessagesController extends BaseController implements NotificationCe
                 return 0;
             }
         }
+        // MurkaGram: локальные закрепы — сразу после серверных, в порядке списка
+        int localRank1 = murkaLocalPinRank(murkaPinIndex, dialog1);
+        int localRank2 = murkaLocalPinRank(murkaPinIndex, dialog2);
+        if (localRank1 >= 0 || localRank2 >= 0) {
+            if (localRank2 < 0) {
+                return -1;
+            } else if (localRank1 < 0) {
+                return 1;
+            }
+            return Integer.compare(localRank1, localRank2);
+        }
         MediaDataController mediaDataController = getMediaDataController();
         long date1 = DialogObject.getLastMessageOrDraftDate(dialog1, mediaDataController.getDraft(dialog1.id, 0));
         long date2 = DialogObject.getLastMessageOrDraftDate(dialog2, mediaDataController.getDraft(dialog2.id, 0));
@@ -1465,7 +1529,7 @@ public class MessagesController extends BaseController implements NotificationCe
             return -1;
         }
         return 0;
-    };
+    }; }
 
     private Comparator<CommunityPeerDialog> communityPeerDialogComparator = (peer1, peer2) -> {
         if (peer1.dialog != null && peer2.dialog != null) {
@@ -6367,6 +6431,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 uploadingWallpaperInfo.uploadingProgress = loadedSize / (float) totalSize;
             }
         } else if (id == NotificationCenter.messageReceivedByServer) {
+            murkaScheduleGhostOffline(); // MurkaGram: режим призрака — ушли в офлайн после отправки сообщения
             Boolean scheduled = (Boolean) args[6];
             if (scheduled) {
                 return;
@@ -9345,7 +9410,16 @@ public class MessagesController extends BaseController implements NotificationCe
         deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, taskId, taskRequest, topicId, false, 0);
     }
 
+    // MurkaGram: «Сохранить локально» — удалить на сервере, но оставить сообщения в чате как удалённые.
+    public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, int topicId, boolean forAll, int mode, boolean cacheOnly, boolean murkaKeepLocal) {
+        deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, 0, null, topicId, false, 0, murkaKeepLocal);
+    }
+
     public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, boolean forAll, int mode, boolean cacheOnly, long taskId, TLObject taskRequest, int topicId, boolean movedToScheduled, int movedToScheduledMessageId) {
+        deleteMessages(messages, randoms, encryptedChat, dialogId, forAll, mode, cacheOnly, taskId, taskRequest, topicId, movedToScheduled, movedToScheduledMessageId, false); // MurkaGram
+    }
+
+    public void deleteMessages(ArrayList<Integer> messages, ArrayList<Long> randoms, TLRPC.EncryptedChat encryptedChat, long dialogId, boolean forAll, int mode, boolean cacheOnly, long taskId, TLObject taskRequest, int topicId, boolean movedToScheduled, int movedToScheduledMessageId, boolean murkaKeepLocal) {
         final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
         final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;
         final boolean welcomeMessages = mode == ChatActivity.MODE_WELCOME_MESSAGES;
@@ -9380,21 +9454,45 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (welcomeMessages) {
                 getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, false, ChatActivity.MODE_WELCOME_MESSAGES, topicId);
             } else {
-                if (channelId == 0) {
-                    for (int a = 0; a < messages.size(); a++) {
-                        Integer id = messages.get(a);
-                        MessageObject obj = dialogMessagesByIds.get(id);
-                        if (obj != null) {
-                            obj.deleted = true;
+                // MurkaGram: «Сохранить локально» — отправленные сообщения (mid > 0) не удаляем из кэша, а помечаем удалёнными
+                ArrayList<Integer> murkaDeleteNow = messages;
+                if (murkaKeepLocal && !cacheOnly && encryptedChat == null && !DialogObject.isEncryptedDialog(dialogId)) {
+                    ArrayList<Integer> keep = new ArrayList<>();
+                    murkaDeleteNow = new ArrayList<>();
+                    for (int a = 0, N = messages.size(); a < N; a++) {
+                        Integer mid = messages.get(a);
+                        if (mid > 0) {
+                            keep.add(mid);
+                        } else {
+                            murkaDeleteNow.add(mid);
                         }
                     }
-                } else {
-                    markDialogMessageAsDeleted(dialogId, messages);
+                    if (!keep.isEmpty()) {
+                        LongSparseArray<ArrayList<Integer>> murkaKeep = new LongSparseArray<>();
+                        murkaKeep.put(channelId != 0 ? -channelId : 0, keep);
+                        MurkaStorage.markMessagesDeleted(currentAccount, murkaKeep, true);
+                    }
                 }
-                getMessagesStorage().markMessagesAsDeleted(dialogId, messages, true, forAll, 0, topicId);
-                getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, messages, null);
+                if (!murkaDeleteNow.isEmpty()) {
+                    if (channelId == 0) {
+                        for (int a = 0; a < murkaDeleteNow.size(); a++) {
+                            Integer id = murkaDeleteNow.get(a);
+                            MessageObject obj = dialogMessagesByIds.get(id);
+                            if (obj != null) {
+                                obj.deleted = true;
+                            }
+                        }
+                    } else {
+                        markDialogMessageAsDeleted(dialogId, murkaDeleteNow);
+                    }
+                    getMessagesStorage().markMessagesAsDeleted(dialogId, murkaDeleteNow, true, forAll, 0, topicId);
+                    getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, murkaDeleteNow, null);
+                    getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, murkaDeleteNow, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+                }
             }
-            getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, messages, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+            if (scheduled || quickReplies || welcomeMessages) { // MurkaGram: для обычных сообщений уведомление отправлено выше
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, messages, channelId, scheduled, false, movedToScheduled, movedToScheduledMessageId);
+            }
         } else {
             if (taskRequest instanceof TLRPC.TL_channels_deleteMessages) {
                 channelId = ((TLRPC.TL_channels_deleteMessages) taskRequest).channel.channel_id;
@@ -10546,6 +10644,141 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
+    // MurkaGram: режим призрака — отправка статуса offline. Работает только с полями статуса на Utilities.stageQueue.
+    public void murkaSendOffline() {
+        if (statusRequest != 0) {
+            getConnectionsManager().cancelRequest(statusRequest, true);
+        }
+        statusSettingState = 2;
+        murkaLastOfflineAttempt = System.currentTimeMillis();
+        TL_account.updateStatus req = new TL_account.updateStatus();
+        req.offline = true;
+        statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
+            if (error == null) {
+                offlineSent = true;
+                AndroidUtilities.runOnUIThread(this::murkaApplySelfOffline); // MurkaGram: локально показываем себя офлайн
+            }
+            statusRequest = 0;
+        });
+    }
+
+    // MurkaGram: режим призрака — после offline=true локально показываем себя так, как нас видят другие. UI-поток.
+    private void murkaApplySelfOffline() {
+        if (!MurkaConfig.ghostMode) {
+            return;
+        }
+        TLRPC.User self = getUser(getUserConfig().getClientUserId());
+        int now = getConnectionsManager().getCurrentTime();
+        if (self == null || self.status == null || self.status.expires <= now) {
+            return; // уже офлайн — оставляем серверное время последнего визита
+        }
+        TLRPC.TL_userStatusOffline status = new TLRPC.TL_userStatusOffline();
+        status.expires = now;
+        self.status = status;
+        TLRPC.User toDbUser = new TLRPC.TL_user();
+        toDbUser.id = self.id;
+        toDbUser.status = status;
+        ArrayList<TLRPC.User> users = new ArrayList<>();
+        users.add(toDbUser);
+        getMessagesStorage().updateUsers(users, true, true, true);
+        getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_STATUS);
+    }
+
+    // MurkaGram: сообщения удалены по-настоящему из MurkaStorage (истёкший ttl_period, «Исключения»). UI-поток.
+    // Повторяет UI-часть штатного удаления в processUpdateArray: key — 0 или -channel_id.
+    public void murkaOnRealDeleted(long key, ArrayList<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, -key, false);
+        if (key == 0) {
+            for (int b = 0, size = ids.size(); b < size; b++) {
+                MessageObject obj = dialogMessagesByIds.get(ids.get(b));
+                if (obj != null) {
+                    obj.deleted = true;
+                }
+            }
+        } else {
+            ArrayList<MessageObject> objs = dialogMessage.get(key);
+            if (objs != null) {
+                for (int i = 0; i < objs.size(); ++i) {
+                    MessageObject obj = objs.get(i);
+                    if (obj != null && ids.contains(obj.getId())) {
+                        obj.deleted = true;
+                    }
+                }
+            }
+        }
+        LongSparseArray<ArrayList<Integer>> deleted = new LongSparseArray<>();
+        deleted.put(key, ids);
+        getNotificationsController().removeDeletedMessagesFromNotifications(deleted, false);
+    }
+
+    // MurkaGram: режим призрака включён/выключен — вызывается с UI-потока, поля статуса трогаем только на stageQueue.
+    public void murkaOnGhostModeChanged() {
+        Utilities.stageQueue.postRunnable(() -> {
+            if (MurkaConfig.ghostMode) {
+                offlineSent = false;
+                murkaSendOffline();
+            } else {
+                lastStatusUpdateTime = 0;
+                offlineSent = true;
+                statusSettingState = 0;
+            }
+        });
+    }
+
+    // MurkaGram: режим призрака — после отправки сообщения/реакции/правки сервер делает нас онлайн; через мгновение возвращаем офлайн.
+    public void murkaScheduleGhostOffline() {
+        if (!MurkaConfig.ghostMode || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        if (murkaGhostRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(murkaGhostRunnable);
+        }
+        murkaGhostScheduleTime = System.currentTimeMillis(); // MurkaGram
+        murkaGhostRunnable = () -> {
+            murkaGhostRunnable = null;
+            Utilities.stageQueue.postRunnable(() -> {
+                offlineSent = false;
+                murkaSendOffline();
+            });
+            AndroidUtilities.runOnUIThread(() -> {
+                if (MurkaConfig.ghostMode) {
+                    Utilities.stageQueue.postRunnable(() -> {
+                        offlineSent = false;
+                        murkaSendOffline();
+                    });
+                }
+            }, 4000);
+        };
+        AndroidUtilities.runOnUIThread(murkaGhostRunnable, 1000);
+    }
+
+    // MurkaGram: режим призрака — сервер сообщил, что мы «в сети» (например, после неявной активности). Вызывается с UI-потока.
+    // Не чаще раза в 60 с и не внутри окна «кратко в сети после отправки» (там офлайн и так уже запланирован).
+    // Возвращает true, если «в сети» вызвано этим устройством (тогда это не «онлайн с другого устройства» для уведомлений).
+    private boolean murkaOnSelfOnline() {
+        if (!MurkaConfig.ghostMode || !getUserConfig().isClientActivated()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (murkaGhostRunnable != null || Math.abs(now - murkaGhostScheduleTime) < 6000) {
+            return true;
+        }
+        if (murkaLastReactiveOffline != 0 && Math.abs(now - murkaLastReactiveOffline) < 60000) {
+            return false;
+        }
+        murkaLastReactiveOffline = now;
+        Utilities.stageQueue.postRunnable(() -> {
+            if (MurkaConfig.ghostMode) {
+                offlineSent = false;
+                murkaSendOffline();
+            }
+        });
+        return true;
+    }
+
     public void updateTimerProc() {
         long currentTime = System.currentTimeMillis();
 
@@ -10553,7 +10786,11 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — никогда не сообщаем серверу «в сети», держим офлайн
+                if (!offlineSent && statusRequest == 0 && Math.abs(System.currentTimeMillis() - murkaLastOfflineAttempt) >= 10000) {
+                    murkaSendOffline();
+                }
+            } else if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
                         statusSettingState = 1;
@@ -11412,6 +11649,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+        if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — не отправляем «печатает…»
+            return false;
+        }
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
@@ -14441,6 +14681,9 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — «прослушано/просмотрено» только локально, на сервер не отправляем
+            return;
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -14593,13 +14836,28 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        completeReadTask(task, false);
+    }
+
+    // MurkaGram: murkaForce=true — отправить прочтение даже в режиме призрака (пункт «Прочитать»)
+    private void completeReadTask(ReadTask task, boolean murkaForce) {
+        completeReadTask(task, murkaForce, null);
+    }
+
+    // MurkaGram: murkaOnDone — вызывается на UI-потоке, когда сервер подтвердил прочтение
+    private void completeReadTask(ReadTask task, boolean murkaForce, Runnable murkaOnDone) {
+        if (MurkaConfig.ghostMode && !murkaForce) { // MurkaGram: режим призрака — прочтение только локально, на сервер не отправляем
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
             req.peer = getInputPeer(task.dialogId);
             req.read_max_id = task.maxId;
             getConnectionsManager().sendRequest(req, (response, error) -> {
-
+                if (error == null && murkaOnDone != null) { // MurkaGram
+                    AndroidUtilities.runOnUIThread(murkaOnDone);
+                }
             });
         } else if (!DialogObject.isEncryptedDialog(task.dialogId)) {
             TLRPC.InputPeer inputPeer = getInputPeer(task.dialogId);
@@ -14628,18 +14886,23 @@ public class MessagesController extends BaseController implements NotificationCe
                         TLRPC.TL_messages_affectedMessages res = (TLRPC.TL_messages_affectedMessages) response;
                         processNewDifferenceParams(-1, res.pts, -1, res.pts_count);
                     }
+                    if (murkaOnDone != null) { // MurkaGram
+                        AndroidUtilities.runOnUIThread(murkaOnDone);
+                    }
                 }
             });
         } else {
             TLRPC.EncryptedChat chat = getEncryptedChat(DialogObject.getEncryptedChatId(task.dialogId));
-            if (chat.auth_key != null && chat.auth_key.length > 1 && chat instanceof TLRPC.TL_encryptedChat) {
+            if (chat != null && chat.auth_key != null && chat.auth_key.length > 1 && chat instanceof TLRPC.TL_encryptedChat) { // MurkaGram: chat != null — защита для принудительного прочтения
                 TLRPC.TL_messages_readEncryptedHistory req = new TLRPC.TL_messages_readEncryptedHistory();
                 req.peer = new TLRPC.TL_inputEncryptedChat();
                 req.peer.chat_id = chat.id;
                 req.peer.access_hash = chat.access_hash;
                 req.max_date = task.maxDate;
                 getConnectionsManager().sendRequest(req, (response, error) -> {
-
+                    if (error == null && murkaOnDone != null) { // MurkaGram
+                        AndroidUtilities.runOnUIThread(murkaOnDone);
+                    }
                 });
             }
         }
@@ -14692,6 +14955,39 @@ public class MessagesController extends BaseController implements NotificationCe
                 readTasksMap.remove(dialogId);
             }
         });
+    }
+
+    // MurkaGram: режим призрака — явно отправить прочтение диалога до сообщения (пункт «Прочитать»)
+    public void murkaForceReadHistory(long dialogId, int maxId, int maxDate, long threadId) {
+        murkaForceReadHistory(dialogId, maxId, maxDate, threadId, null);
+    }
+
+    // MurkaGram: onDone — на UI-потоке после успешного ответа сервера
+    public void murkaForceReadHistory(long dialogId, int maxId, int maxDate, long threadId, Runnable onDone) {
+        final long monoForumPeerId = threadId != 0 && isMonoForum(dialogId) ? threadId : 0; // MurkaGram: MessagesStorage.isMonoForum is private in 13.2.2
+        Utilities.stageQueue.postRunnable(() -> {
+            ReadTask task = new ReadTask();
+            task.dialogId = dialogId;
+            task.replyId = threadId;
+            task.monoForumPeerId = monoForumPeerId;
+            task.maxId = maxId;
+            task.maxDate = maxDate;
+            completeReadTask(task, true, onDone);
+            // отложенная (подавленная) задача для этого диалога больше не нужна
+            if (threadId != 0) {
+                ReadTask t = threadsReadTasksMap.remove(dialogId + "_" + threadId);
+                if (t != null) {
+                    repliesReadTasks.remove(t);
+                }
+            } else {
+                ReadTask t = readTasksMap.get(dialogId); // MurkaGram: LongSparseArray.remove() возвращает void
+                readTasksMap.remove(dialogId);
+                if (t != null) {
+                    readTasks.remove(t);
+                }
+            }
+        });
+        AndroidUtilities.runOnUIThread(this::murkaScheduleGhostOffline, 300); // MurkaGram: readHistory может сделать нас «в сети»
     }
 
     public void markMentionsAsRead(long dialogId, long topicId) {
@@ -17634,6 +17930,12 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
+        if (MurkaConfig.saveDeletedMessages && !DialogObject.isEncryptedDialog(dialogId) && !MurkaConfig.isMonitorExcluded(currentAccount, dialogId)) { // MurkaGram: «Мониторинг» — сохраняем вместо удаления (кроме «Исключений»)
+            LongSparseArray<ArrayList<Integer>> murkaDeleted = new LongSparseArray<>();
+            murkaDeleted.put(channelId != 0 ? -channelId : 0, ids); // MurkaGram: ключи как в processUpdateArray (0 — без канала, -channel_id — канал)
+            MurkaStorage.markMessagesDeleted(currentAccount, murkaDeleted);
+            return;
+        }
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
             AndroidUtilities.runOnUIThread(() -> {
                 getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false);
@@ -18506,6 +18808,7 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessages = null;
         SparseIntArray markAsReadEncrypted = null;
         LongSparseArray<ArrayList<Integer>> deletedMessages = null;
+        ArrayList<Integer> murkaLocalDeleted = null; // MurkaGram: локальные удаления (CallLogActivity), не перехватываются
         LongSparseArray<ArrayList<Integer>> deletedQuickReplyMessages = null;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessages = null;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesSent = null;
@@ -18891,6 +19194,10 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (value == null) {
                     value = getMessagesStorage().getDialogReadMax(true, dialogId);
                 }
+                if (MurkaConfig.saveReadDates && !fromGetDifference && date != 0 && update.peer.user_id != 0
+                        && update.peer.user_id != getUserConfig().getClientUserId() && value != null && update.max_id > value) { // MurkaGram: «Сохранять дату прочтения» — только личные чаты, не из getDifference
+                    MurkaStorage.saveReadDate(currentAccount, dialogId, value, update.max_id, date);
+                }
                 dialogs_read_outbox_max.put(dialogId, Math.max(value, update.max_id));
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteMessages) {
                 TL_update.TL_updateDeleteMessages update = (TL_update.TL_updateDeleteMessages) baseUpdate;
@@ -18903,6 +19210,12 @@ public class MessagesController extends BaseController implements NotificationCe
                     deletedMessages.put(0, arrayList);
                 }
                 arrayList.addAll(update.messages);
+                if (update.murkaLocal) { // MurkaGram
+                    if (murkaLocalDeleted == null) {
+                        murkaLocalDeleted = new ArrayList<>();
+                    }
+                    murkaLocalDeleted.addAll(update.messages);
+                }
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteQuickReplyMessages) {
                 TL_update.TL_updateDeleteQuickReplyMessages update = (TL_update.TL_updateDeleteQuickReplyMessages) baseUpdate;
                 if (deletedQuickReplyMessages == null) {
@@ -19933,6 +20246,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 for (int a = 0, size2 = messageObjects.size(); a < size2; a++) {
                     messagesRes.messages.add(messageObjects.get(a).messageOwner);
                 }
+                if (MurkaConfig.saveEditHistory && !MurkaConfig.isMonitorExcluded(currentAccount, editingMessages.keyAt(b))) { // MurkaGram: сохраняем предыдущую версию до перезаписи (та же storageQueue), кроме «Исключений»
+                    MurkaStorage.saveEditHistory(currentAccount, new ArrayList<>(messagesRes.messages));
+                }
                 getMessagesStorage().putMessages(messagesRes, editingMessages.keyAt(b), -2, 0, false, 0, 0);
             }
             LongSparseArray<ArrayList<MessageObject>> editingMessagesFinal = editingMessages;
@@ -20036,7 +20352,12 @@ public class MessagesController extends BaseController implements NotificationCe
                         toDbUser.status = update.status;
                         dbUsersStatus.add(toDbUser);
                         if (update.user_id == getUserConfig().getClientUserId()) {
-                            getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
+                            // MurkaGram: режим призрака — сервер сделал нас «в сети» — возвращаем офлайн (с ограничением частоты);
+                            // если это вызвано нашим устройством, не считаем это «онлайн с другого устройства»
+                            boolean murkaOwnOnline = MurkaConfig.ghostMode && update.status instanceof TLRPC.TL_userStatusOnline && murkaOnSelfOnline();
+                            if (!murkaOwnOnline) {
+                                getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
+                            }
                         }
                     } else if (baseUpdate instanceof TL_update.TL_updateMonoForumNoPaidException) {
                         TL_update.TL_updateMonoForumNoPaidException update = (TL_update.TL_updateMonoForumNoPaidException) baseUpdate;
@@ -21117,6 +21438,17 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseIntArray markAsReadMessagesOutboxFinal = markAsReadMessagesOutbox;
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;
         SparseIntArray markAsReadEncryptedFinal = markAsReadEncrypted;
+        // MurkaGram: «Сохранить локально» — эхо удаления с сервера не трогает уже сохранённые сообщения
+        if (deletedMessages != null) {
+            MurkaStorage.filterKeptDeletions(currentAccount, deletedMessages, murkaLocalDeleted);
+            if (deletedMessages.size() == 0) {
+                deletedMessages = null;
+            }
+        }
+        // MurkaGram: «Мониторинг» — вместо удаления сохраняем сообщения как удалённые (кроме локальных удалений)
+        if (deletedMessages != null && MurkaConfig.saveDeletedMessages) {
+            deletedMessages = MurkaStorage.interceptDeletedMessages(currentAccount, deletedMessages, murkaLocalDeleted);
+        }
         LongSparseArray<ArrayList<Integer>> deletedMessagesFinal = deletedMessages;
         LongSparseArray<ArrayList<Integer>> deletedQuickRepliesMessagesFinal = deletedQuickReplyMessages;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesFinal = scheduledDeletedMessages;
@@ -21722,7 +22054,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 req.flags |= 1;
             }
         }
-        getConnectionsManager().sendRequest(req, (response, error) -> {});
+        if (!MurkaConfig.ghostMode) { // MurkaGram: режим призрака — прочтение голосов только локально, на сервер не отправляем
+            getConnectionsManager().sendRequest(req, (response, error) -> {});
+        }
         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_REACTIONS_READ);
     }
 
@@ -22288,7 +22622,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         }
         try {
-            Collections.sort(allDialogs, dialogComparator);
+            Collections.sort(allDialogs, murkaDialogComparator(murkaBuildLocalPinIndex())); // MurkaGram
         } catch (Exception e) {}
     }
 
@@ -22504,8 +22838,9 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         }
 
+        final LongSparseIntArray murkaPinIndex = murkaBuildLocalPinIndex(); // MurkaGram
         try {
-            Collections.sort(allDialogs, dialogComparator);
+            Collections.sort(allDialogs, murkaDialogComparator(murkaPinIndex)); // MurkaGram
         } catch (Exception e) {}
         isLeftPromoChannel = true;
         if (promoDialog != null && promoDialog.id < 0) {
@@ -22527,7 +22862,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     if (maxDate > Integer.MIN_VALUE) {
-                        if (maxDate < dialogsLoadedTillDate) {
+                        if (maxDate < dialogsLoadedTillDate && murkaLocalPinRank(murkaPinIndex, d) < 0) { // MurkaGram: локальные закрепы не скрываем
                             continue;
                         }
                     }
@@ -22646,6 +22981,7 @@ public class MessagesController extends BaseController implements NotificationCe
         }
 
         hasArchivedChats = dialogsByFolder.get(1, null) != null;
+        murkaLoadMissingLocalPins(); // MurkaGram
     }
 
     private boolean addDialogToItsCommunity(TLRPC.Dialog dialog) {
@@ -23037,6 +23373,22 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void openByUserName(String username, BaseFragment fragment, int type, Browser.Progress progress) {
+        if (username == null || fragment == null) {
+            return;
+        }
+        // MurkaGram: «Защита от мошенников» — юзернейм похож на официальный
+        if (MurkaAntiScam.isEnabled() && fragment.getParentActivity() != null) {
+            String murkaOfficial = MurkaAntiScam.findImpersonated(username);
+            if (murkaOfficial != null) {
+                MurkaAntiScam.showWarning(fragment, murkaOfficial, username, () -> murkaOpenByUserName(murkaOfficial, fragment, type, null), () -> murkaOpenByUserName(username, fragment, type, progress));
+                return;
+            }
+        }
+        murkaOpenByUserName(username, fragment, type, progress);
+    }
+
+    // MurkaGram: исходное тело openByUserName (без проверки «Защиты от мошенников»)
+    private void murkaOpenByUserName(String username, BaseFragment fragment, int type, Browser.Progress progress) {
         if (username == null || fragment == null) {
             return;
         }

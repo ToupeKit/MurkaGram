@@ -6,6 +6,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas; // MurkaGram
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
@@ -25,9 +26,11 @@ import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
 import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.ButtonBounce; // MurkaGram
 import org.telegram.ui.Components.CheckBox2;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.MurkaMD3; // MurkaGram
 import org.telegram.ui.Components.RLottieImageView;
 
 import java.util.HashSet;
@@ -61,6 +64,7 @@ public class ActionBarMenuSubItem extends FrameLayout implements Theme.Colorable
     private int itemHeight = 48;
     protected final Theme.ResourcesProvider resourcesProvider;
     public Runnable openSwipeBackLayout;
+    private final ButtonBounce murkaBounce = MurkaMD3.enabled() ? new ButtonBounce(this, 1.5f, 1.0f, 1.2f) : null; // MurkaGram: MD3 — сжатие пункта при нажатии
 
     public ActionBarMenuSubItem(Context context, boolean top, boolean bottom) {
         this(context, false, top, bottom);
@@ -451,7 +455,34 @@ public class ActionBarMenuSubItem extends FrameLayout implements Theme.Colorable
         updateBackground();
     }
 
+    // MurkaGram: MD3 — сжатие иконки и текста до 0.96 при нажатии (фон-подсветка не масштабируется)
+    @Override
+    public void setPressed(boolean pressed) {
+        super.setPressed(pressed);
+        if (murkaBounce != null) {
+            murkaBounce.setPressed(pressed);
+        }
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        final float s = murkaBounce != null ? murkaBounce.getScale(0.04f) : 1f;
+        if (s != 1f) {
+            canvas.save();
+            canvas.scale(s, s, getWidth() / 2f, getHeight() / 2f);
+            super.dispatchDraw(canvas);
+            canvas.restore();
+        } else {
+            super.dispatchDraw(canvas);
+        }
+    }
+
     public void updateBackground() {
+        if (MurkaMD3.enabled()) { // MurkaGram: MD3 — подсветка пункта со скруглением 14dp и отступами от краёв меню (без перезаписи padding)
+            appliedSelectorBackground = null; // MurkaGram: ui-13 — inset-фон не перекрашиваем на месте, setSelectorColor пересоздаст его через updateBackground()
+            setBackground(MurkaMD3.insetNoPadding(Theme.createRadSelectorDrawable(selectorColor, 14, 14), dp(6), dp(2), dp(6), dp(2)));
+            return;
+        }
         setBackground(appliedSelectorBackground = Theme.createRadSelectorDrawable(selectorColor, top ? selectorRad : 0, bottom ? selectorRad : 0));
     }
 

@@ -91,11 +91,22 @@ public class LocaleController {
                         lang = "en";
                     }
                     lang = lang.toLowerCase();
-                    formatterDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, is24HourFormat ? getStringInternal("formatterDay24H", R.string.formatterDay24H) : getStringInternal("formatterDay12H", R.string.formatterDay12H), is24HourFormat ? "HH:mm" : "h:mm a");
+                    // MurkaGram: «Время с секундами» — добавляем секунды в формат времени
+                    String pattern = is24HourFormat ? getStringInternal("formatterDay24H", R.string.formatterDay24H) : getStringInternal("formatterDay12H", R.string.formatterDay12H);
+                    pattern = murkaApplySeconds(pattern);
+                    formatterDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, pattern, murkaApplySeconds(is24HourFormat ? "HH:mm" : "h:mm a"));
                 }
             }
         }
         return formatterDay;
+    }
+
+    // MurkaGram: добавляет секунды в шаблон времени, если включено «Время с секундами»
+    private static String murkaApplySeconds(String pattern) {
+        if (MurkaConfig.timeWithSeconds && pattern != null && !pattern.contains("s")) {
+            return pattern.replace("mm", "mm:ss");
+        }
+        return pattern;
     }
 
     private volatile FastDateFormat formatterDayWithSeconds;
@@ -127,7 +138,8 @@ public class LocaleController {
                         lang = "en";
                     }
                     lang = lang.toLowerCase();
-                    formatterConstDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, is24HourFormat ? "HH:mm" : "h:mm a", is24HourFormat ? "HH:mm" : "h:mm a");
+                    // MurkaGram: «Время с секундами»
+                    formatterConstDay = createFormatter(lang.toLowerCase().equals("ar") || lang.toLowerCase().equals("ko") ? locale : Locale.US, murkaApplySeconds(is24HourFormat ? "HH:mm" : "h:mm a"), murkaApplySeconds(is24HourFormat ? "HH:mm" : "h:mm a"));
                 }
             }
         }
@@ -2890,6 +2902,12 @@ public class LocaleController {
     }
 
     public static String formatShortNumber(int number, int[] rounded) {
+        if (MurkaConfig.noNumberRounding) { // MurkaGram: «Отключить округление чисел»
+            if (rounded != null) {
+                rounded[0] = number;
+            }
+            return String.valueOf(number);
+        }
         StringBuilder K = new StringBuilder();
         int lastDec = 0;
         int KCount = 0;
@@ -4783,6 +4801,21 @@ public class LocaleController {
     private String getStringV2(String key, @StringRes int stringRes, String fallback) {
         final Context context = ApplicationLoader.applicationContext;
         String value;
+
+        // MurkaGram: the app name is never taken from Telegram's cloud language packs; it is not packed into
+        // the localization assets (TelegramStringsTask excludes it), so it comes from Android resources
+        // (getString(int) passes key == null, so the resource id is checked too)
+        final boolean murkaIsBeta = "AppNameBeta".equals(key) || stringRes != 0 && stringRes == R.string.AppNameBeta;
+        if (murkaIsBeta || "AppName".equals(key) || stringRes != 0 && stringRes == R.string.AppName) {
+            if (context != null) {
+                try {
+                    return context.getString(murkaIsBeta ? R.string.AppNameBeta : R.string.AppName);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
+            return murkaIsBeta ? "MurkaGram Beta" : "MurkaGram";
+        }
 
         if (BuildVars.USE_CLOUD_STRINGS) {
             value = localizationExternal.getByResNameOrResId(context, key, stringRes);

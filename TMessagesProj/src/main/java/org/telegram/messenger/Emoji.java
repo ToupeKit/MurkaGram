@@ -117,8 +117,14 @@ public class Emoji {
             }
             loadingEmoji[page][page2] = true;
             Utilities.globalQueue.postRunnable(() -> {
+                // MurkaGram: «Эмодзи» — системный/свой шрифт; при ошибке — стандартная картинка
                 Bitmap bitmap = null;
                 try {
+                    bitmap = MurkaEmoji.render(EmojiData.data[page][page2]);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+                if (bitmap == null) try { // MurkaGram: стандартный набор (emoji.pack)
                     final EmojiPack emojiPack = EmojiPack.getInstance();
                     bitmap = emojiPack.getEmoji(page, page2);
                 } catch (Exception e) {

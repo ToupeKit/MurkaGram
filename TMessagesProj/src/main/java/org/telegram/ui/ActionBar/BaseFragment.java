@@ -563,6 +563,7 @@ public abstract class BaseFragment {
         if (inPreviewMode || inBubbleMode || parentLayout != null && parentLayout.isLayersLayout()) {
             actionBar.setOccupyStatusBar(false);
         }
+        actionBar.setMurkaCenterTitleAuto(true); // MurkaGram: «Центрировать название» на всех экранах
         return actionBar;
     }
 

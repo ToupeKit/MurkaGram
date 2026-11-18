@@ -52,6 +52,7 @@ public class MessagePrivateSeenView extends FrameLayout {
     public static final int TYPE_SEEN = 0;
     public static final int TYPE_EDIT = 1;
     public static final int TYPE_FORWARD = 2;
+    public static final int TYPE_MURKA_LOCAL = 3; // MurkaGram: локально сохранённая дата прочтения
 
     private final int currentAccount;
     private final int type;
@@ -67,13 +68,19 @@ public class MessagePrivateSeenView extends FrameLayout {
     private final int sent_date;
     private final int edit_date;
     private final int fwd_date;
+    private final int murkaDate; // MurkaGram: локально сохранённая дата прочтения
     private final Runnable dismiss;
 
     private final int messageDiff;
 
     public MessagePrivateSeenView(Context context, int type, @NonNull MessageObject messageObject, Runnable dismiss, Theme.ResourcesProvider resourcesProvider) {
+        this(context, type, messageObject, dismiss, resourcesProvider, 0);
+    }
+
+    public MessagePrivateSeenView(Context context, int type, @NonNull MessageObject messageObject, Runnable dismiss, Theme.ResourcesProvider resourcesProvider, int murkaDate) {
         super(context);
         this.type = type;
+        this.murkaDate = murkaDate; // MurkaGram
 
         currentAccount = messageObject.currentAccount;
         this.resourcesProvider = resourcesProvider;
@@ -133,6 +140,13 @@ public class MessagePrivateSeenView extends FrameLayout {
     }
 
     private void request() {
+        if (type == TYPE_MURKA_LOCAL) { // MurkaGram: локально сохранённая дата прочтения — без сетевого запроса
+            valueLayout.setAlpha(1f);
+            loadingView.setAlpha(0f);
+            premiumTextView.setVisibility(View.GONE);
+            valueTextView.setText(LocaleController.formatPmSeenDate(murkaDate));
+            return;
+        }
         if (type == TYPE_EDIT) {
             valueLayout.setAlpha(1f);
             loadingView.setAlpha(0f);

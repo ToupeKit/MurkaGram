@@ -128,6 +128,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaAntiScam; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.OpenAttachedMenuBotReceiver;
@@ -2921,9 +2922,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                                             NotificationCenter.getInstance(intentAccount[0]).postNotificationName(NotificationCenter.closeChats);
                                             push_user_id = userId;
                                             String mimeType = cursor.getString(cursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
-                                            if (TextUtils.equals(mimeType, "vnd.android.cursor.item/vnd.org.telegram.messenger.android.call")) {
+                                            if (TextUtils.equals(mimeType, "vnd.android.cursor.item/vnd.org.murkagram.kbs.android.call")) {
                                                 audioCallUser = true;
-                                            } else if (TextUtils.equals(mimeType, "vnd.android.cursor.item/vnd.org.telegram.messenger.android.call.video")) {
+                                            } else if (TextUtils.equals(mimeType, "vnd.android.cursor.item/vnd.org.murkagram.kbs.android.call.video")) {
                                                 videoCallUser = true;
                                             }
                                         }
@@ -4375,6 +4376,19 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 }
             }));
         } else if (username != null) {
+            // MurkaGram: «Защита от мошенников» — юзернейм похож на официальный
+            if (state == 0 && MurkaAntiScam.isEnabled()) {
+                final String murkaOfficial = MurkaAntiScam.findImpersonated(username);
+                if (murkaOfficial != null) {
+                    MurkaAntiScam.showWarning(getSafeLastFragment(), murkaOfficial, username, () -> {
+                        BaseFragment murkaFragment = getSafeLastFragment();
+                        if (murkaFragment != null) {
+                            MessagesController.getInstance(intentAccount).openByUserName(murkaOfficial, murkaFragment, 0);
+                        }
+                    }, () -> runLinkRequest(intentAccount, username, group, sticker, emoji, botUser, botChat, botChannel, botChatAdminParams, message, contactToken, folderSlug, text, hasUrl, messageId, channelId, threadId, commentId, game, auth, lang, unsupportedUrl, code, loginToken, wallPaper, inputInvoiceSlug, uniqueGiftSlug, theme, voicechat, videochat, livestream, 1, videoTimestamp, setAsAttachBot, attachMenuBotToOpen, attachMenuBotChoose, botAppMaybe, botAppStartParam, progress, forceNotInternalForApps, storyId, liveStory, storyAlbumId, giftCollectionId, auctionSlug, stargiftPreviewSlug, isBoost, chatLinkSlug, botCompact, botFullscreen, openedTelegram, openProfile, forceRequest, referrer, taskId, openDirect, pollOptionId)); // MurkaGram: ui-13 — сигнатура 13.2.2
+                    return;
+                }
+            }
             if (progress != null) {
                 progress.init();
             }
@@ -7212,6 +7226,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         WidgetMedia.onAppPaused(false);
         isResumed = true;
         PipCoordinator.getInstance().onActivityResume(this);
+        org.telegram.messenger.MurkaBadges.fetchIfNeeded(); // MurkaGram: «Бейджики» — обновить конфиг, если давно не обновляли
         if (onResumeStaticCallback != null) {
             onResumeStaticCallback.run();
             onResumeStaticCallback = null;

@@ -29,6 +29,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.TransitionDrawable;
 import android.os.Build;
@@ -76,7 +77,9 @@ import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.ChatActionCell;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Cells.CollapseTextCell;
+import org.telegram.ui.Cells.DividerCell;
 import org.telegram.ui.Cells.GraySectionCell;
+import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
@@ -2715,7 +2718,7 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
 
     @Override
     public boolean drawChild(Canvas canvas, View child, long drawingTime) {
-        if (sectionsItemDecoration != null && !ignoreClipChild) {
+        if ((sectionsItemDecoration != null || bitmapSectionsItemDecoration != null && MurkaMD3.hideSectionDividers()) && !ignoreClipChild) { // MurkaGram: ui-13 — MD3: срез разделителей ячеек и в BitmapSectionsItemDecoration
             canvas.save();
             clipChild(canvas, child);
             boolean r = super.drawChild(canvas, child, drawingTime);
@@ -2728,6 +2731,7 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        murkaCheckMD3Version(); // MurkaGram: ui-13 — MD3: настройки карточек поменялись
         if (itemsEnterAnimator != null) {
             itemsEnterAnimator.dispatchDraw();
         }
@@ -3546,8 +3550,14 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             boolean topPadding
     ) {
         ThemeBind.listSelectorColor(this, Theme.key_settings_listSelector, resourcesProvider);
-        this.isSectionView = isSectionView;
-        this.isViewTypeSection = isViewTypeSection;
+        // MurkaGram: ui-13 — MD3: заголовки вне карточек, отступы и радиус по настройкам (см. murkaWrapSectionView / MurkaMD3.section*)
+        this.isSectionView = murkaWrapSectionView(isSectionView);
+        this.isViewTypeSection = murkaWrapViewTypeSection(isViewTypeSection);
+        murkaStockSectionPadding = padding;
+        murkaStockSectionRadius = roundRadius;
+        murkaMD3Version = MurkaMD3.version;
+        padding = MurkaMD3.sectionPadding(padding);
+        roundRadius = MurkaMD3.sectionRadius(roundRadius);
         this.sectionPadding = padding;
         this.sectionTopPadding = topPadding;
         this.sectionRadius = roundRadius;
@@ -3623,6 +3633,7 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
                     }
                 }
             }
+            this.parent.murkaSectionItemOffsets(outRect, view, padding); // MurkaGram: ui-13 — MD3
         }
 
         @Override
@@ -3749,6 +3760,8 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
                 drawSectionBackgroundRect(canvas, AndroidUtilities.rectTmp, topRoundRadius, bottomRoundRadius, alpha);
             });
             sections.clear();
+        } else if (MurkaMD3.sectionSegments()) {
+            murkaDrawSegmentsBackgrounds(canvas); // MurkaGram: ui-13 — MD3 «Сегменты»: каждая строка отдельной плиткой
         } else {
             int startIndex = -1, prevIndex = -1;
             View start = null, prev = null;
@@ -3840,6 +3853,7 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
     }
 
     private void clipChild(Canvas canvas, View child) {
+        if (murkaClipChild(canvas, child)) return; // MurkaGram: ui-13 — MD3
         if (bitmapSectionsItemDecoration != null || child == null || !shouldClipChildToSection(child) || !sectionsItemDecoration.isSectionItem.run(child) || !isVisualSectionItem(child))
             return;
 
@@ -3921,7 +3935,12 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             child.getX() + child.getWidth(),
             Math.min(getHeight() - (applyPaddingToSections ? getPaddingBottom() : 0), bottom(child))
         );
-        if (prev && next && !forceRound) {
+        float[] murkaTileRadii = null; // MurkaGram: ui-13 — MD3 «Сегменты»: форма плитки
+        if (MurkaMD3.sectionSegments() && !forceRound) {
+            murkaSegmentRadii(child, sectionRadius, murkaSegmentR);
+            murkaTileRadii = new float[] { murkaSegmentR[0], murkaSegmentR[0], murkaSegmentR[0], murkaSegmentR[0], murkaSegmentR[1], murkaSegmentR[1], murkaSegmentR[1], murkaSegmentR[1] };
+        }
+        if (prev && next && !forceRound && murkaTileRadii == null) {
             prev = top(child) >= rect.top;
             next = bottom(child) <= rect.bottom;
             if (prev && next) return Theme.createRoundRectDrawable(0, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
@@ -3936,6 +3955,10 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         } else if (!next) {
             clipPath.rewind();
             clipPath.addRoundRect(rect, sectionRadiusBottom, Path.Direction.CW);
+        }
+        if (murkaTileRadii != null) { // MurkaGram: ui-13 — MD3
+            clipPath.rewind();
+            clipPath.addRoundRect(rect, murkaTileRadii, Path.Direction.CW);
         }
 
         return new Drawable() {
@@ -3959,6 +3982,207 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             @Override
             public int getOpacity() { return PixelFormat.TRANSPARENT; }
         };
+    }
+
+    // MurkaGram: ui-13 — MD3 поверх нативных секций 13.2.2 (вместо своей декорации): параметры берутся из MurkaMD3.
+    private int murkaStockSectionPadding;
+    private float murkaStockSectionRadius;
+    private int murkaMD3Version = MurkaMD3.version;
+    private static final int MURKA_KIND_HEADER = 1, MURKA_KIND_DIVIDER = 2;
+    private final SparseIntArray murkaViewKinds = new SparseIntArray(); // тип строки адаптера -> MURKA_KIND_*
+    private final float[] murkaRadii = new float[8];
+    private final float[] murkaSegmentR = new float[2];
+
+    private static int murkaKindOf(View view) {
+        return view instanceof HeaderCell ? MURKA_KIND_HEADER : view instanceof DividerCell ? MURKA_KIND_DIVIDER : 0;
+    }
+
+    /** MurkaGram: заголовок — вне карточки при «Отделить заголовки»; строка-разделитель (DividerCell) — промежуток между плитками «Сегментов». */
+    private static boolean murkaExcludedKind(int kind) {
+        return kind == MURKA_KIND_HEADER && MurkaMD3.separateSectionHeaders() || kind == MURKA_KIND_DIVIDER && MurkaMD3.sectionSegments();
+    }
+
+    private Utilities.CallbackReturn<View, Boolean> murkaWrapSectionView(Utilities.CallbackReturn<View, Boolean> isSectionView) {
+        if (isSectionView == null) return null;
+        return view -> {
+            final int kind = murkaKindOf(view);
+            if (kind != 0) {
+                if (view.getParent() == this) {
+                    final ViewHolder holder = getChildViewHolder(view);
+                    if (holder != null) {
+                        murkaViewKinds.put(holder.getItemViewType(), kind);
+                    }
+                }
+                if (murkaExcludedKind(kind)) {
+                    final Drawable background = view.getBackground();
+                    if (background instanceof ColorDrawable && ((ColorDrawable) background).getAlpha() == 0xFF) {
+                        view.setBackground(null); // белая подложка заголовка не нужна на сером фоне
+                    }
+                    return false;
+                }
+            }
+            return isSectionView.run(view);
+        };
+    }
+
+    private Utilities.CallbackReturn<Integer, Boolean> murkaWrapViewTypeSection(Utilities.CallbackReturn<Integer, Boolean> isViewTypeSection) {
+        if (isViewTypeSection == null) return null;
+        return viewType -> isViewTypeSection.run(viewType) && !murkaExcludedKind(murkaViewKinds.get(viewType, 0));
+    }
+
+    // MurkaGram: ui-13 — UniversalRecyclerView в 13.2.2 передаёт isViewTypeSection = UniversalAdapter::isShadow (инвертирован);
+    // сток это не трогаем, а для MD3-отступов/«Сегментов» используем верный предикат типа строки
+    private Utilities.CallbackReturn<Integer, Boolean> murkaViewTypeSection;
+
+    public void murkaSetViewTypeSection(Utilities.CallbackReturn<Integer, Boolean> viewTypeSection) {
+        murkaViewTypeSection = viewTypeSection;
+    }
+
+    private boolean murkaIsViewTypeSection(int viewType) {
+        if (murkaViewTypeSection != null) {
+            return murkaViewTypeSection.run(viewType) && !murkaExcludedKind(murkaViewKinds.get(viewType, 0));
+        }
+        return isViewTypeSection != null && isViewTypeSection.run(viewType);
+    }
+
+    /** MurkaGram: MurkaMD3.bump() — пересоздать декорацию секций с новыми отступами и радиусом. */
+    private void murkaCheckMD3Version() {
+        if (murkaMD3Version == MurkaMD3.version) return;
+        murkaMD3Version = MurkaMD3.version;
+        if (isSectionView == null || isViewTypeSection == null || drawSectionBackground == null) return;
+        post(new Runnable() {
+            @Override
+            public void run() {
+                if (isComputingLayout()) {
+                    post(this);
+                    return;
+                }
+                if (isSectionView == null || isViewTypeSection == null || drawSectionBackground == null) return;
+                sectionPadding = MurkaMD3.sectionPadding(murkaStockSectionPadding);
+                sectionRadius = MurkaMD3.sectionRadius(murkaStockSectionRadius);
+                sectionRadiusTop = new float[] { sectionRadius, sectionRadius, sectionRadius, sectionRadius, 0, 0, 0, 0 };
+                sectionRadiusBottom = new float[] { 0, 0, 0, 0, sectionRadius, sectionRadius, sectionRadius, sectionRadius };
+                installSectionsDecoration();
+                invalidateItemDecorations();
+                invalidate();
+            }
+        });
+    }
+
+    /** MurkaGram: строка адаптера — часть карточки (по виду, если он на экране, иначе по типу). */
+    boolean murkaIsSectionPosition(int position) {
+        final Adapter adapter = getAdapter();
+        if (adapter == null || position < 0 || position >= adapter.getItemCount() || isViewTypeSection == null) return false;
+        if (isInsideForcedSection(position)) return false;
+        final View view = findViewByPosition(position);
+        if (view != null) return isVisualSectionItem(view);
+        return murkaIsViewTypeSection(adapter.getItemViewType(position)); // MurkaGram: ui-13
+    }
+
+    private boolean murkaIsHeaderPosition(int position) {
+        final Adapter adapter = getAdapter();
+        if (adapter == null || position < 0 || position >= adapter.getItemCount()) return false;
+        final View view = findViewByPosition(position);
+        if (view != null) return view instanceof HeaderCell;
+        return murkaViewKinds.get(adapter.getItemViewType(position), 0) == MURKA_KIND_HEADER;
+    }
+
+    /** MurkaGram: отступы строк: боковые у отдельных заголовков (выравнивание по карточке), зазор между «Сегментами». */
+    void murkaSectionItemOffsets(Rect outRect, View view, int padding) {
+        if (!MurkaMD3.enabled() || isSectionView == null) return;
+        if (!isSectionView.run(view)) {
+            if (view instanceof HeaderCell && MurkaMD3.separateSectionHeaders()) {
+                outRect.left = outRect.right = padding;
+            }
+            return;
+        }
+        final int gap = MurkaMD3.sectionGap();
+        if (gap <= 0 || view instanceof HeaderCell) return; // заголовок внутри карточки слит со следующей строкой
+        final ViewHolder holder = getChildViewHolder(view);
+        final Adapter adapter = getAdapter();
+        if (holder == null || adapter == null || isViewTypeSection == null) return;
+        final int position = holder.getAdapterPosition();
+        if (position == NO_POSITION || position + 1 >= adapter.getItemCount() || isInsideForcedSection(position)) return;
+        if (murkaIsViewTypeSection(adapter.getItemViewType(position + 1)) && !isInsideForcedSection(position + 1)) { // MurkaGram: ui-13
+            outRect.bottom += gap;
+        }
+    }
+
+    /** MurkaGram: радиусы плитки «Сегментов»: большие по краям секции, малые между строками, 0 на стыке заголовка со строкой. out[0] — верх, out[1] — низ. */
+    void murkaSegmentRadii(View child, float bigRadius, float[] out) {
+        final int position = getChildAdapterPosition(child);
+        if (position == NO_POSITION) {
+            out[0] = out[1] = bigRadius;
+            return;
+        }
+        final float small = MurkaMD3.sectionSmallRadius();
+        final boolean prev = murkaIsSectionPosition(position - 1);
+        final boolean next = murkaIsSectionPosition(position + 1);
+        out[0] = !prev ? bigRadius : murkaIsHeaderPosition(position - 1) ? 0 : small;
+        out[1] = !next ? bigRadius : child instanceof HeaderCell ? 0 : small;
+    }
+
+    private void murkaDrawSegmentsBackgrounds(Canvas canvas) {
+        final float[] r = murkaSegmentR;
+        for (int i = 0; i < getChildCount(); ++i) {
+            final View child = getChildAt(i);
+            if (
+                child == emptyView ||
+                child.getVisibility() != View.VISIBLE || child.getAlpha() <= 0 ||
+                !sectionsItemDecoration.isSectionItem.run(child) ||
+                isInsideForcedSection(getChildAdapterPosition(child))
+            ) continue;
+            murkaSegmentRadii(child, sectionRadius, r);
+            AndroidUtilities.rectTmp.set(
+                child.getLeft(),
+                Math.max(sectionsEdgeTop(), top(child)),
+                child.getRight(),
+                Math.min(sectionsEdgeBottom(), bottom(child))
+            );
+            if (AndroidUtilities.rectTmp.bottom <= AndroidUtilities.rectTmp.top) continue;
+            drawSectionBackgroundRect(canvas, AndroidUtilities.rectTmp, r[0], r[1], child.getAlpha());
+        }
+    }
+
+    /** MurkaGram: обрезка строки по форме плитки («Сегменты») и срез нижнего разделителя ячейки («Скрыть»/«Сегменты»). true — обработано. */
+    private boolean murkaClipChild(Canvas canvas, View child) {
+        final boolean segments = MurkaMD3.sectionSegments();
+        final boolean hideDividers = MurkaMD3.hideSectionDividers();
+        if (!segments && !hideDividers || child == null || !hasSections()) return false;
+        if (!shouldClipChildToSection(child) || !isVisualSectionItem(child)) return true;
+        final int position = getChildAdapterPosition(child);
+        final boolean prev = position != NO_POSITION && murkaIsSectionPosition(position - 1);
+        final boolean next = position != NO_POSITION && murkaIsSectionPosition(position + 1);
+        float bottom = bottom(child);
+        if (hideDividers && next) {
+            bottom -= MurkaMD3.dividerInset();
+        }
+        AndroidUtilities.rectTmp.set(
+            child.getX(),
+            Math.max(sectionsEdgeTop(), top(child)),
+            child.getX() + child.getWidth(),
+            Math.min(sectionsEdgeBottom(), bottom)
+        );
+        if (bitmapSectionsItemDecoration != null) {
+            canvas.clipRect(AndroidUtilities.rectTmp); // углы этой декорации дорисовываются поверх строк
+            return true;
+        }
+        float topRadius, bottomRadius;
+        if (segments) {
+            final float[] r = murkaSegmentR;
+            murkaSegmentRadii(child, sectionRadius, r);
+            topRadius = r[0];
+            bottomRadius = r[1];
+        } else {
+            topRadius = prev ? 0 : sectionRadius;
+            bottomRadius = next ? 0 : sectionRadius;
+        }
+        murkaRadii[0] = murkaRadii[1] = murkaRadii[2] = murkaRadii[3] = topRadius;
+        murkaRadii[4] = murkaRadii[5] = murkaRadii[6] = murkaRadii[7] = bottomRadius;
+        clipPath.rewind();
+        clipPath.addRoundRect(AndroidUtilities.rectTmp, murkaRadii, Path.Direction.CW);
+        canvas.clipPath(clipPath);
+        return true;
     }
 
     private boolean isVisualSectionItem(View view) {

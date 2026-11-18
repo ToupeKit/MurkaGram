@@ -4469,6 +4469,16 @@ public class MessageObject {
         return sponsoredId != null;
     }
 
+    // MurkaGram: сохранённое удалённое сообщение (раздел «Мониторинг»)
+    public boolean isMurkaDeleted() {
+        return messageOwner != null && messageOwner.murkaDeleted;
+    }
+
+    // MurkaGram: у сообщения есть сохранённая история изменений
+    public boolean hasMurkaHistory() {
+        return messageOwner != null && messageOwner.murkaHasHistory;
+    }
+
     public long getPollId() {
         if (type != TYPE_POLL) {
             return 0;

@@ -24,6 +24,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -880,6 +881,10 @@ public class EmojiAnimationsOverlay implements NotificationCenter.NotificationCe
     }
 
     private void sendCurrentTaps() {
+        if (MurkaConfig.ghostMode) { // MurkaGram: режим призрака — не отправляем взаимодействие с эмодзи (setTyping)
+            clearSendingInfo();
+            return;
+        }
         if (lastTappedMsgId == 0) {
             return;
         }

@@ -42,7 +42,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
 
     private Theme.ResourcesProvider resourcesProvider;
 
-    private int radiusDp = 8;
+    private int radiusDp = org.telegram.ui.Components.MurkaMD3.enabled() ? 24 : 8; // MurkaGram: MD3 — более круглые кнопки
 
     private final Paint paint;
     public final AnimatedTextView.AnimatedTextDrawable text;
@@ -117,7 +117,7 @@ public class ButtonWithCounterView extends FrameLayout implements Loadable, Them
         addView(rippleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (filled) {
-            ThemeBind.fillBackground(this, Theme.createRoundRectDrawable(dp(8), backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), ThemeBind.of(Theme.key_featuredStickers_addButton), resourcesProvider);
+            ThemeBind.fillBackground(this, Theme.createRoundRectDrawable(dp(radiusDp), backgroundColor = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), ThemeBind.of(Theme.key_featuredStickers_addButton), resourcesProvider); // MurkaGram: MD3 (было dp(8))
         }
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);

@@ -39,6 +39,7 @@ public class AppIconBulletinLayout extends Bulletin.ButtonLayout {
         imageView.setOuterPadding(AndroidUtilities.dp(8));
         imageView.setBackgroundOuterPadding(AndroidUtilities.dp(24));
         imageView.setForeground(icon.foreground);
+        imageView.murkaClipForeground = icon == LauncherIconController.LauncherIcon.MURKAGRAM || icon == LauncherIconController.LauncherIcon.MURKAGRAM_FLAT; // MurkaGram
         textView.setText(AndroidUtilities.replaceTags(LocaleController.formatString(R.string.AppIconChangedTo, LocaleController.getString(icon.title))));
     }
 }

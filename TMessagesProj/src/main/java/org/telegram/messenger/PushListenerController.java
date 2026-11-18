@@ -422,7 +422,9 @@ public class PushListenerController {
                                 ids.add(Utilities.parseInt(messagesArgs[a]));
                             }
                             deletedMessages.put(-channel_id, ids);
-                            NotificationsController.getInstance(currentAccount).removeDeletedMessagesFromNotifications(deletedMessages, false);
+                            if (!MurkaConfig.saveDeletedMessages || DialogObject.isEncryptedDialog(dialogId) || MurkaConfig.isMonitorExcluded(currentAccount, dialogId)) { // MurkaGram: при сохранении удалённых уведомления не убираем (кроме «Исключений»)
+                                NotificationsController.getInstance(currentAccount).removeDeletedMessagesFromNotifications(deletedMessages, false);
+                            }
 
                             MessagesController.getInstance(currentAccount).deleteMessagesByPush(dialogId, ids, channel_id);
                             if (BuildVars.LOGS_ENABLED) {

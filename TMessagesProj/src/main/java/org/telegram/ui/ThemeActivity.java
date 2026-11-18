@@ -21,6 +21,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
@@ -57,9 +58,11 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaCustomIcon;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -241,6 +244,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     @Keep
     private int appIconSelectorRow;
     private int appIconShadowRow;
+
+    private static final int REQUEST_CUSTOM_ICON = 7703; // MurkaGram: «Своя иконка» (7701/7702 — MurkaDesignActivity)
+    private AppIconsSelectorCell murkaAppIconsCell; // MurkaGram
 
     private int rowCount;
 
@@ -1658,6 +1664,142 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
+    // MurkaGram: «Своя иконка» — ярлык на рабочем столе с картинкой пользователя
+    private void murkaOnCustomIconClick() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (!MurkaCustomIcon.isSupported(getParentActivity())) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+            builder.setTitle(getString(R.string.MurkaCustomIcon));
+            builder.setMessage(getString(R.string.MurkaCustomIconUnsupported));
+            builder.setPositiveButton(getString(R.string.OK), null);
+            showDialog(builder.create());
+            return;
+        }
+        if (!MurkaCustomIcon.exists()) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+            builder.setTitle(getString(R.string.MurkaCustomIcon));
+            builder.setMessage(getString(R.string.MurkaCustomIconInfo));
+            builder.setPositiveButton(getString(R.string.MurkaCustomIconPick), (dialog, which) -> murkaOpenIconPicker());
+            builder.setNegativeButton(getString(R.string.Cancel), null);
+            showDialog(builder.create());
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.MurkaCustomIcon));
+        builder.setItems(new CharSequence[]{
+                getString(R.string.MurkaCustomIconPin),
+                getString(R.string.MurkaCustomIconReplace),
+                getString(R.string.MurkaCustomIconRemove)
+        }, (dialog, which) -> {
+            if (which == 0) {
+                murkaPinCustomIcon();
+            } else if (which == 1) {
+                murkaOpenIconPicker();
+            } else if (which == 2) {
+                MurkaCustomIcon.remove(ApplicationLoader.applicationContext);
+                murkaRefreshCustomIcon();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.MurkaCustomIconRemoved)).show();
+            }
+        });
+        AlertDialog alertDialog = builder.create();
+        showDialog(alertDialog);
+        alertDialog.setItemColor(alertDialog.getItemsCount() - 1, Theme.getColor(Theme.key_text_RedBold), Theme.getColor(Theme.key_text_RedRegular));
+    }
+
+    private void murkaOpenIconPicker() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            startActivityForResult(intent, REQUEST_CUSTOM_ICON);
+        } catch (Exception e) {
+            FileLog.e(e);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode != REQUEST_CUSTOM_ICON) { // MurkaGram: на планшетах результат приходит во все 3 layout'а
+            return;
+        }
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        final Uri uri = data.getData();
+        AndroidUtilities.runOnUIThread(() -> {
+            boolean presented = false;
+            try {
+                Bundle args = new Bundle();
+                args.putParcelable("photoUri", uri);
+                PhotoCropActivity crop = new PhotoCropActivity(args);
+                crop.setDelegate(this::murkaOnCustomIconCropped);
+                presented = presentFragment(crop);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            if (!presented) {
+                // MurkaGram: декодирование картинки — не в UI-потоке
+                Utilities.globalQueue.postRunnable(() -> {
+                    Bitmap loaded = null;
+                    try {
+                        loaded = ImageLoader.loadBitmap(null, uri, 800, 800, true);
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                    }
+                    final Bitmap bitmap = loaded;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (bitmap == null) {
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
+                            return;
+                        }
+                        murkaOnCustomIconCropped(bitmap);
+                        bitmap.recycle();
+                    });
+                });
+            }
+        });
+    }
+
+    // Вызывается синхронно из PhotoCropActivity до finishFragment — копируем bitmap сразу.
+    private void murkaOnCustomIconCropped(Bitmap bitmap) {
+        final Bitmap square = MurkaCustomIcon.makeSquare(bitmap);
+        if (square == null) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
+            return;
+        }
+        Utilities.globalQueue.postRunnable(() -> {
+            final boolean saved = MurkaCustomIcon.save(square);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (!saved) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconError)).show();
+                    return;
+                }
+                murkaRefreshCustomIcon();
+                murkaPinCustomIcon();
+            });
+        });
+    }
+
+    private void murkaPinCustomIcon() {
+        int result = MurkaCustomIcon.pin(ApplicationLoader.applicationContext);
+        if (result == MurkaCustomIcon.PIN_UPDATED) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.MurkaCustomIconUpdated)).show();
+        } else if (result == MurkaCustomIcon.PIN_REQUESTED) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.MurkaCustomIconAdded)).show();
+        } else {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.MurkaCustomIconUnsupported)).show();
+        }
+    }
+
+    private void murkaRefreshCustomIcon() {
+        if (murkaAppIconsCell != null) {
+            murkaAppIconsCell.murkaRefreshCustom();
+        }
+    }
+
     @Override
     public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
         if (isOpen) {
@@ -2568,7 +2710,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     view = new RadioButtonCell(mContext);
                     break;
                 case TYPE_APP_ICON:
-                    view = new AppIconsSelectorCell(mContext, ThemeActivity.this, currentAccount);
+                    AppIconsSelectorCell appIconsCell = new AppIconsSelectorCell(mContext, ThemeActivity.this, currentAccount);
+                    appIconsCell.onCustomIconClick = ThemeActivity.this::murkaOnCustomIconClick; // MurkaGram: «Своя иконка»
+                    murkaAppIconsCell = appIconsCell; // MurkaGram
+                    view = appIconsCell;
                     break;
                 case TYPE_CHOOSE_COLOR:
                     view = new PeerColorActivity.ChangeNameColorCell(currentAccount, 0, mContext, getResourceProvider());

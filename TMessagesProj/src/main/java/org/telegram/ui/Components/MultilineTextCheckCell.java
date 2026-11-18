@@ -33,7 +33,7 @@ public class MultilineTextCheckCell extends FrameLayout {
 
         textLayout = new LinearLayout(context);
         textLayout.setOrientation(LinearLayout.VERTICAL);
-        addView(textLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, LocaleController.isRTL ? 70 : 22, 0, LocaleController.isRTL ? 22 : 70, 0));
+        addView(textLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, LocaleController.isRTL ? MurkaMD3.switchTextMargin(70) : 22, 0, LocaleController.isRTL ? 22 : MurkaMD3.switchTextMargin(70), 0)); // MurkaGram: MD3 — крупный переключатель
 
         titleTextView = new TextView(context);
         ThemeBind.textColor(titleTextView, Theme.key_windowBackgroundWhiteBlackText, resourcesProvider);
@@ -51,7 +51,7 @@ public class MultilineTextCheckCell extends FrameLayout {
 
         checkBox = new Switch(context, resourcesProvider);
         checkBox.setColors(Theme.key_switchTrack, Theme.key_switchTrackChecked, Theme.key_windowBackgroundWhite, Theme.key_windowBackgroundWhite);
-        addView(checkBox, LayoutHelper.createFrame(37, 20, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 22, 0, 22, 0));
+        addView(checkBox, LayoutHelper.createFrame(MurkaMD3.switchWidth(), MurkaMD3.switchHeight(20), (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, MurkaMD3.switchMargin(22), 0, MurkaMD3.switchMargin(22), 0)); // MurkaGram: MD3 — крупный переключатель
     }
 
     @Override

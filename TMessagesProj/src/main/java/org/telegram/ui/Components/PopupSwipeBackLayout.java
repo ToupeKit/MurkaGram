@@ -422,6 +422,9 @@ public class PopupSwipeBackLayout extends FrameLayout {
     @Override
     public void addView(View child, int index, ViewGroup.LayoutParams params) {
         super.addView(child, index, params);
+        if (getChildCount() > 1 && child instanceof ActionBarPopupWindow.ActionBarPopupWindowLayout) { // MurkaGram: MD3 — отступы подстраницы
+            ((ActionBarPopupWindow.ActionBarPopupWindowLayout) child).murkaApplyMD3PagePadding();
+        }
         invalidateTransforms();
     }
 
@@ -455,7 +458,7 @@ public class PopupSwipeBackLayout extends FrameLayout {
 
         int s = canvas.save();
         mPath.rewind();
-        int rad = AndroidUtilities.dp(12);
+        int rad = AndroidUtilities.dp(MurkaMD3.enabled() ? MurkaMD3.POPUP_RADIUS : 12); // MurkaGram: MD3 (ui-13: стоковый радиус 12)
         if (stickToRight) {
             mRect.set(getWidth() - w, y, getWidth(), y + h);
         } else {

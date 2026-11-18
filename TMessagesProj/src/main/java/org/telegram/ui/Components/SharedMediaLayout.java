@@ -4211,6 +4211,7 @@ public class SharedMediaLayout extends FrameLayout implements Theme.Colorable, N
         scrollSlidingTextTabStrip.animationDuration = 320;
         scrollSlidingTextTabStrip.setColors(Theme.key_profile_tabSelectedLine, Theme.key_profile_tabSelectedText, Theme.key_profile_tabText, Theme.key_profile_tabSelector);
         scrollSlidingTextTabStrip.setUseMinimalWidth(true);
+        scrollSlidingTextTabStrip.setMurkaPill(true); // MurkaGram: MD3 — индикатор-«пилюля» (ui-13: 13.2.2 рисует пилюлю сам, вызов без эффекта)
         scrollSlidingTextTabStrip.setDelegate(new ScrollSlidingTextTabStrip.ScrollSlidingTabStripDelegate() {
             @Override
             public void onPageSelected(int id, boolean forward) {

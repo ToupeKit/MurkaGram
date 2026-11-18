@@ -24,3 +24,6 @@ TMessagesProj/jni/ffmpeg/build_android
 
 # MurkaGram: personal reference screenshots (never publish)
 /MD3 примеры/
+
+# MurkaGram: Kotlin compiler daemon session files (buildSrc)
+.kotlin/

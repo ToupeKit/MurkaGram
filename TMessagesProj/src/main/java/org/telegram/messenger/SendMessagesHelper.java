@@ -3630,6 +3630,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         return getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error == null) {
                 getMessagesController().processUpdates((TLRPC.Updates) response, false);
+                AndroidUtilities.runOnUIThread(() -> getMessagesController().murkaScheduleGhostOffline()); // MurkaGram: режим призрака — офлайн после правки сообщения
             } else {
                 AndroidUtilities.runOnUIThread(() -> AlertsCreator.processError(currentAccount, error, fragment, req));
             }
@@ -4037,6 +4038,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         getConnectionsManager().sendRequest(req, (response, error) -> {
             if (response != null) {
                 getMessagesController().processUpdates((TLRPC.Updates) response, false);
+                AndroidUtilities.runOnUIThread(() -> getMessagesController().murkaScheduleGhostOffline()); // MurkaGram: режим призрака — офлайн после реакции
                 if (callback != null) {
                     AndroidUtilities.runOnUIThread(callback);
                 }

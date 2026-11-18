@@ -33,6 +33,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.NonNull;
 
 import org.telegram.PhoneFormat.PhoneFormat;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ContactsController;
@@ -139,6 +141,8 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
     private StaticLayout statusLayout;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable botVerificationDrawable;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable statusDrawable;
+    private MurkaBadges.BadgesDrawable murkaBadges; // MurkaGram: «Бейджики»
+    private int murkaBadgesVersion; // MurkaGram
     public StoriesUtilities.AvatarStoryParams avatarStoryParams = new StoriesUtilities.AvatarStoryParams(false);
 
     private final RectF adBounds = new RectF();
@@ -630,6 +634,14 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                 nameWidth -= statusDrawable.getIntrinsicWidth();
             }
         }
+        if (murkaBadges != null) { // MurkaGram: место под бейджики
+            int w = dp(4) + murkaBadges.getIntrinsicWidth();
+            if (LocaleController.isRTL) {
+                nameLeft += w;
+            } else {
+                nameWidth -= w;
+            }
+        }
 
         if (nameWidth < 0) {
             nameWidth = 0;
@@ -665,7 +677,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
                     if (isOnline[0]) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                     }
-                    if (user != null && (user.id == UserConfig.getInstance(currentAccount).getClientUserId() || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
+                    if (user != null && (MurkaConfig.forceSelfOnline(currentAccount, user.id) /* MurkaGram: режим призрака */ || user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())) {
                         currentStatusPaint = Theme.dialogs_onlinePaint;
                         statusString = getString(R.string.Online);
                     }
@@ -818,6 +830,12 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             botVerificationDrawable.set(botVerificationIcon, animated);
         }
         botVerificationDrawable.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
+        // MurkaGram: «Бейджики»
+        murkaBadgesVersion = MurkaBadges.version;
+        murkaBadges = savedMessages ? null : user != null ? MurkaBadges.getDrawable(user.id, 18, murkaBadges) : chat != null && !ChatObject.isForum(chat) ? MurkaBadges.getDrawable(-chat.id, 18, murkaBadges) : null; // MurkaGram: и у каналов/групп (без форумов)
+        if (murkaBadges != null) {
+            murkaBadges.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
+        }
     }
 
     private boolean rectangularAvatar;
@@ -869,7 +887,7 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
 
         avatarImage.setRoundRadius(ChatObject.isCommunity(chat) ? DrawableUtils.getCommunityCardDrawableRadius(dp(46)) : chat != null && chat.monoforum ? 0 : rectangularAvatar ? dp(10) : chat != null && chat.forum ? dp(16) : dp(23));
         if (mask != 0) {
-            boolean continueUpdate = false;
+            boolean continueUpdate = murkaBadgesVersion != MurkaBadges.version; // MurkaGram: бейджики изменились
             if ((mask & MessagesController.UPDATE_MASK_AVATAR) != 0 && user != null || (mask & MessagesController.UPDATE_MASK_CHAT_AVATAR) != 0 && chat != null) {
                 if (lastAvatar != null && photo == null || lastAvatar == null && photo != null || lastAvatar != null && (lastAvatar.volume_id != photo.volume_id || lastAvatar.local_id != photo.local_id)) {
                     continueUpdate = true;
@@ -996,6 +1014,19 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
             }
             setDrawableBounds(statusDrawable, x, nameTop + (nameLayout.getHeight() - statusDrawable.getIntrinsicHeight()) / 2f);
             statusDrawable.draw(canvas);
+            if (murkaBadges != null) { // MurkaGram: «Бейджики» рядом со значком статуса
+                int bw = murkaBadges.getIntrinsicWidth();
+                int bh = murkaBadges.getIntrinsicHeight();
+                int bx;
+                if (LocaleController.isRTL) {
+                    bx = statusDrawable.isEmpty() ? x + statusDrawable.getIntrinsicWidth() - bw : x - dp(4) - bw;
+                } else {
+                    bx = statusDrawable.isEmpty() ? x : x + statusDrawable.getIntrinsicWidth() + dp(4);
+                }
+                int by = (int) (nameTop + (nameLayout.getHeight() - bh) / 2f);
+                murkaBadges.setBounds(bx, by, bx + bw, by + bh);
+                murkaBadges.draw(canvas);
+            }
         }
 
         if (ad != null && adText != null && adBackgroundPaint != null) {

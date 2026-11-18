@@ -3229,17 +3229,22 @@ public class AlertsCreator {
 
         final int account = fragment.getCurrentAccount();
         final Context context = fragment.getParentActivity();
+        // MurkaGram: разметка вынесена в murkaCreateCallConfirmDialog (используется и в VoIPHelper.startCall)
+        AlertDialog dialog = murkaCreateCallConfirmDialog(context, account, user, videoCall, () -> {
+            final TLRPC.UserFull userFull = fragment.getMessagesController().getUserFull(user.id);
+            VoIPHelper.murkaMarkCallConfirmed(user.id); // MurkaGram: не спрашивать второй раз в startCall
+            VoIPHelper.startCall(user, videoCall, userFull != null && userFull.video_calls_available, fragment.getParentActivity(), userFull, fragment.getAccountInstance());
+        });
+        fragment.showDialog(dialog);
+    }
+
+    // MurkaGram: диалог подтверждения звонка (аватар слева, заголовок рядом, текст, «Позвонить»/«Отмена»)
+    public static AlertDialog murkaCreateCallConfirmDialog(Context context, int account, TLRPC.User user, boolean videoCall, Runnable onConfirm) {
         final FrameLayout frameLayout = new FrameLayout(context);
 
-        final String title;
-        final String message;
-        if (videoCall) {
-            title = LocaleController.getString(R.string.VideoCallAlertTitle);
-            message = LocaleController.formatString("VideoCallAlert", R.string.VideoCallAlert, UserObject.getUserName(user));
-        } else {
-            title = LocaleController.getString(R.string.CallAlertTitle);
-            message = LocaleController.formatString("CallAlert", R.string.CallAlert, UserObject.getUserName(user));
-        }
+        // MurkaGram: собственные строки «Голосовой звонок / Видеозвонок / Вы точно хотите позвонить …?»
+        final String title = LocaleController.getString(videoCall ? R.string.MurkaCallConfirmVideoTitle : R.string.MurkaCallConfirmVoiceTitle);
+        final String message = LocaleController.formatString(R.string.MurkaCallConfirmText, UserObject.getUserName(user));
 
         TextView messageTextView = new TextView(context) {
             @Override
@@ -3257,7 +3262,7 @@ public class AlertsCreator {
         AvatarDrawable avatarDrawable = new AvatarDrawable();
         avatarDrawable.setTextSize(dp(12));
         avatarDrawable.setScaleSize(1f);
-        avatarDrawable.setInfo(fragment.getCurrentAccount(), user);
+        avatarDrawable.setInfo(account, user);
 
         BackupImageView imageView = new BackupImageView(context);
         imageView.setRoundRadius(dp(20));
@@ -3277,14 +3282,10 @@ public class AlertsCreator {
         frameLayout.addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, (LocaleController.isRTL ? 21 : 76), 11, (LocaleController.isRTL ? 76 : 21), 0));
         frameLayout.addView(messageTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, 24, 57, 24, 9));
 
-        AlertDialog dialog = new AlertDialog.Builder(context).setView(frameLayout)
-                .setPositiveButton(LocaleController.getString(R.string.Call), (dialogInterface, i) -> {
-                    final TLRPC.UserFull userFull = fragment.getMessagesController().getUserFull(user.id);
-                    VoIPHelper.startCall(user, videoCall, userFull != null && userFull.video_calls_available, fragment.getParentActivity(), userFull, fragment.getAccountInstance());
-                })
+        return new AlertDialog.Builder(context).setView(frameLayout)
+                .setPositiveButton(LocaleController.getString(R.string.MurkaCallConfirmButton), (dialogInterface, i) -> onConfirm.run())
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                 .create();
-        fragment.showDialog(dialog);
     }
 
     public static void createChangeBioAlert(String currentBio, long peerId, Context context, int currentAccount) {
@@ -7894,6 +7895,10 @@ public class AlertsCreator {
         }
 
         final boolean[] deleteForAll = new boolean[1];
+        // MurkaGram: «Сохранить локально» — общий контейнер для галочек диалога
+        final boolean[] murkaKeepLocal = new boolean[1];
+        final LinearLayout murkaContainer = new LinearLayout(activity);
+        murkaContainer.setOrientation(LinearLayout.VERTICAL);
         boolean canRevokeInbox = user != null && MessagesController.getInstance(currentAccount).canRevokePmInbox;
         int revokeTimeLimit;
         if (user != null) {
@@ -8042,8 +8047,7 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell12.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                murkaContainer.addView(frameLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT)); // MurkaGram
             }
         } else if (!scheduled && !isSavedMessages && !ChatObject.isChannel(chat) && encryptedChat == null) {
             if (user != null && user.id != UserConfig.getInstance(currentAccount).getClientUserId() && (!user.bot || user.support) || chat != null) {
@@ -8101,9 +8105,49 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell1.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                murkaContainer.addView(frameLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT)); // MurkaGram
             }
+        }
+
+        // MurkaGram: «Сохранить локально» (не для секретных чатов, отложенных, быстрых ответов и неотправленных)
+        boolean murkaHasServerMessage = false;
+        if (selectedMessage != null) {
+            if (selectedGroup != null) {
+                for (int a = 0; a < selectedGroup.messages.size(); a++) {
+                    MessageObject messageObject = selectedGroup.messages.get(a);
+                    if (messageObject.getId() > 0 && !messageObject.isMurkaDeleted() && !messageObject.isEphemeral()) { // MurkaGram: ui-13 — эфемерные не сохраняем
+                        murkaHasServerMessage = true;
+                        break;
+                    }
+                }
+            } else {
+                murkaHasServerMessage = selectedMessage.getId() > 0 && !selectedMessage.isMurkaDeleted() && !selectedMessage.isEphemeral(); // MurkaGram: ui-13 — эфемерные не сохраняем
+            }
+        } else if (selectedMessages != null) {
+            for (int a = 1; a >= 0 && !murkaHasServerMessage; a--) {
+                for (int b = 0; b < selectedMessages[a].size(); b++) {
+                    MessageObject msg = selectedMessages[a].valueAt(b);
+                    if (msg != null && msg.getId() > 0 && !msg.isMurkaDeleted() && !msg.isEphemeral()) { // MurkaGram: ui-13 — эфемерные не сохраняем
+                        murkaHasServerMessage = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!scheduled && !quickReplies && encryptedChat == null && !DialogObject.isEncryptedDialog(dialogId) && murkaHasServerMessage) {
+            CheckBoxCell murkaCell = new CheckBoxCell(activity, 1, resourcesProvider);
+            murkaCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            murkaCell.setText(LocaleController.getString(R.string.MurkaDeleteKeepLocal), "", false, false);
+            murkaCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0, LocaleController.isRTL ? dp(8) : dp(16), 0);
+            murkaCell.setOnClickListener(v -> {
+                murkaKeepLocal[0] = !murkaKeepLocal[0];
+                ((CheckBoxCell) v).setChecked(murkaKeepLocal[0], true);
+            });
+            murkaContainer.addView(murkaCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        }
+        if (murkaContainer.getChildCount() > 0) {
+            builder.setView(murkaContainer);
+            builder.setCustomViewOffset(9);
         }
 
         AlertDialog.OnButtonClickListener deleteAction = (dialogInterface, i) -> {
@@ -8147,7 +8191,7 @@ public class AlertsCreator {
                     thisDialogId = mergeDialogId;
                 }
                 if (!ids.isEmpty()) {
-                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
+                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode, false, murkaKeepLocal[0]); // MurkaGram
                 }
                 for (MessageObject msg: ephemeralMessages) {
                     MessagesController.getInstance(currentAccount).deleteEphemeralMessage(thisDialogId, topicId, msg);
@@ -8168,7 +8212,7 @@ public class AlertsCreator {
                             }
                         }
                     }
-                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode);
+                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode, false, murkaKeepLocal[0]); // MurkaGram
                     selectedMessages[a].clear();
                 }
             }

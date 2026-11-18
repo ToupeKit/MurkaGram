@@ -37,6 +37,8 @@ import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 
+import org.telegram.messenger.MurkaBadges; // MurkaGram
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
@@ -278,6 +280,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
 
         titleTextView = new SimpleTextConnectedView(context, titleTextLargerCopyView);
+        titleTextView.setMurkaBadgesOnClick((v, badges, index) -> MurkaBadges.showBadgeInfo(parentFragment, badges, index)); // MurkaGram: описание бейджика по нажатию
         titleTextView.setEllipsizeByGradient(true);
         ThemeBind.textColor(titleTextView, Theme.key_actionBarDefaultTitle, resourcesProvider);
         titleTextView.setTextSize(18);
@@ -715,6 +718,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         titleTextLargerCopyView.setLeftDrawableTopPadding(-dp(1.3f));
         titleTextLargerCopyView.setRightDrawable(titleTextView.getRightDrawable());
         titleTextLargerCopyView.setRightDrawable2(titleTextView.getRightDrawable2());
+        titleTextLargerCopyView.setMurkaBadgesDrawable(titleTextView.getMurkaBadgesDrawable()); // MurkaGram
         titleTextLargerCopyView.setRightDrawableOutside(titleTextView.getRightDrawableOutside());
         titleTextLargerCopyView.setLeftDrawable(titleTextView.getLeftDrawable());
         titleTextLargerCopyView.setText(titleTextView.getText());
@@ -1515,7 +1519,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             for (int a = 0; a < info.participants.participants.size(); a++) {
                 TLRPC.ChatParticipant participant = info.participants.participants.get(a);
                 TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(participant.user_id);
-                if (user != null && user.status != null && (user.status.expires > currentTime || user.id == UserConfig.getInstance(currentAccount).getClientUserId()) && user.status.expires > 10000) {
+                if (user != null && user.status != null && (user.status.expires > currentTime || MurkaConfig.forceSelfOnline(currentAccount, user.id)) && user.status.expires > 10000) { // MurkaGram: режим призрака
                     onlineCount++;
                 }
             }
@@ -1681,6 +1685,15 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         return Theme.getColor(key, resourcesProvider);
     }
 
+    // MurkaGram: «Бейджики» у имени в шапке чата (0 — без бейджиков)
+    public void setMurkaBadges(long dialogId) {
+        MurkaBadges.BadgesDrawable badges = dialogId == 0 ? null : MurkaBadges.getDrawable(dialogId, 20, titleTextView.getMurkaBadgesDrawable());
+        if (badges != null) {
+            badges.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        }
+        titleTextView.setMurkaBadgesDrawable(badges);
+    }
+
     // updateColors runs on every theme frame: reuse the filters while their color is unchanged
     private PorterDuffColorFilter verifiedBackgroundFilter, verifiedCheckFilter;
     private int verifiedBackgroundFilterColor, verifiedCheckFilterColor;
@@ -1696,6 +1709,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     /** also called on every theme update (Theme.Colorable) */
     @Override
     public void updateColors() {
+        if (titleTextView != null && titleTextView.getMurkaBadgesDrawable() instanceof MurkaBadges.BadgesDrawable) { // MurkaGram
+            ((MurkaBadges.BadgesDrawable) titleTextView.getMurkaBadgesDrawable()).setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        }
         if (currentTypingDrawable != null) {
             currentTypingDrawable.setColor(getThemedColor(Theme.key_chat_status));
         }

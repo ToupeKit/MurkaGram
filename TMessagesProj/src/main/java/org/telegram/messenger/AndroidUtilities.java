@@ -262,6 +262,23 @@ public class AndroidUtilities {
 
     public static Typeface bold() {
         if (mediumTypeface == null) {
+            // MurkaGram: шрифт из раздела «Дизайн» («Системный» / «Свой»)
+            final Typeface murkaBase = murkaBaseTypeface();
+            if (murkaBase != null) {
+                try {
+                    if (murkaFontMode() == MurkaConfig.FONT_SYSTEM) {
+                        mediumTypeface = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? Typeface.create(Typeface.DEFAULT, 500, false) : Typeface.create("sans-serif-medium", Typeface.NORMAL);
+                    } else {
+                        mediumTypeface = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? Typeface.create(murkaBase, 600, false) : Typeface.create(murkaBase, Typeface.BOLD);
+                    }
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    mediumTypeface = null;
+                }
+                if (mediumTypeface != null) {
+                    return mediumTypeface;
+                }
+            }
             if (SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 mediumTypeface = Typeface.create(null, 500, false);
             } else {
@@ -272,6 +289,154 @@ public class AndroidUtilities {
     }
 
     private static final Hashtable<String, Typeface> typefaceCache = new Hashtable<>();
+
+    // MurkaGram: шрифт из раздела «Дизайн»
+    private static final Object murkaFontSync = new Object();
+    private static volatile Typeface murkaCustomTypeface;
+    private static volatile boolean murkaCustomTypefaceLoaded;
+    // Режим шрифта фиксируется при первом использовании и действует до перезапуска приложения
+    private static volatile int murkaActiveFontMode = -1;
+    private static volatile String murkaActiveFontPath;
+
+    private static int murkaFontMode() {
+        if (murkaActiveFontMode < 0) {
+            synchronized (murkaFontSync) {
+                if (murkaActiveFontMode < 0) {
+                    murkaActiveFontPath = MurkaConfig.customFontPath;
+                    murkaActiveFontMode = MurkaConfig.fontMode;
+                }
+            }
+        }
+        return murkaActiveFontMode;
+    }
+
+    // MurkaGram: свой шрифт (режим «Свой»); null — режим другой или файл не загрузился
+    public static Typeface getMurkaCustomTypeface() {
+        if (murkaFontMode() != MurkaConfig.FONT_CUSTOM || TextUtils.isEmpty(murkaActiveFontPath)) {
+            return null;
+        }
+        if (!murkaCustomTypefaceLoaded) {
+            synchronized (murkaFontSync) {
+                if (!murkaCustomTypefaceLoaded) {
+                    Typeface t = null;
+                    try {
+                        File file = new File(murkaActiveFontPath);
+                        if (file.exists()) {
+                            t = Typeface.createFromFile(file);
+                        }
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                        t = null;
+                    }
+                    murkaCustomTypeface = t;
+                    murkaCustomTypefaceLoaded = true;
+                }
+            }
+        }
+        return murkaCustomTypeface;
+    }
+
+    // MurkaGram: базовый шрифт для режимов «Системный»/«Свой»; null — стандартное поведение Telegram
+    private static Typeface murkaBaseTypeface() {
+        final int mode = murkaFontMode();
+        if (mode == MurkaConfig.FONT_SYSTEM) {
+            return Typeface.DEFAULT;
+        } else if (mode == MurkaConfig.FONT_CUSTOM) {
+            return getMurkaCustomTypeface();
+        }
+        return null;
+    }
+
+    // MurkaGram: обычное начертание для основных текстов (только для режима «Свой»), иначе null
+    public static Typeface regular() {
+        return getMurkaCustomTypeface();
+    }
+
+    // MurkaGram: сбросить кеши шрифтов (при смене режима шрифта)
+    public static void murkaResetTypefaces() {
+        synchronized (murkaFontSync) {
+            murkaCustomTypeface = null;
+            murkaCustomTypefaceLoaded = false;
+            murkaActiveFontMode = -1;
+            murkaActiveFontPath = null;
+        }
+        mediumTypeface = null;
+        synchronized (typefaceCache) {
+            typefaceCache.clear();
+        }
+    }
+
+    // MurkaGram: best effort — глобальная подмена шрифта по умолчанию на свой (режим «Свой»).
+    // Через reflection; при любой ошибке молча пропускаем.
+    public static void murkaApplyGlobalFont() {
+        try {
+            if (murkaFontMode() != MurkaConfig.FONT_CUSTOM) {
+                return;
+            }
+            final Typeface custom = getMurkaCustomTypeface();
+            if (custom == null) {
+                return;
+            }
+            final boolean p = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P;
+            final Typeface bold = p ? Typeface.create(custom, 700, false) : Typeface.create(custom, Typeface.BOLD);
+            final Typeface italic = Typeface.create(custom, Typeface.ITALIC);
+            final Typeface boldItalic = p ? Typeface.create(custom, 700, true) : Typeface.create(custom, Typeface.BOLD_ITALIC);
+            murkaSetTypefaceStaticField("DEFAULT", custom);
+            murkaSetTypefaceStaticField("SANS_SERIF", custom);
+            murkaSetTypefaceStaticField("DEFAULT_BOLD", bold);
+            try {
+                java.lang.reflect.Field field = Typeface.class.getDeclaredField("sDefaults");
+                field.setAccessible(true);
+                field.set(null, new Typeface[]{custom, bold, italic, boldItalic});
+            } catch (Throwable ignore) {
+
+            }
+            try {
+                java.lang.reflect.Method method = Typeface.class.getDeclaredMethod("setDefault", Typeface.class);
+                method.setAccessible(true);
+                method.invoke(null, custom);
+            } catch (Throwable ignore) {
+
+            }
+        } catch (Throwable ignore) {
+
+        }
+    }
+
+    private static void murkaSetTypefaceStaticField(String name, Typeface value) {
+        try {
+            java.lang.reflect.Field field = Typeface.class.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Throwable ignore) {
+
+        }
+    }
+
+    // MurkaGram: подмена ассетов Roboto (medium / medium italic / italic) на системный или свой шрифт.
+    // Возвращает null, если подмена не нужна. Экземпляры кешируются в typefaceCache (TextStyleSpan сравнивает по ==).
+    private static Typeface murkaReplaceTypeface(String assetPath) {
+        if (!TYPEFACE_ROBOTO_MEDIUM.equals(assetPath) && !TYPEFACE_ROBOTO_MEDIUM_ITALIC.equals(assetPath) && !"fonts/ritalic.ttf".equals(assetPath)) {
+            return null;
+        }
+        try {
+            final Typeface base = murkaBaseTypeface();
+            if (base == null) {
+                return null;
+            }
+            if (TYPEFACE_ROBOTO_MEDIUM.equals(assetPath)) {
+                return bold();
+            } else if (TYPEFACE_ROBOTO_MEDIUM_ITALIC.equals(assetPath)) {
+                final int weight = murkaFontMode() == MurkaConfig.FONT_SYSTEM ? 500 : 600;
+                return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? Typeface.create(base, weight, true) : Typeface.create(base, Typeface.BOLD_ITALIC);
+            } else {
+                return Typeface.create(base, Typeface.ITALIC);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
     public static float touchSlop;
     private static int prevOrientation = -10;
     private static int pendingUnlockOrientation = -10;
@@ -2501,6 +2666,11 @@ public class AndroidUtilities {
     public static Typeface getTypeface(String assetPath) {
         synchronized (typefaceCache) {
             if (!typefaceCache.containsKey(assetPath)) {
+                final Typeface murkaTypeface = murkaReplaceTypeface(assetPath); // MurkaGram: шрифт из раздела «Дизайн»
+                if (murkaTypeface != null) {
+                    typefaceCache.put(assetPath, murkaTypeface);
+                    return murkaTypeface;
+                }
                 try {
                     Typeface t;
                     if (Build.VERSION.SDK_INT >= 26) {
@@ -4169,6 +4339,14 @@ public class AndroidUtilities {
     public static final String[] numbersSignatureArray = {"", "K", "M", "B", "T", "P"};
 
     public static String formatWholeNumber(int v, int dif) {
+        if (MurkaConfig.noNumberRounding) { // MurkaGram: «Отключить округление чисел» — полное число без разделителей разрядов
+            return String.valueOf(v);
+        }
+        return formatWholeNumberRaw(v, dif);
+    }
+
+    // MurkaGram: исходная логика formatWholeNumber (с округлением) — для осей графиков
+    public static String formatWholeNumberRaw(int v, int dif) {
         if (v == 0) {
             return "0";
         }
@@ -4287,6 +4465,11 @@ public class AndroidUtilities {
             f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToMessage(message.messageOwner);
         }
         if (f != null && f.exists()) {
+            String murkaDocName = message.getDocumentName(); // MurkaGram: пакет дизайна .mgdesign — окно предпросмотра
+            if (parentFragment != null && murkaDocName != null && murkaDocName.toLowerCase(Locale.ROOT).endsWith(MurkaDesignPack.EXTENSION)) {
+                org.telegram.ui.MurkaDesignPacksActivity.openFile(parentFragment, f);
+                return;
+            }
             if (parentFragment != null && f.getName().toLowerCase().endsWith("attheme")) {
                 Theme.ThemeInfo themeInfo = Theme.applyThemeFile(f, message.getDocumentName(), null, true);
                 if (themeInfo != null) {

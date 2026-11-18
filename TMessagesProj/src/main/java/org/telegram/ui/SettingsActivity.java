@@ -36,6 +36,9 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.Layout; // MurkaGram
+import android.text.SpannableStringBuilder; // MurkaGram
+import android.text.Spanned; // MurkaGram
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -77,6 +80,8 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaBadges; // MurkaGram
+import org.telegram.messenger.MurkaConfig; // MurkaGram
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -106,6 +111,7 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.ColoredImageSpan; // MurkaGram
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FloatingDebug.FloatingDebugController;
 import org.telegram.ui.Components.HintsController;
@@ -183,6 +189,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     private ImageView cameraImageView;
     private TextView titleView;
     private TextView subtitleView;
+    private MurkaBadges.BadgesDrawable murkaBadgesDrawable; // MurkaGram: «Бейджики» после имени в шапке
+    private int murkaBadgesStart = -1; // MurkaGram: позиция бейджиков в тексте titleView
     private TextView versionView;
     public boolean hasMainTabs;
 
@@ -447,6 +455,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         titleView.setGravity(Gravity.CENTER);
         titleView.setSingleLine();
         titleView.setEllipsize(TextUtils.TruncateAt.END);
+        titleView.setOnTouchListener((v, event) -> murkaOnTitleTouch(event)); // MurkaGram: описание бейджика по нажатию
         topView.addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 16, 138.333f - 12, 16, 0));
 
         subtitleView = new TextView(context);
@@ -527,10 +536,26 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         avatarDrawable.setInfo(user);
         avatarView.setForUserOrChat(user, avatarDrawable);
-        titleView.setText(UserObject.getUserName(user));
+        // MurkaGram: ui-13 — «Бейджики» после имени; titleView — обычный TextView, поэтому бейджики идут спаном
+        final CharSequence name = UserObject.getUserName(user);
+        murkaBadgesDrawable = user == null ? null : MurkaBadges.getDrawable(user.id, 20, murkaBadgesDrawable);
+        if (murkaBadgesDrawable != null) {
+            murkaBadgesDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+            final SpannableStringBuilder title = new SpannableStringBuilder(name);
+            title.append(' ');
+            murkaBadgesStart = title.length();
+            title.append('b');
+            title.setSpan(new ColoredImageSpan(murkaBadgesDrawable, ColoredImageSpan.ALIGN_CENTER), murkaBadgesStart, murkaBadgesStart + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            titleView.setText(title);
+            titleView.setContentDescription(name); // MurkaGram: без символа-заглушки бейджиков
+        } else {
+            murkaBadgesStart = -1;
+            titleView.setText(name);
+            titleView.setContentDescription(null);
+        }
         final StringBuilder sb = new StringBuilder();
         if (user != null) {
-            sb.append(PhoneFormat.getInstance().format("+" + user.phone));
+            sb.append(MurkaConfig.formatPhone(user.phone)); // MurkaGram: «Скрыть номер телефона»
         }
         final String username = UserObject.getPublicUsername(user);
         if (username != null) {
@@ -542,11 +567,39 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
 
+    // MurkaGram: нажатие на бейджик в шапке — описание бейджика
+    private boolean murkaOnTitleTouch(MotionEvent event) {
+        final Layout layout = titleView.getLayout();
+        if (murkaBadgesDrawable == null || murkaBadgesStart < 0 || layout == null || layout.getLineCount() == 0 || murkaBadgesStart >= layout.getText().length()) {
+            return false;
+        }
+        if (layout.getEllipsisCount(0) > 0 && layout.getEllipsisStart(0) <= murkaBadgesStart) {
+            return false;
+        }
+        final float left = layout.getPrimaryHorizontal(murkaBadgesStart) + titleView.getTotalPaddingLeft() - titleView.getScrollX();
+        final int width = murkaBadgesDrawable.getIntrinsicWidth();
+        final float x = event.getX() - left;
+        if (x < -dp(4) || x > width + dp(4)) {
+            return false;
+        }
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            final int index = murkaBadgesDrawable.indexAt(Math.max(0, Math.min(width, x)), width);
+            if (index >= 0) {
+                MurkaBadges.showBadgeInfo(this, murkaBadgesDrawable, index);
+            }
+        }
+        return true;
+    }
+
     private int lastNavigationBarColor;
 
     public void updateColors() {
         titleView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
         subtitleView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        if (murkaBadgesDrawable != null) { // MurkaGram: цвет бейджиков как у эмодзи-статуса в профиле
+            murkaBadgesDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+            titleView.invalidate();
+        }
         searchItem.updateColor();
 
         final int navigationBarColor = getThemedColor(Theme.key_windowBackgroundWhite);
@@ -752,7 +805,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 }
             ));
             items.add(UItem.asShadow(null));
-        } else if (suggestions.contains("VALIDATE_PHONE_NUMBER") && getUserConfig().getCurrentUser() != null) {
+        } else if (suggestions.contains("VALIDATE_PHONE_NUMBER") && getUserConfig().getCurrentUser() != null && !MurkaConfig.hidePhone) { // MurkaGram: ui-13 — при «Скрыть номер телефона» подсказку «Это ваш номер?» не показываем
             items.add(SuggestionCell.Factory.of(
                 formatString(R.string.CheckPhoneNumber, PhoneFormat.getInstance().format("+" + getUserConfig().getCurrentUser().phone)),
                 replaceSingleTag(getString(R.string.CheckPhoneNumberInfo), () -> {
@@ -795,6 +848,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
+        items.add(SettingCell.Factory.of(100, 0xFFC406F2, 0xFF6401AF, R.drawable.msg_murka_badge_cat, getString(R.string.MurkaGramSettings), getString(R.string.MurkaGramSettingsInfo))); // MurkaGram: ui-13 — первый пункт блока настроек (как в dev), цвета фона иконки приложения
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
         items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
@@ -943,6 +997,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 10:
                 presentSettingFragment(new LanguageSelectActivity());
+                break;
+            case 100: // MurkaGram
+                presentSettingFragment(new MurkaGramSettingsActivity());
                 break;
 
             case 11:

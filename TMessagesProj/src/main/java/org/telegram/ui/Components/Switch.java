@@ -388,6 +388,18 @@ public class Switch extends View implements Theme.Colorable {
         float y = (getMeasuredHeight() - AndroidUtilities.dpf2(14)) / 2;
         int tx = x + AndroidUtilities.dp(7) + (int) (AndroidUtilities.dp(17) * progress);
         int ty = getMeasuredHeight() / 2;
+        // MurkaGram: MD3 — трек-«пилюля» 52x32dp (ячейки расширяют Switch через MurkaMD3.switchWidth()),
+        // круг 8dp в выключенном состоянии и 12dp во включённом; в узких контейнерах трек сжимается
+        final boolean md3 = MurkaMD3.switchStyle(); // MurkaGram: «Переключатели в стиле MD3»
+        final float md3TrackW = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_W), getMeasuredWidth());
+        final float md3TrackH = Math.min(AndroidUtilities.dp(MurkaMD3.SWITCH_H), Math.min(getMeasuredHeight(), md3TrackW * 0.6f));
+        final float md3Left = (getMeasuredWidth() - md3TrackW) / 2f;
+        final float md3Top = (getMeasuredHeight() - md3TrackH) / 2f;
+        final float md3ThumbROn = Math.max(1, md3TrackH / 2f - md3TrackH / 8f);
+        final float md3ThumbR = Math.max(1, md3ThumbROn * (0.667f + 0.333f * progress));
+        if (md3) {
+            tx = Math.round(md3Left + md3TrackH / 2f + (md3TrackW - md3TrackH) * progress);
+        }
 
 
         int color1;
@@ -450,9 +462,14 @@ public class Switch extends View implements Theme.Colorable {
             paint.setColor(color);
             paint2.setColor(color);
 
-            rectF.set(x, y, x + width, y + AndroidUtilities.dpf2(14));
-            canvasToDraw.drawRoundRect(rectF, AndroidUtilities.dpf2(7), AndroidUtilities.dpf2(7), paint);
-            canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dpf2(10), paint);
+            if (md3) { // MurkaGram: MD3 — сплошной трек без «выступающего» круга
+                rectF.set(md3Left, md3Top, md3Left + md3TrackW, md3Top + md3TrackH);
+                canvasToDraw.drawRoundRect(rectF, md3TrackH / 2f, md3TrackH / 2f, paint);
+            } else {
+                rectF.set(x, y, x + width, y + AndroidUtilities.dpf2(14));
+                canvasToDraw.drawRoundRect(rectF, AndroidUtilities.dpf2(7), AndroidUtilities.dpf2(7), paint);
+                canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dpf2(10), paint);
+            }
 
             if (a == 0 && rippleDrawable != null) {
                 rippleDrawable.setBounds(tx - AndroidUtilities.dp(18), ty - AndroidUtilities.dp(18), tx + AndroidUtilities.dp(18), ty + AndroidUtilities.dp(18));
@@ -499,9 +516,14 @@ public class Switch extends View implements Theme.Colorable {
             alpha = (int) (a1 + (a2 - a1) * colorProgress);
             paint.setColor(((alpha & 0xff) << 24) | ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff));
 
-            canvasToDraw.drawCircle(tx, ty, AndroidUtilities.dp(8), paint);
+            canvasToDraw.drawCircle(tx, ty, md3 ? md3ThumbR : AndroidUtilities.dp(8), paint); // MurkaGram: MD3
 
             if (a == 0) {
+                final int murkaSave = canvasToDraw.save(); // MurkaGram: MD3 — иконки уменьшаются вместе с кругом
+                if (md3) {
+                    final float sc = md3ThumbR / AndroidUtilities.dp(8);
+                    canvasToDraw.scale(sc, sc, tx, ty);
+                }
                 if (iconDrawable != null) {
                     final float factor = animatorIconVisibility.getFloatValue();
                     if (factor > 0) {
@@ -548,6 +570,7 @@ public class Switch extends View implements Theme.Colorable {
                     canvasToDraw.drawLine(tx, ty, tx + AndroidUtilities.dp(4), ty, paint2);
                     canvasToDraw.restore();
                 }
+                canvasToDraw.restoreToCount(murkaSave); // MurkaGram
             }
             if (a == 1) {
                 canvasToDraw.drawBitmap(overlayMaskBitmap, 0, 0, overlayMaskPaint);

@@ -1113,6 +1113,7 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 				updateDeleteMessages.messages = res.messages;
 				updateDeleteMessages.pts = res.pts;
 				updateDeleteMessages.pts_count = res.pts_count;
+				updateDeleteMessages.murkaLocal = true; // MurkaGram: удаление истории звонков самим пользователем — не перехватывать
 				final TLRPC.TL_updates updates = new TLRPC.TL_updates();
 				updates.updates.add(updateDeleteMessages);
 				getMessagesController().processUpdates(updates, false);

@@ -122,6 +122,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
@@ -654,6 +655,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private boolean searching;
     private boolean searchWas;
     private boolean onlySelect;
+    private boolean murkaCenterTitleAllowed; // MurkaGram: центрирование заголовка только на главном экране
     private boolean canSelectTopics;
     private String searchString;
     private String initialSearchString;
@@ -1666,7 +1668,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         containersAlpha *= (1f - factorSearch);
         if (containersAlpha != 1f) {
             actionBar.getTitlesContainer().setPivotY(AndroidUtilities.statusBarHeight);
-            actionBar.getTitlesContainer().setPivotX(dp(20));
+            actionBar.getTitlesContainer().setPivotX(actionBar.isMurkaCenterTitle() ? actionBar.getMeasuredWidth() / 2f : dp(20)); // MurkaGram: ui-13 — центр при центрировании заголовка
             float s = 0.4f + 0.6f * containersAlpha;
             actionBar.getTitlesContainer().setScaleY(s);
             actionBar.getTitlesContainer().setScaleX(s);
@@ -2475,6 +2477,25 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (dialog == null || !isDialogPinned(dialog) || DialogObject.isFolderDialogId(dialogId)) {
                 return false;
             }
+            // MurkaGram: локальные закрепы двигаются только среди локальных, серверные — среди серверных
+            boolean murkaLocalMove = false;
+            if (source.itemView instanceof DialogCell) {
+                TLRPC.Dialog sourceDialog = getMessagesController().dialogs_dict.get(((DialogCell) source.itemView).getDialogId());
+                if (sourceDialog != null && murkaIsLocalPinned(sourceDialog) != murkaIsLocalPinned(dialog)) {
+                    return false;
+                }
+                murkaLocalMove = sourceDialog != null && murkaIsLocalPinned(sourceDialog);
+                if (murkaLocalMove) {
+                    ArrayList<Long> localPins = new ArrayList<>(MurkaConfig.getLocalPins(currentAccount));
+                    int i1 = localPins.indexOf(sourceDialog.id);
+                    int i2 = localPins.indexOf(dialog.id);
+                    if (i1 < 0 || i2 < 0) {
+                        return false;
+                    }
+                    Collections.swap(localPins, i1, i2);
+                    MurkaConfig.setLocalPins(currentAccount, localPins);
+                }
+            }
             int fromIndex = source.getAdapterPosition();
             int toIndex = target.getAdapterPosition();
             if (parentPage.listView.getItemAnimator() == null) {
@@ -2487,7 +2508,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 if (!movingDialogFilters.contains(filter)) {
                     movingDialogFilters.add(filter);
                 }
-            } else {
+            } else if (!murkaLocalMove) { // MurkaGram: порядок локальных закрепов уже сохранён
                 movingWas = true;
             }
             return true;
@@ -3442,9 +3463,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 // theme hook only recolors when the color differs from the last one applied
                 logoDrawable.setColorFilter(lastLogoDrawableColor = getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
                 SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
-                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                // MurkaGram: ui-13 — название приложения текстом вместо логотипа «Telegram» (telegram_logo_2)
                 actionBar.setTitle(ssb, statusDrawable);
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
+                // MurkaGram: «Центрировать название» (раздел «Дизайн»)
+                murkaCenterTitleAllowed = searchString == null;
+                actionBar.setMurkaCenterTitle(murkaCenterTitleAllowed && MurkaConfig.centerTitle);
             }
             if (folderId == 0) {
                 actionBar.setSupportsHolidayImage(true);
@@ -4652,10 +4676,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         floatingButtonStories.setContentDescription(getString(R.string.StoryPrivacyButtonPost));
         floatingButtonStories.setImageResource(R.drawable.outline_fab_story_24);
         floatingButtonStories.setOnClickListener(v -> openStoriesRecorder());
+        floatingButtonStories.setMurkaSquare(murkaSquareFab()); // MurkaGram: ui-13 — MD3, форма кнопки
         contentView.addView(floatingButtonStories, FragmentFloatingButton.createSubButtonLayoutParams());
 
         floatingButton3 = new FragmentFloatingButton(context, resourceProvider);
         contentView.addView(floatingButton3, FragmentFloatingButton.createDefaultLayoutParams());
+        floatingButton3.setMurkaSquare(murkaSquareFab()); // MurkaGram: ui-13 — MD3, форма кнопки
+        murkaFabSquareApplied = murkaSquareFab(); // MurkaGram
         floatingButton3.setOnClickListener(v -> {
             if (parentLayout != null && parentLayout.isInPreviewMode()) {
                 finishPreviewFragment();
@@ -6944,6 +6971,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        if (murkaCenterTitleAllowed && actionBar != null) { // MurkaGram: применить «Центрировать название» при возврате из настроек
+            actionBar.setMurkaCenterTitle(MurkaConfig.centerTitle);
+        }
+        if (murkaFabSquareApplied != murkaSquareFab()) { // MurkaGram: MD3 — форма кнопки могла измениться в настройках
+            murkaUpdateFabShape(); // MurkaGram: ui-13
+        }
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -8606,6 +8639,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     continue;
                 }
                 if (isDialogPinned(dialog1)) {
+                    if (murkaIsLocalPinned(dialog1)) {
+                        continue; // MurkaGram: в лимит идут только серверные закрепы
+                    }
                     if (DialogObject.isEncryptedDialog(dialog1.id)) {
                         pinnedSecretCount++;
                     } else {
@@ -8643,6 +8679,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             hasPinAction[0] = !(newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount);
+            if (!hasPinAction[0] && filter == null && murkaLocalPinsAllowed()) {
+                hasPinAction[0] = true; // MurkaGram: сверх лимита — закрепим локально
+            }
         }
 
         if (hasPinAction[0]) {
@@ -9076,7 +9115,31 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filter != null) {
             return filter.pinnedDialogs.indexOfKey(dialog.id) >= 0;
         }
-        return dialog.pinned;
+        return dialog.pinned || murkaIsLocalPinned(dialog); // MurkaGram: + локальные закрепы
+    }
+
+    // MurkaGram: «Безлимитное закрепление чатов» — только основной список (не архив, не папки).
+    private boolean murkaLocalPinsAllowed() {
+        return MurkaConfig.unlimitedPins && folderId == 0 && communityId == 0 && viewPages != null && viewPages[0].dialogsType == DIALOGS_TYPE_DEFAULT; // MurkaGram: ui-13 — + не сообщество
+    }
+
+    private boolean murkaIsLocalPinned(TLRPC.Dialog dialog) {
+        return murkaLocalPinsAllowed() && MurkaConfig.isLocalPinActive(currentAccount, dialog);
+    }
+
+    // MurkaGram: заняты ли все серверные слоты закрепа основного списка (секретные чаты считаются отдельно, как в стоке).
+    private boolean murkaServerPinsFull(long dialogId) {
+        boolean secret = DialogObject.isEncryptedDialog(dialogId);
+        int count = 0;
+        androidx.collection.LongSparseArray<TLRPC.Dialog> dialogs = getMessagesController().dialogs_dict;
+        for (int a = 0, N = dialogs.size(); a < N; a++) {
+            TLRPC.Dialog d = dialogs.valueAt(a);
+            if (d != null && d.pinned && d.folder_id == 0 && !(d instanceof TLRPC.TL_dialogFolder) && DialogObject.isEncryptedDialog(d.id) == secret) {
+                count++;
+            }
+        }
+        int max = getUserConfig().isPremium() ? getMessagesController().maxPinnedDialogsCountPremium : getMessagesController().maxPinnedDialogsCountDefault;
+        return count >= max;
     }
 
     private void performSelectedDialogsAction(ArrayList<Long> selectedDialogs, int action, boolean alert, boolean longPress) {
@@ -9137,6 +9200,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     continue;
                 }
                 if (isDialogPinned(dialog)) {
+                    if (murkaIsLocalPinned(dialog)) {
+                        continue; // MurkaGram: в лимит идут только серверные закрепы
+                    }
                     if (DialogObject.isEncryptedDialog(dialog.id)) {
                         pinnedSecretCount++;
                     } else {
@@ -9174,7 +9240,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             } else {
                 maxPinnedCount = getUserConfig().isPremium() ? getMessagesController().dialogFiltersPinnedLimitPremium : getMessagesController().dialogFiltersPinnedLimitDefault;
             }
-            if (newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount) {
+            if ((newPinnedSecretCount + pinnedSecretCount > maxPinnedCount || newPinnedCount + pinnedCount - alreadyAdded > maxPinnedCount) && !(filter == null && murkaLocalPinsAllowed())) { // MurkaGram: сверх лимита — локально (pinDialog)
                 if (folderId != 0 || filter != null) {
                     AlertsCreator.showSimpleAlert(DialogsActivity.this, LocaleController.formatString("PinFolderLimitReached", R.string.PinFolderLimitReached, LocaleController.formatPluralString("Chats", maxPinnedCount)));
                 } else {
@@ -9611,6 +9677,25 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 getMessagesController().onFilterUpdate(filter);
             }
             updated = true;
+        } else if (murkaLocalPinsAllowed()) {
+            // MurkaGram: «Безлимитное закрепление чатов» — сверх серверного лимита закрепляем локально
+            TLRPC.Dialog dialog = getMessagesController().dialogs_dict.get(selectedDialog);
+            if (pin && dialog != null && !dialog.pinned && murkaServerPinsFull(selectedDialog)) {
+                MurkaConfig.addLocalPin(currentAccount, selectedDialog);
+                getMessagesController().sortDialogs(null);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                updated = true;
+            } else if (!pin && MurkaConfig.isLocalPinActive(currentAccount, dialog)) {
+                MurkaConfig.removeLocalPin(currentAccount, selectedDialog);
+                getMessagesController().sortDialogs(null);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                updated = true;
+            } else {
+                if (MurkaConfig.isLocalPinned(currentAccount, selectedDialog)) {
+                    MurkaConfig.removeLocalPin(currentAccount, selectedDialog); // закреп ушёл на сервер или снят
+                }
+                updated = getMessagesController().pinDialog(selectedDialog, pin, null, -1);
+            }
         } else {
             updated = getMessagesController().pinDialog(selectedDialog, pin, null, -1);
         }
@@ -12199,6 +12284,24 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         return arrayList;
+    }
+
+    private boolean murkaFabSquareApplied; // MurkaGram
+    // MurkaGram: MD3 — «квадратная» кнопка (скруглённый квадрат) вместо круга
+    private static boolean murkaSquareFab() {
+        return org.telegram.ui.Components.MurkaMD3.enabled() && MurkaConfig.md3FabShape == MurkaConfig.FAB_SQUARE;
+    }
+
+    // MurkaGram: ui-13 — форма кнопок 13.2.2 (FragmentFloatingButton) вместо updateFloatingButtonColor() из 12.x
+    private void murkaUpdateFabShape() {
+        final boolean murkaSquare = murkaSquareFab();
+        murkaFabSquareApplied = murkaSquare;
+        if (floatingButton3 != null) {
+            floatingButton3.setMurkaSquare(murkaSquare);
+        }
+        if (floatingButtonStories != null) {
+            floatingButtonStories.setMurkaSquare(murkaSquare);
+        }
     }
 
     float slideFragmentProgress = 1f;

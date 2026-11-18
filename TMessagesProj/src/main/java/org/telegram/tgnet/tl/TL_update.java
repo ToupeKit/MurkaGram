@@ -505,6 +505,7 @@ public class TL_update {
         public static final int constructor = 0xa20db0e5;
 
         public ArrayList<Integer> messages = new ArrayList<>();
+        public boolean murkaLocal; //custom MurkaGram: локальное удаление (CallLogActivity), не перехватывать
         public int pts;
         public int pts_count;
 

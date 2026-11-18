@@ -286,7 +286,9 @@ public class BotForumHelper extends BaseController {
                 req.flags |= TLObject.FLAG_0;
                 req.top_msg_id = (int) topicId;
             }
-            getConnectionsManager().sendRequestTyped(req, (res, err) -> {});
+            if (!MurkaConfig.ghostMode) { // MurkaGram: режим призрака — не отправляем действия набора
+                getConnectionsManager().sendRequestTyped(req, (res, err) -> {});
+            }
         }
 
     }

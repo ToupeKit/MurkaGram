@@ -438,5 +438,6 @@ public class UniversalRecyclerView extends RecyclerListView {
             padding, roundRadius,
             topPadding
         );
+        murkaSetViewTypeSection(viewType -> !UniversalAdapter.isShadow(viewType)); // MurkaGram: ui-13 — верный предикат для MD3 (сток выше не меняем)
     }
 }

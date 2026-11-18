@@ -385,6 +385,11 @@ public class MessagesStorage extends BaseController {
                     }
                 }
             }
+            try {
+                MurkaStorage.createTables(database); // MurkaGram: таблицы раздела «Мониторинг» для уже существующих БД
+            } catch (Exception e) {
+                FileLog.e(e); // MurkaGram: ошибка «Мониторинга» не должна мешать открытию БД
+            }
             databaseCreated = true;
         } catch (Exception e) {
             FileLog.e(e);
@@ -777,6 +782,8 @@ public class MessagesStorage extends BaseController {
 
         database.executeFast("CREATE TABLE widget_state(uid INTEGER, mid INTEGER, local TEXT, PRIMARY KEY(uid, mid));").stepThis().dispose();
         database.executeFast("CREATE TABLE widget_heights(uid INTEGER, mid INTEGER, width INTEGER, height INTEGER, date INTEGER, anchor INTEGER default 0, PRIMARY KEY(uid, mid, width));").stepThis().dispose();
+
+        MurkaStorage.createTables(database); // MurkaGram: таблицы раздела «Мониторинг»
 
         database.executeFast("PRAGMA user_version = " + MessagesStorage.LAST_DB_VERSION).stepThis().dispose();
 
@@ -4603,6 +4610,7 @@ public class MessagesStorage extends BaseController {
                         cursor2 = null;
 
                         database.executeFast("DELETE FROM messages_v2 WHERE uid = " + did + " AND mid != " + last_mid_i + " AND mid != " + last_mid).stepThis().dispose();
+                        MurkaStorage.onDialogCleared(database, did, last_mid_i + "," + last_mid); // MurkaGram: история очищена пользователем
                         database.executeFast("DELETE FROM widget_state WHERE uid = " + did + " AND mid != " + last_mid_i + " AND mid != " + last_mid).stepThis().dispose();
                         database.executeFast("DELETE FROM widget_heights WHERE uid = " + did + " AND mid != " + last_mid_i + " AND mid != " + last_mid).stepThis().dispose();
                         database.executeFast("DELETE FROM messages_topics WHERE uid = " + did + " AND mid != " + last_mid_i + " AND mid != " + last_mid).stepThis().dispose();
@@ -4632,6 +4640,7 @@ public class MessagesStorage extends BaseController {
 
                 database.executeFast("UPDATE dialogs SET unread_count = 0, unread_count_i = 0 WHERE did = " + did).stepThis().dispose();
                 database.executeFast("DELETE FROM messages_v2 WHERE uid = " + did).stepThis().dispose();
+                MurkaStorage.onDialogCleared(database, did, null); // MurkaGram: чат удалён / история очищена пользователем
                 database.executeFast("DELETE FROM widget_state WHERE uid = " + did).stepThis().dispose();
                 database.executeFast("DELETE FROM widget_heights WHERE uid = " + did).stepThis().dispose();
                 database.executeFast("DELETE FROM messages_topics WHERE uid = " + did).stepThis().dispose();
@@ -10001,6 +10010,10 @@ public class MessagesStorage extends BaseController {
                     return 0;
                 });
 
+                if (mode != ChatActivity.MODE_SCHEDULED && mode != ChatActivity.MODE_QUICK_REPLIES) {
+                    MurkaStorage.applyFlags(database, dialogId, res.messages); // MurkaGram: флаги «удалено» / «есть история изменений»
+                }
+
                 if (!DialogObject.isEncryptedDialog(dialogId)) {
                     final SparseIntArray anchorBindings = ephemeralWelcomeAnchorsState.getAnchorBindings(dialogId);
                     if (anchorBindings != null && anchorBindings.size() > 0) {
@@ -15068,6 +15081,7 @@ public class MessagesStorage extends BaseController {
                         cursor = null;
                     }
                     database.executeFast(String.format(Locale.US, "DELETE FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
+                    MurkaStorage.onMessagesDeleted(database, did, ids); // MurkaGram: сообщение удалено по-настоящему — чистим «Мониторинг»
                     database.executeFast(String.format(Locale.US, "DELETE FROM messages_topics WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
                     database.executeFast(String.format(Locale.US, "DELETE FROM polls_v2 WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();
                     database.executeFast(String.format(Locale.US, "DELETE FROM widget_state WHERE mid IN(%s) AND uid = %d", ids, did)).stepThis().dispose();

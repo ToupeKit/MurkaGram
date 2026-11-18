@@ -265,6 +265,7 @@ public class ApplicationLoader extends Application {
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();
+        Utilities.globalQueue.postRunnable(MurkaBadges::fetch, 2000); // MurkaGram: «Бейджики» из Remote Config
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("app initied");
         }
@@ -334,6 +335,13 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
 
+        // MurkaGram: загрузить настройки MurkaGram до первого использования
+        try {
+            MurkaConfig.loadConfig();
+        } catch (Throwable ignore) {
+
+        }
+
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
 
         try {
@@ -360,6 +368,15 @@ public class ApplicationLoader extends Application {
         }
 
         applicationHandler = new Handler(applicationContext.getMainLooper());
+
+        // MurkaGram: свой шрифт (раздел «Дизайн») — best effort глобальная подмена, только в режиме «Свой»
+        try {
+            if (MurkaConfig.fontMode == MurkaConfig.FONT_CUSTOM) {
+                AndroidUtilities.murkaApplyGlobalFont();
+            }
+        } catch (Throwable ignore) {
+
+        }
 
         AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
 
