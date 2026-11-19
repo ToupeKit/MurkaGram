@@ -27,3 +27,9 @@ TMessagesProj/jni/ffmpeg/build_android
 
 # MurkaGram: Kotlin compiler daemon session files (buildSrc)
 .kotlin/
+
+# Claude Code
+.claude/
+
+# Private notes
+ChatGPT Plan.txt
