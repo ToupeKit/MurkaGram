@@ -72,6 +72,18 @@ public class ShadowSectionCell extends View {
     }
 
     private void updateBackground() {
+        if (org.telegram.messenger.MurkaConfig.classicLists && (top || bottom)) { // MurkaGram: «Классические списки» — тени 12.2.10
+            if (backgroundColor == 0) {
+                setBackground(Theme.getThemedDrawable(getContext(), getBackgroundResId(), Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider)));
+            } else {
+                Drawable shadowDrawable = Theme.getThemedDrawable(getContext(), getBackgroundResId(), Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider));
+                Drawable background = new ColorDrawable(backgroundColor);
+                CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
+                combinedDrawable.setFullsize(true);
+                setBackground(combinedDrawable);
+            }
+            return;
+        }
         if (backgroundColor == 0) {
 //            if (!top && !bottom) {
                 setBackground(null);

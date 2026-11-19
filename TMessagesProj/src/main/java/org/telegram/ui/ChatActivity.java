@@ -44360,6 +44360,12 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public int getColor(int key) {
+            if (MurkaConfig.classicHeader) { // MurkaGram: «Классическая шапка» — шапка чата остаётся стеклянной (белой): её текст/иконки не цветом синей шапки
+                final int murkaKey = murkaGlassHeaderKey(key);
+                if (murkaKey != key) {
+                    return getColor(murkaKey);
+                }
+            }
             if (animatingColors != null) {
                 int index = animatingColors.indexOfKey(key);
                 if (index >= 0) {
@@ -44395,7 +44401,29 @@ public class ChatActivity extends BaseFragment implements
             return getCurrentColor(key, false);
         }
 
+        // MurkaGram: «Классическая шапка» — ключи синей шапки -> цвета для белого стекла шапки чата
+        private int murkaGlassHeaderKey(int key) {
+            if (key == Theme.key_actionBarDefaultTitle || key == Theme.key_actionBarDefaultIcon || key == Theme.key_actionBarDefaultSearch || key == Theme.key_chat_lockIcon) {
+                return Theme.key_windowBackgroundWhiteBlackText;
+            } else if (key == Theme.key_actionBarDefaultSubtitle || key == Theme.key_actionBarDefaultSearchPlaceholder) {
+                return Theme.key_windowBackgroundWhiteGrayText;
+            } else if (key == Theme.key_actionBarDefaultSelector) {
+                return Theme.key_listSelector;
+            } else if (key == Theme.key_chat_status) {
+                return Theme.key_windowBackgroundWhiteBlueText;
+            } else if (key == Theme.key_chat_muteIcon) {
+                return Theme.key_windowBackgroundWhiteGrayIcon;
+            }
+            return key;
+        }
+
         public int getCurrentColor(int key, boolean ignoreAnimation) {
+            if (MurkaConfig.classicHeader) { // MurkaGram: «Классическая шапка» (см. getColor)
+                final int murkaKey = murkaGlassHeaderKey(key);
+                if (murkaKey != key) {
+                    return getCurrentColor(murkaKey, ignoreAnimation);
+                }
+            }
             if (chatTheme == null && backgroundDrawable == null) {
                 return Theme.getColor(key);
             }

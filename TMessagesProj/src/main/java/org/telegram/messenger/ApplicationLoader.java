@@ -266,6 +266,7 @@ public class ApplicationLoader extends Application {
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();
         Utilities.globalQueue.postRunnable(MurkaBadges::fetch, 2000); // MurkaGram: «Бейджики» из Remote Config
+        Utilities.globalQueue.postRunnable(MurkaEdition::cleanup, 5000); // MurkaGram: удалить распакованную сборку редакции
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("app initied");
         }

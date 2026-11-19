@@ -304,7 +304,12 @@ public abstract class BaseFragment {
             }
 
             if (useFadeDrawableForActionBar() && header != null) {
-                header.setBackground(simpleGlass.createActionBarFadeDrawable(header));
+                if (org.telegram.messenger.MurkaConfig.classicHeader && header == simpleActionBar) { // MurkaGram: «Классическая шапка» — сплошной фон вместо стеклянного
+                    ThemeBind.backgroundColor(header, Theme.key_actionBarDefault, resourceProvider);
+                    simpleActionBar.murkaSetClassic();
+                } else {
+                    header.setBackground(simpleGlass.createActionBarFadeDrawable(header));
+                }
             }
             BaseFragmentSimpleGlass.setListViewParams(listViewForSimpleGlass, mSystemInsets.top, mSystemInsets.bottom, ActionBar.getCurrentActionBarHeight(), 0);
 
@@ -1353,7 +1358,7 @@ public abstract class BaseFragment {
         if (actionBar != null && actionBar.isActionModeShowed()) {
             key = Theme.key_actionBarActionModeDefault;
         } else if (simpleActionBar != null) {
-            key = Theme.key_windowBackgroundGray;
+            key = simpleActionBar.murkaIsClassic() ? Theme.key_actionBarDefault : Theme.key_windowBackgroundGray; // MurkaGram: «Классическая шапка»
         }
         if (resourcesProvider != null) {
             color = resourcesProvider.getColorOrDefault(key);

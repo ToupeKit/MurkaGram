@@ -2682,6 +2682,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     // on tablets background stays in its top (gray) state regardless of scroll
     private boolean adaptiveBackgroundStatic;
     private float adaptive_backgroundFactor() {
+        if (org.telegram.messenger.MurkaConfig.classicHeader) return 0.0f; // MurkaGram: «Классическая шапка» — всегда цвет шапки
         return adaptiveBackgroundStatic ? 1.0f : onTopAnimated;
     }
     private int adaptive_topColorKey;
@@ -2776,7 +2777,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
     private void adaptive_updateColor() {
         if (!adaptiveBackground) return;
-        if (adaptiveBackgroundHideTitle) {
+        if (adaptiveBackgroundHideTitle && !org.telegram.messenger.MurkaConfig.classicHeader) { // MurkaGram: «Классическая шапка» — заголовок не скрывать
             if (titlesContainer != null) {
                 titlesContainer.setAlpha(1.0f - onTopAnimated);
             } else if (titleTextView[0] != null) {

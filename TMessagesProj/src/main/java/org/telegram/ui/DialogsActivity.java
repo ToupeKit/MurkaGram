@@ -3234,6 +3234,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         fragmentSearchField.setPadding(dp(4), dp(4), dp(4), dp(4));
         fragmentSearchField.setPivotX(0);
         fragmentSearchField.setPivotY(0);
+        if (MurkaConfig.classicHeader) { // MurkaGram: «Классическая шапка» — белое поле поиска на синей шапке
+            fragmentSearchField.setWhiteBackground();
+        }
         if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {
             speedItem = menu.addItem(-47, R.drawable.avd_speed);
             AndroidUtilities.removeFromParent(speedItem);
@@ -3461,7 +3464,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
                 // a new drawable (also when the view is recreated after a theme switch made elsewhere): remember its tint, the
                 // theme hook only recolors when the color differs from the last one applied
-                logoDrawable.setColorFilter(lastLogoDrawableColor = getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
+                logoDrawable.setColorFilter(lastLogoDrawableColor = getThemedColor(murkaLogoColorKey()), PorterDuff.Mode.MULTIPLY); // MurkaGram: «Классическая шапка»
                 SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
                 // MurkaGram: ui-13 — название приложения текстом вместо логотипа «Telegram» (telegram_logo_2)
                 actionBar.setTitle(ssb, statusDrawable);
@@ -5289,7 +5292,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         if (hasMainTabs) {
             actionBar.getTitlesContainer().setTranslationX(dp(4));
-            ThemeBind.actionBarTitleColor(actionBar, Theme.key_telegram_color_dialogsLogo, getResourceProvider());
+            ThemeBind.actionBarTitleColor(actionBar, murkaLogoColorKey(), getResourceProvider()); // MurkaGram: «Классическая шапка»
         }
 
         if (folderId != 0 || communityId != 0) {
@@ -5322,7 +5325,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             contentView.addView(blurredView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
 
-        actionBarDefaultPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        actionBarDefaultPaint.setColor(getThemedColor(murkaHeaderColorKey())); // MurkaGram: «Классическая шапка»
         /*
         if (inPreviewMode) {
             final TLRPC.User currentUser = getUserConfig().getCurrentUser();
@@ -5513,8 +5516,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 if (folderId != 0 || communityId != 0) {
                     actionBarDefaultPaint.setColor(
                             ColorUtils.blendARGB(
-                                    getThemedColor(Theme.key_windowBackgroundWhite),
-                                    getThemedColor(Theme.key_windowBackgroundWhite),
+                                    getThemedColor(MurkaConfig.classicHeader ? Theme.key_actionBarDefaultArchived : Theme.key_windowBackgroundWhite), // MurkaGram: «Классическая шапка»
+                                    getThemedColor(MurkaConfig.classicHeader ? Theme.key_actionBarDefault : Theme.key_windowBackgroundWhite),
                                     progress
                             )
                     );
@@ -8998,7 +9001,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             backDrawable.setRotation(0, true);
         }
         if (filterTabsView != null) {
-            filterTabsView.animateColorsTo(Theme.key_actionBarTabLine, Theme.key_actionBarTabActiveText, Theme.key_actionBarTabUnactiveText, Theme.key_actionBarTabSelector, Theme.key_windowBackgroundWhite);
+            filterTabsView.animateColorsTo(Theme.key_actionBarTabLine, Theme.key_actionBarTabActiveText, Theme.key_actionBarTabUnactiveText, Theme.key_actionBarTabSelector, MurkaConfig.classicHeader ? Theme.key_actionBarDefault : Theme.key_windowBackgroundWhite); // MurkaGram: «Классическая шапка»
         }
         if (actionBarColorAnimator != null) {
             actionBarColorAnimator.cancel();
@@ -12064,14 +12067,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (searchViewPager != null) {
                 arrayList.add(new ThemeDescription(searchViewPager.searchListView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_windowBackgroundWhite));
             }
-            arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, new Drawable[]{Theme.dialogs_holidayDrawable}, null, !hasMainTabs ? Theme.key_actionBarDefaultTitle : Theme.key_telegram_color_dialogsLogo));
+            arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, new Drawable[]{Theme.dialogs_holidayDrawable}, null, !hasMainTabs ? Theme.key_actionBarDefaultTitle : murkaLogoColorKey())); // MurkaGram: «Классическая шапка»
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCH, null, null, null, null, Theme.key_actionBarDefaultSearch));
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCHPLACEHOLDER, null, null, null, null, Theme.key_actionBarDefaultSearchPlaceholder));
         } else {
             if (searchViewPager != null) {
                 arrayList.add(new ThemeDescription(searchViewPager.searchListView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_windowBackgroundWhite));
             }
-            arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, new Drawable[]{Theme.dialogs_holidayDrawable}, null, !hasMainTabs ? Theme.key_actionBarDefaultArchivedTitle : Theme.key_telegram_color_dialogsLogo));
+            arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, new Drawable[]{Theme.dialogs_holidayDrawable}, null, !hasMainTabs ? Theme.key_actionBarDefaultArchivedTitle : murkaLogoColorKey())); // MurkaGram: «Классическая шапка»
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCH, null, null, null, null, Theme.key_actionBarDefaultArchivedSearch));
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCHPLACEHOLDER, null, null, null, null, Theme.key_actionBarDefaultArchivedSearchPlaceholder));
         }
@@ -12479,7 +12482,26 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return rightSlidingDialogContainer.getFragment().isLightStatusBar();
         }
         int color = getThemedColor(Theme.key_windowBackgroundWhite);
+        if (MurkaConfig.classicHeader && !(searching && whiteActionBar) && !(actionBar != null && actionBar.isActionModeShowed())) { // MurkaGram: «Классическая шапка» — статус-бар по цвету шапки
+            color = getThemedColor(murkaHeaderColorKey());
+        }
         return ColorUtils.calculateLuminance(color) > 0.7f;
+    }
+
+    // MurkaGram: «Классическая шапка» (12.2.10) — фон шапки списка чатов actionBarDefault(/Archived) вместо белого
+    private int murkaHeaderColorKey() {
+        if (!MurkaConfig.classicHeader) {
+            return Theme.key_windowBackgroundWhite;
+        }
+        return folderId != 0 || communityId != 0 ? Theme.key_actionBarDefaultArchived : Theme.key_actionBarDefault;
+    }
+
+    // MurkaGram: «Классическая шапка» — название в шапке цветом заголовка шапки, а не синего логотипа 13.2.2
+    private int murkaLogoColorKey() {
+        if (!MurkaConfig.classicHeader) {
+            return Theme.key_telegram_color_dialogsLogo;
+        }
+        return folderId != 0 || communityId != 0 ? Theme.key_actionBarDefaultArchivedTitle : Theme.key_actionBarDefaultTitle;
     }
 
     @Override
@@ -14203,7 +14225,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public void onThemeColorsChanged() {
         try {
             super.onThemeColorsChanged();
-            actionBarDefaultPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            actionBarDefaultPaint.setColor(getThemedColor(murkaHeaderColorKey())); // MurkaGram: «Классическая шапка»
             cellDelegateThemeColors();
             updateExtraThemeColors();
         } catch (Exception e) {
@@ -14384,7 +14406,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         dialogStoriesCell.updateColors();
                     }
                     if (logoDrawable != null) {
-                        final int logoColor = getThemedColor(Theme.key_telegram_color_dialogsLogo);
+                        final int logoColor = getThemedColor(murkaLogoColorKey()); // MurkaGram: «Классическая шапка»
                         if (logoColor != lastLogoDrawableColor) {
                             lastLogoDrawableColor = logoColor;
                             logoDrawable.setColorFilter(logoColor, PorterDuff.Mode.MULTIPLY);

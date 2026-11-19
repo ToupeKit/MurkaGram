@@ -48,11 +48,11 @@ public class TextInfoPrivacyCell extends FrameLayout implements Theme.Colorable 
     private final Theme.ResourcesProvider resourcesProvider;
 
     public TextInfoPrivacyCell(Context context) {
-        this(context, 24, null);
+        this(context, org.telegram.messenger.MurkaConfig.classicLists ? 21 : 24, null); // MurkaGram: «Классические списки» — отступ 12.2.10
     }
 
     public TextInfoPrivacyCell(Context context, Theme.ResourcesProvider resourcesProvider) {
-        this(context, 24, resourcesProvider);
+        this(context, org.telegram.messenger.MurkaConfig.classicLists ? 21 : 24, resourcesProvider); // MurkaGram: «Классические списки» — отступ 12.2.10
     }
 
     public TextInfoPrivacyCell(Context context, int padding) {

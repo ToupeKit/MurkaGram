@@ -54,6 +54,12 @@
     <string name="MurkaMD3Containers">MD3 containers</string>
     <string name="MurkaMD3SeparateHeaders">Separate headers</string>
     <string name="MurkaMD3Switches">MD3 switches</string>
+    <string name="MurkaClassicCategory">Classic look 12.2.10</string>
+    <string name="MurkaClassicHeader">Classic header</string>
+    <string name="MurkaClassicLists">Classic lists</string>
+    <string name="MurkaClassicSettingsIcons">Classic settings icons</string>
+    <string name="MurkaClassicInfo">Blue headers, flat lists with shadows and gray icons in Settings, as in MurkaGram 12.2.10. Works best with a classic palette from a design pack.</string>
+    <string name="MurkaClassicHeaderRestart">Restart the app to apply the classic header.</string>
     <string name="MurkaFabShapeCircle">Round button</string>
     <string name="MurkaFabShapeSquare">Square button</string>
     <string name="MurkaEditedIcon">Replace «edited» with an icon</string>
@@ -128,7 +134,7 @@
     <string name="MurkaCustomIconUnsupported">Your launcher doesn\'t support adding shortcuts.</string>
     <string name="MurkaCustomIconError">Could not load this picture</string>
     <string name="MurkaDesignPacks">Design packs</string>
-    <string name="MurkaDesignPacksInfo">A design pack (.mgdesign) contains only MurkaGram design settings, theme colors and a preview picture. No code, links or wallpapers are loaded from it.</string>
+    <string name="MurkaDesignPacksInfo">A regular design pack (.mgdesign) contains only data: MurkaGram design settings, theme colors and a preview picture. No code, links or wallpapers are loaded from it. An edition pack contains a full MurkaGram build of another interface edition; it can be installed only if the pack is verified by MurkaGram.</string>
     <string name="MurkaDesignPackImport">Import from file</string>
     <string name="MurkaDesignPackExport">Export current design</string>
     <string name="MurkaDesignPackRestore">Restore previous design</string>
@@ -158,6 +164,15 @@
     <string name="MurkaDesignPackExportError">Could not export the design pack</string>
     <string name="MurkaDesignPackUntitled">Untitled</string>
     <string name="MurkaDesignPackMyDesign">My design</string>
+    <string name="MurkaDesignPackVerified">Verified MurkaGram pack</string>
+    <string name="MurkaEditionInfo">Interface edition: %1$s. Applying installs this MurkaGram build over the current one.</string>
+    <string name="MurkaEditionUnverified">Unverified build — installation is not allowed</string>
+    <string name="MurkaEditionSame">This edition is already installed</string>
+    <string name="MurkaEditionBadSignature">This build does not match your MurkaGram (different package or signature)</string>
+    <string name="MurkaEditionBadVersion">The build version does not match the installed MurkaGram version</string>
+    <string name="MurkaEditionInstallTitle">Install edition</string>
+    <string name="MurkaEditionInstallConfirm">The %1$s edition will be installed. The app will restart, your chats and settings will be kept.</string>
+    <string name="MurkaEditionNoSpace">Not enough free space to install the edition. Free up some space and try again.</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>

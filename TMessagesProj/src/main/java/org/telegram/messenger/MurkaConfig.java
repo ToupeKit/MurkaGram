@@ -28,6 +28,9 @@ public class MurkaConfig {
         return !ghostMode && userId == UserConfig.getInstance(account).getClientUserId();
     }
 
+    // MurkaGram: редакция интерфейса этой сборки ("modern" — ui-13, "classic" — core-13). Пакеты-редакции .mgdesign ставят другую.
+    public static final String UI_EDITION = "modern";
+
     // Раздел «Дизайн».
     public static final int FONT_DEFAULT = 0;
     public static final int FONT_SYSTEM = 1;
@@ -51,6 +54,10 @@ public class MurkaConfig {
     public static boolean md3Containers;
     public static boolean md3SeparateHeaders;
     public static boolean md3Switches;
+    // MurkaGram: «Классический вид 12.2.10» (обычно включается пакетом дизайна)
+    public static boolean classicHeader; // синие шапки вместо белых/стеклянных (нужен перезапуск)
+    public static boolean classicLists; // плоские списки с тенями вместо карточек секций
+    public static boolean classicSettingsIcons; // серые иконки без подписей в «Настройках»
     public static boolean editedIcon; // MurkaGram: «Заменять «изменено» иконкой»
     public static int fontMode;
     public static String customFontPath;
@@ -122,6 +129,9 @@ public class MurkaConfig {
             md3Containers = preferences.getBoolean("md3Containers", true); // MurkaGram
             md3SeparateHeaders = preferences.getBoolean("md3SeparateHeaders", true); // MurkaGram
             md3Switches = preferences.getBoolean("md3Switches", true); // MurkaGram
+            classicHeader = preferences.getBoolean("classicHeader", false); // MurkaGram
+            classicLists = preferences.getBoolean("classicLists", false); // MurkaGram
+            classicSettingsIcons = preferences.getBoolean("classicSettingsIcons", false); // MurkaGram
             editedIcon = preferences.getBoolean("editedIcon", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
@@ -462,6 +472,22 @@ public class MurkaConfig {
         getPreferences().edit().putBoolean("md3Switches", md3Switches).commit();
     }
 
+    // MurkaGram: «Классический вид 12.2.10». commit(), т.к. следом может быть перезапуск.
+    public static void toggleClassicHeader() {
+        classicHeader = !classicHeader;
+        getPreferences().edit().putBoolean("classicHeader", classicHeader).commit();
+    }
+
+    public static void toggleClassicLists() {
+        classicLists = !classicLists;
+        getPreferences().edit().putBoolean("classicLists", classicLists).commit();
+    }
+
+    public static void toggleClassicSettingsIcons() {
+        classicSettingsIcons = !classicSettingsIcons;
+        getPreferences().edit().putBoolean("classicSettingsIcons", classicSettingsIcons).commit();
+    }
+
     // MurkaGram: «Заменять «изменено» иконкой»
     public static void toggleEditedIcon() {
         editedIcon = !editedIcon;
@@ -500,7 +526,8 @@ public class MurkaConfig {
     public static final String[] DESIGN_KEYS = new String[]{
         "md3Design", "md3FabShape", "md3DividerMode", "md3Containers", "md3SeparateHeaders", "md3Switches",
         "centerTitle", "noBubbleTail", "editedIcon", "messageMenuIconBar", "springAnimation",
-        "noNumberRounding", "timeWithSeconds", "fontMode", "emojiMode"
+        "noNumberRounding", "timeWithSeconds", "fontMode", "emojiMode",
+        "classicHeader", "classicLists", "classicSettingsIcons"
     };
 
     // Проверяет значение настройки дизайна. Возвращает Boolean/Integer или null, если ключ неизвестен или значение недопустимо.
@@ -521,6 +548,9 @@ public class MurkaConfig {
             case "springAnimation":
             case "noNumberRounding":
             case "timeWithSeconds":
+            case "classicHeader":
+            case "classicLists":
+            case "classicSettingsIcons":
                 return value instanceof Boolean ? value : null;
             case "md3FabShape":
                 return validateDesignInt(value, FAB_CIRCLE, FAB_SQUARE);
@@ -563,6 +593,9 @@ public class MurkaConfig {
         map.put("springAnimation", springAnimation);
         map.put("noNumberRounding", noNumberRounding);
         map.put("timeWithSeconds", timeWithSeconds);
+        map.put("classicHeader", classicHeader);
+        map.put("classicLists", classicLists);
+        map.put("classicSettingsIcons", classicSettingsIcons);
         if (includeCustom || fontMode != FONT_CUSTOM) {
             map.put("fontMode", fontMode);
         }
@@ -626,6 +659,9 @@ public class MurkaConfig {
                 case "springAnimation": springAnimation = (Boolean) v; break;
                 case "noNumberRounding": noNumberRounding = (Boolean) v; break;
                 case "timeWithSeconds": timeWithSeconds = (Boolean) v; break;
+                case "classicHeader": classicHeader = (Boolean) v; break;
+                case "classicLists": classicLists = (Boolean) v; break;
+                case "classicSettingsIcons": classicSettingsIcons = (Boolean) v; break;
                 case "md3FabShape": md3FabShape = (Integer) v; break;
                 case "md3DividerMode": md3DividerMode = (Integer) v; break;
                 case "fontMode": {

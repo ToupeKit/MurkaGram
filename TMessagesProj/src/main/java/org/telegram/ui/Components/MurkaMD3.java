@@ -101,8 +101,16 @@ public class MurkaMD3 {
     // MurkaGram: ui-13 — карточки настроек: MD3 настраивает нативные секции 13.2.2 (RecyclerListView.setSections(),
     // ListSectionsDecoration / BitmapSectionsItemDecoration) вместо своей декорации. При выключенном MD3 — сток 13.2.2.
 
+    /** MurkaGram: «Классические списки» (12.2.10) — плоские блоки на всю ширину, линии-разделители, заголовки внутри. */
+    public static boolean classicLists() {
+        return MurkaConfig.classicLists;
+    }
+
     /** Боковой отступ карточек секций (px): с «Контейнерами» — SIDE, без — во всю ширину. stock — значение экрана. */
     public static int sectionPadding(int stock) {
+        if (classicLists() && stock > 0) { // MurkaGram: «Классические списки»
+            return 0;
+        }
         if (!enabled() || stock <= 0) {
             return stock;
         }
@@ -111,6 +119,9 @@ public class MurkaMD3 {
 
     /** Радиус карточек секций (px): с «Контейнерами» — R_BIG, без — прямые углы. */
     public static float sectionRadius(float stock) {
+        if (classicLists() && stock > 0) { // MurkaGram: «Классические списки»
+            return 0;
+        }
         if (!enabled() || stock <= 0) {
             return stock;
         }
@@ -119,7 +130,7 @@ public class MurkaMD3 {
 
     /** «Сегменты»: каждая строка — отдельная плитка с зазором GAP и малыми углами R_SMALL. */
     public static boolean sectionSegments() {
-        return enabled() && dividerMode() == MurkaConfig.DIVIDERS_SEGMENTS;
+        return enabled() && !classicLists() && dividerMode() == MurkaConfig.DIVIDERS_SEGMENTS;
     }
 
     /** Зазор между плитками «Сегментов» (px). */
@@ -134,7 +145,7 @@ public class MurkaMD3 {
 
     /** Срезать нижние разделители ячеек внутри карточки (режимы «Скрыть» и «Сегменты»). «Линии» — как в 13.2.2. */
     public static boolean hideSectionDividers() {
-        return enabled() && dividerMode() != MurkaConfig.DIVIDERS_LINES;
+        return enabled() && !classicLists() && dividerMode() != MurkaConfig.DIVIDERS_LINES;
     }
 
     /** Сколько px снизу строки срезать, чтобы скрыть её разделитель (линия рисуется на h-1 и задевает h-2). */
@@ -144,12 +155,12 @@ public class MurkaMD3 {
 
     /** Заголовки секций (HeaderCell) вне карточек. */
     public static boolean separateSectionHeaders() {
-        return enabled() && separateHeaders();
+        return enabled() && !classicLists() && separateHeaders();
     }
 
     /** Тонкие разделители между чатами в списке чатов (13.2.2 их убрал) — только в режиме «Линии». */
     public static boolean chatSeparators() {
-        return enabled() && dividerMode() == MurkaConfig.DIVIDERS_LINES;
+        return classicLists() || enabled() && dividerMode() == MurkaConfig.DIVIDERS_LINES; // MurkaGram: + «Классические списки»
     }
 
     /** Фон всплывающего меню: скруглённый прямоугольник 20dp с мягкой тенью; отступы как у исходного 9-patch. */

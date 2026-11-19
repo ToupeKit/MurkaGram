@@ -54,6 +54,12 @@
     <string name="MurkaMD3Containers">Контейнери в стилі MD3</string>
     <string name="MurkaMD3SeparateHeaders">Відокремити заголовки</string>
     <string name="MurkaMD3Switches">Перемикачі в стилі MD3</string>
+    <string name="MurkaClassicCategory">Класичний вигляд 12.2.10</string>
+    <string name="MurkaClassicHeader">Класична шапка</string>
+    <string name="MurkaClassicLists">Класичні списки</string>
+    <string name="MurkaClassicSettingsIcons">Класичні іконки налаштувань</string>
+    <string name="MurkaClassicInfo">Сині шапки, пласкі списки з тінями та сірі іконки в «Налаштуваннях», як у MurkaGram 12.2.10. Найкраще разом із класичною палітрою з пакета дизайну.</string>
+    <string name="MurkaClassicHeaderRestart">Перезапустіть застосунок, щоб застосувати класичну шапку.</string>
     <string name="MurkaFabShapeCircle">Кругла кнопка</string>
     <string name="MurkaFabShapeSquare">Квадратна кнопка</string>
     <string name="MurkaEditedIcon">Замінювати «змінено» іконкою</string>
@@ -128,7 +134,7 @@
     <string name="MurkaCustomIconUnsupported">Ваш лаунчер не підтримує створення ярликів.</string>
     <string name="MurkaCustomIconError">Не вдалося завантажити зображення</string>
     <string name="MurkaDesignPacks">Пакети дизайну</string>
-    <string name="MurkaDesignPacksInfo">Пакет дизайну (.mgdesign) містить лише налаштування оформлення MurkaGram, кольори теми та зображення для попереднього перегляду. Жодний код, посилання чи шпалери з нього не завантажуються.</string>
+    <string name="MurkaDesignPacksInfo">Звичайний пакет дизайну (.mgdesign) містить лише дані: налаштування оформлення MurkaGram, кольори теми та зображення для попереднього перегляду. Жодний код, посилання чи шпалери з нього не завантажуються. Пакет-редакція містить повну збірку MurkaGram з іншою редакцією інтерфейсу; встановити її можна, лише якщо пакет перевірено MurkaGram.</string>
     <string name="MurkaDesignPackImport">Імпорт із файлу</string>
     <string name="MurkaDesignPackExport">Експорт поточного дизайну</string>
     <string name="MurkaDesignPackRestore">Повернути попередній дизайн</string>
@@ -158,6 +164,15 @@
     <string name="MurkaDesignPackExportError">Не вдалося експортувати пакет дизайну</string>
     <string name="MurkaDesignPackUntitled">Без назви</string>
     <string name="MurkaDesignPackMyDesign">Мій дизайн</string>
+    <string name="MurkaDesignPackVerified">Перевірений пакет MurkaGram</string>
+    <string name="MurkaEditionInfo">Редакція інтерфейсу: %1$s. Під час застосування ця збірка MurkaGram буде встановлена поверх поточної.</string>
+    <string name="MurkaEditionUnverified">Неперевірена збірка — встановлення заборонено</string>
+    <string name="MurkaEditionSame">Ця редакція вже встановлена</string>
+    <string name="MurkaEditionBadSignature">Збірка не підходить до вашого MurkaGram (інший пакет або підпис)</string>
+    <string name="MurkaEditionBadVersion">Версія збірки не збігається зі встановленою версією MurkaGram</string>
+    <string name="MurkaEditionInstallTitle">Встановлення редакції</string>
+    <string name="MurkaEditionInstallConfirm">Буде встановлено редакцію %1$s. Застосунок перезапуститься, чати й налаштування збережуться.</string>
+    <string name="MurkaEditionNoSpace">Недостатньо вільного місця для встановлення редакції. Звільніть місце та спробуйте знову.</string>
     <string name="LanguageName">Українська</string>
     <string name="English">Англійська</string>
     <string name="LanguageNameInEnglish">Ukrainian</string>

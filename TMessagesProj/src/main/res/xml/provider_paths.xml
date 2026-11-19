@@ -3,5 +3,7 @@
     <external-path name="media" path="."/>
     <files-path name="logs" path="/logs/"/>
     <files-path name="cache" path="/cache/"/>
+    <!-- MurkaGram: только проверенная сборка редакции (edition.apk) для системного установщика; копии пакетов лежат в mgdesign/staging -->
+    <files-path name="mgdesign_edition" path="/mgdesign/edition/"/>
     <root-path name="external_files" path="/storage/" />
 </paths>

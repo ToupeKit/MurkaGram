@@ -160,13 +160,14 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
         }
         final boolean recolorBackground = themedBackground != null && getBackground() == themedBackground;
         if (isSubButton) {
-            final int iconColor = Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider);
+            final int murkaIconKey = org.telegram.messenger.MurkaConfig.classicHeader ? Theme.key_windowBackgroundWhiteGrayIcon : Theme.key_actionBarDefaultIcon; // MurkaGram: «Классическая шапка» — иконка на белом стекле не цветом шапки
+            final int iconColor = Theme.getColor(murkaIconKey, resourcesProvider);
             if (iconColor != themedIconColor || !themedIconColorSet) {
                 themedIconColor = iconColor;
                 themedIconColorSet = true;
                 imageView.setColorFilter(iconColor, PorterDuff.Mode.SRC_IN);
             }
-            progressView.setProgressColor(Theme.getColor(Theme.key_actionBarDefaultIcon, resourcesProvider));
+            progressView.setProgressColor(Theme.getColor(murkaIconKey, resourcesProvider));
 
             if (iBlur3SourceColor != null) {
                 iBlur3SourceColor.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
@@ -197,8 +198,9 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
                 imageView.setColorFilter(iconColor, PorterDuff.Mode.SRC_IN);
             }
             progressView.setProgressColor(Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider));
-            final int color = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider);
-            final int pressedColor = Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider);
+            final boolean murkaClassic = org.telegram.messenger.MurkaConfig.classicHeader; // MurkaGram: «Классическая шапка» — цвет кнопки как в 12.2.10
+            final int color = Theme.getColor(murkaClassic ? Theme.key_chats_actionBackground : Theme.key_featuredStickers_addButton, resourcesProvider);
+            final int pressedColor = Theme.getColor(murkaClassic ? Theme.key_chats_actionPressedBackground : Theme.key_featuredStickers_addButtonPressed, resourcesProvider);
             if (recolorBackground) {
                 if (color != themedBackgroundColor || pressedColor != themedBackgroundPressedColor) {
                     themedBackgroundColor = color;

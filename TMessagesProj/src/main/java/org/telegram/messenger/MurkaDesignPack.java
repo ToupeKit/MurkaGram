@@ -1,6 +1,7 @@
 /*
  * MurkaGram: пакеты дизайна (.mgdesign) — ZIP только с данными:
  * manifest.json, design.json (белый список настроек MurkaConfig), необязательные theme.attheme и preview.png.
+ * Пакет-редакция ("type": "edition", "edition": "classic"|"modern") вместо данных несёт edition.apk — см. MurkaEdition.
  * Никакого кода и сетевых ссылок: всё читается в память с лимитами и проверяется,
  * тема пересобирается из строк «ключ=цвет» для известных ключей, превью перекодируется.
  */
@@ -74,6 +75,7 @@ public class MurkaDesignPack {
     private static final Pattern THEME_HEX_PATTERN = Pattern.compile("#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})");
     private static final Pattern THEME_INT_PATTERN = Pattern.compile("[+-]?[0-9]{1,10}");
     private static final Pattern ID_PATTERN = Pattern.compile("[0-9a-f]{16}");
+    private static final Pattern SHA256_PATTERN = Pattern.compile("[0-9a-f]{64}"); // MurkaGram: хэш исходного файла (бейджик)
 
     public static final int ERROR_INVALID = 1;
     public static final int ERROR_TOO_LARGE = 2;
@@ -98,6 +100,25 @@ public class MurkaDesignPack {
     public String themeText; // нормализованная тема «ключ=int», без обоев; null — темы нет
     public int themeKeysCount;
     public Bitmap preview;
+    // MurkaGram: пакет-редакция ("type": "edition") — edition = "classic"/"modern", иначе null (обычный пакет данных)
+    public String edition;
+    // MurkaGram: SHA-256 исходного файла пакета (для бейджика «Проверенный пакет»), у установленных — из файла <id>.sha
+    public String sha256;
+    public boolean verified; // хэш есть в Remote Config "murka_verified_designs" (считается в фоне вместе с sha256)
+
+    public boolean isEdition() {
+        return edition != null;
+    }
+
+    public void setSourceHash(String hash) {
+        sha256 = hash;
+        verified = MurkaEdition.isVerified(hash);
+    }
+
+    // MurkaGram: у установленного пакета — хэш исходного файла из <id>.sha (сам файл перепакован). Не вызывать с UI-потока.
+    public void loadInstalledHash() {
+        setSourceHash(file == null || id == null ? null : readSourceHash(file.getParentFile(), id));
+    }
 
     public String getDisplayName() {
         return TextUtils.isEmpty(name) ? LocaleController.getString(R.string.MurkaDesignPackUntitled) : name;
@@ -117,11 +138,17 @@ public class MurkaDesignPack {
 
     // Читает и проверяет пакет. Не вызывать с UI-потока. Любая ошибка (в т.ч. OOM) — PackException.
     public static MurkaDesignPack read(File file, boolean withPreview) throws PackException {
+        return read(file, withPreview, true);
+    }
+
+    // MurkaGram: withHash = false — без SHA-256 файла (MurkaEdition.prepare уже посчитал хэш своей приватной копии)
+    static MurkaDesignPack read(File file, boolean withPreview, boolean withHash) throws PackException {
         try {
             if (file == null || !file.isFile()) {
                 throw new PackException(ERROR_INVALID);
             }
-            if (file.length() > MAX_FILE_SIZE) {
+            final long fileLength = file.length();
+            if (fileLength > MurkaEdition.MAX_FILE_SIZE) { // MurkaGram: лимит пакета-редакции; для данных — ниже
                 throw new PackException(ERROR_TOO_LARGE);
             }
             try (ZipFile zip = new ZipFile(file)) {
@@ -150,6 +177,45 @@ public class MurkaDesignPack {
                 pack.description = cleanText(manifest.opt("description"), MAX_DESCRIPTION_LENGTH, true);
                 pack.version = cleanText(manifest.opt("version"), MAX_VERSION_LENGTH, false);
 
+                // MurkaGram: пакет-редакция — только manifest, edition.apk (читается потоком при установке) и превью
+                final Object type = manifest.opt("type");
+                if (type != null) {
+                    if (!(type instanceof String)) {
+                        throw new PackException(ERROR_INVALID);
+                    }
+                    if (!MurkaEdition.TYPE_EDITION.equals(type)) {
+                        throw new PackException(ERROR_NEWER_FORMAT);
+                    }
+                    final Object edition = manifest.opt("edition");
+                    if (!(edition instanceof String) || !MurkaEdition.isValidEdition((String) edition)) {
+                        throw new PackException(ERROR_INVALID);
+                    }
+                    final ZipEntry apkEntry = zip.getEntry(MurkaEdition.ENTRY_APK);
+                    if (apkEntry == null || apkEntry.isDirectory() || !MurkaEdition.ENTRY_APK.equals(apkEntry.getName())) {
+                        throw new PackException(ERROR_INVALID);
+                    }
+                    if (apkEntry.getSize() > MurkaEdition.MAX_APK_SIZE) { // подсказка заголовка; реальные байты считаются при распаковке
+                        throw new PackException(ERROR_TOO_LARGE);
+                    }
+                    pack.edition = (String) edition;
+                    if (withPreview) {
+                        byte[] previewBytes = readEntry(zip, ENTRY_PREVIEW, MAX_PREVIEW_SIZE);
+                        if (previewBytes != null) {
+                            pack.preview = decodePreview(previewBytes);
+                        }
+                    }
+                    if (withHash) {
+                        pack.setSourceHash(MurkaEdition.sha256(file));
+                    }
+                    return pack;
+                }
+                if (fileLength > MAX_FILE_SIZE) {
+                    throw new PackException(ERROR_TOO_LARGE);
+                }
+                if (zip.getEntry(MurkaEdition.ENTRY_APK) != null) {
+                    throw new PackException(ERROR_INVALID);
+                }
+
                 byte[] designBytes = readEntry(zip, ENTRY_DESIGN, MAX_DESIGN_SIZE);
                 if (designBytes != null) {
                     JSONObject design = parseJsonObject(designBytes);
@@ -175,6 +241,9 @@ public class MurkaDesignPack {
                     if (previewBytes != null) {
                         pack.preview = decodePreview(previewBytes);
                     }
+                }
+                if (withHash) {
+                    pack.setSourceHash(MurkaEdition.sha256(file)); // MurkaGram: бейджик «Проверенный пакет»
                 }
                 return pack;
             }
@@ -516,7 +585,7 @@ public class MurkaDesignPack {
                 int read;
                 while ((read = in.read(buffer)) != -1) {
                     total += read;
-                    if (total > MAX_FILE_SIZE) {
+                    if (total > MurkaEdition.MAX_FILE_SIZE) { // MurkaGram: пакет-редакция больше пакета данных; data-лимит проверит read()
                         throw new PackException(ERROR_TOO_LARGE);
                     }
                     out.write(buffer, 0, read);
@@ -542,6 +611,9 @@ public class MurkaDesignPack {
 
     // Сохраняет пакет в список установленных (перепакованным). Не вызывать с UI-потока.
     public static boolean install(MurkaDesignPack pack) {
+        if (pack == null || pack.isEdition()) {
+            return false; // MurkaGram: пакеты-редакции (большие) в список установленных не копируются
+        }
         File tmp = null;
         try {
             final byte[] bytes = pack.toBytes();
@@ -562,6 +634,7 @@ public class MurkaDesignPack {
                 return false;
             }
             tmp = null;
+            writeSourceHash(dir, newId, pack.sha256);
             pack.id = newId;
             pack.file = target;
             return true;
@@ -576,6 +649,39 @@ public class MurkaDesignPack {
 
                 }
             }
+        }
+    }
+
+    // MurkaGram: хэш исходного файла рядом с перепакованным пакетом (<id>.sha) — чтобы бейджик сохранился после установки.
+    // Проверенный хэш не перезаписывается непроверенным (одинаковое содержимое из разных источников).
+    private static void writeSourceHash(File dir, String id, String sha256) {
+        try {
+            if (sha256 == null || !SHA256_PATTERN.matcher(sha256).matches()) {
+                return;
+            }
+            final File file = new File(dir, id + ".sha");
+            if (file.exists() && MurkaEdition.isVerified(readSourceHash(dir, id)) && !MurkaEdition.isVerified(sha256)) {
+                return;
+            }
+            try (OutputStream out = new FileOutputStream(file)) {
+                out.write(sha256.getBytes(StandardCharsets.US_ASCII));
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    public static String readSourceHash(File dir, String id) {
+        try {
+            final File file = new File(dir, id + ".sha");
+            if (!file.isFile() || file.length() != 64) {
+                return null;
+            }
+            final String hash = new String(readFile(file), StandardCharsets.US_ASCII);
+            return SHA256_PATTERN.matcher(hash).matches() ? hash : null;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
         }
     }
 
@@ -601,6 +707,7 @@ public class MurkaDesignPack {
                     final MurkaDesignPack pack = read(f, false);
                     pack.file = f;
                     pack.id = f.getName().substring(0, f.getName().length() - EXTENSION.length());
+                    pack.loadInstalledHash(); // MurkaGram: хэш исходного файла, не перепакованного
                     result.add(pack);
                 } catch (PackException e) {
                     FileLog.e(e);
@@ -618,6 +725,9 @@ public class MurkaDesignPack {
         }
         try {
             final File dir = getPacksDir();
+            if (dir != null) {
+                new File(dir, id + ".sha").delete(); // MurkaGram: хэш исходного файла
+            }
             return dir != null && new File(dir, id + EXTENSION).delete();
         } catch (Throwable e) {
             FileLog.e(e);
@@ -743,7 +853,93 @@ public class MurkaDesignPack {
 
     private static String restartState() {
         return MurkaConfig.md3Design + "|" + MurkaConfig.md3Switches + "|" + MurkaConfig.fontMode + "|" + MurkaConfig.customFontPath
-                + "|" + MurkaConfig.emojiMode + "|" + MurkaConfig.customEmojiPath;
+                + "|" + MurkaConfig.emojiMode + "|" + MurkaConfig.customEmojiPath
+                + "|" + MurkaConfig.classicHeader; // MurkaGram: «Классическая шапка» — с перезапуском
+    }
+
+    // MurkaGram: ключи шапки и их значения в 13.2.2 (тема «Синяя»). Без classicHeader шапка 13.2.2 рисуется на белом/стекле,
+    // а иконки и заголовок берутся из этих ключей — синяя палитра 12.2.10 дала бы белые иконки на белом фоне.
+    private static final String[] HEADER_KEYS = new String[]{
+        "actionBarDefault", "actionBarDefaultIcon", "actionBarDefaultTitle", "actionBarDefaultSubtitle",
+        "actionBarDefaultSelector", "actionBarDefaultSearch", "actionBarDefaultSearchPlaceholder",
+        "actionBarDefaultArchived", "actionBarDefaultArchivedIcon", "actionBarDefaultArchivedTitle",
+        "actionBarDefaultArchivedSearch", "actionBarDefaultSearchArchivedPlaceholder",
+        "actionBarTabActiveText", "actionBarTabUnactiveText", "actionBarTabLine", "actionBarTabSelector",
+        "actionBarWhiteSelector", "avatar_actionBarIconBlue", "avatar_actionBarSelectorBlue",
+        "avatar_backgroundActionBarBlue", "avatar_backgroundInProfileBlue", "avatar_subtitleInProfileBlue",
+        "profile_title", "profile_status", "profile_verifiedBackground", "profile_verifiedCheck",
+        "chat_status", "chat_lockIcon", "chat_muteIcon", "telegram_color_dialogsLogo"
+    };
+    private static final int[] HEADER_VALUES = new int[]{
+        0xFFFFFFFF, 0xFF1A1D21, 0xFF1A1D21, 0xFF838C96,
+        0xFFF2F2F2, 0xFF1A1D21, 0xFF79817E,
+        0xFFFFFFFF, 0xFF1A1D21, 0xFF1A1D21,
+        0xFF1A1D21, 0xFF838C96,
+        0xFF298ACF, 0xFF777C7F, 0xFF298ACF, 0xFFF2F2F2,
+        0xFFF2F2F2, 0xFF1A1D21, 0xFFF2F2F2,
+        0xFFF5F5F5, 0xFFFFFFFF, 0xFF1A1D21,
+        0xFF222222, 0xFF222222, 0xFF229AF0, 0xFFFFFFFF,
+        0xFF229AF0, 0xFF222222, 0xFF79817E, 0xFF168BDB
+    };
+
+    // MurkaGram: если светлая тема пакета несёт светлые иконки шапки (классическая синяя шапка), а classicHeader выключен —
+    // ключи шапки заменяются значениями 13.2.2. Тёмные темы и обычные светлые темы 13.2.2 не меняются.
+    private static String fixHeaderColors(String themeText) {
+        if (themeText == null || MurkaConfig.classicHeader) {
+            return themeText;
+        }
+        final LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
+        for (String line : themeText.split("\n")) {
+            final int eq = line.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            try {
+                colors.put(line.substring(0, eq), Integer.parseInt(line.substring(eq + 1)));
+            } catch (NumberFormatException ignore) {
+
+            }
+        }
+        final Integer windowColor = colors.get("windowBackgroundWhite");
+        final Integer iconColor = colors.get("actionBarDefaultIcon");
+        final int window = windowColor != null ? windowColor : Theme.getDefaultColor(Theme.key_windowBackgroundWhite);
+        final int icon = iconColor != null ? iconColor : Theme.getDefaultColor(Theme.key_actionBarDefaultIcon);
+        if (AndroidUtilities.computePerceivedBrightness(window) < 0.7f || AndroidUtilities.computePerceivedBrightness(icon) < 0.7f) {
+            return themeText;
+        }
+        for (int i = 0; i < HEADER_KEYS.length; i++) {
+            if (ThemeColors.stringKeyToInt(HEADER_KEYS[i]) >= 0) {
+                colors.put(HEADER_KEYS[i], HEADER_VALUES[i]);
+            }
+        }
+        final StringBuilder sb = new StringBuilder(colors.size() * 40);
+        for (java.util.Map.Entry<String, Integer> e : colors.entrySet()) {
+            sb.append(e.getKey()).append('=').append(e.getValue()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    // MurkaGram: ручное выключение «Классической шапки» — та же замена ключей шапки для текущей светлой темы со светлыми иконками
+    // шапки (иначе белые иконки на белой шапке 13.2.2). Тема не отправляется на сервер. true — тема изменена.
+    public static boolean fixCurrentHeaderColors() {
+        if (MurkaConfig.classicHeader || Theme.isCurrentThemeDark()) {
+            return false;
+        }
+        final String current = currentThemeText();
+        final String fixed = fixHeaderColors(current);
+        if (fixed == null || fixed == current) {
+            return false;
+        }
+        final Theme.ThemeInfo currentTheme = Theme.getCurrentTheme();
+        String name = currentTheme != null ? currentTheme.getName() : null;
+        if (name != null) {
+            if (name.startsWith("MG ")) {
+                name = name.substring(3);
+            }
+            name = name.replaceFirst(" \\([0-9a-f]{8}\\)$", "");
+        }
+        // светлая тема становится дневной (saveLastDayTheme), авто-ночь не выключается
+        return applyThemeText(fixed, getThemeName(name, getThemeTag(name, fixed))) != null;
     }
 
     private static void afterApply() {
@@ -757,8 +953,9 @@ public class MurkaDesignPack {
         saveBackup();
         final String before = restartState();
         MurkaConfig.applyDesign(pack.design, false);
-        if (pack.themeText != null) {
-            final Theme.ThemeInfo themeInfo = applyThemeText(pack.themeText, getThemeName(pack.name, getThemeTag(pack.name, pack.themeText)));
+        final String themeText = fixHeaderColors(pack.themeText); // MurkaGram: без classicHeader — шапка 13.2.2
+        if (themeText != null) {
+            final Theme.ThemeInfo themeInfo = applyThemeText(themeText, getThemeName(pack.name, getThemeTag(pack.name, themeText)));
             if (themeInfo != null && fragment != null) {
                 Theme.turnOffAutoNight(fragment); // иначе при авто-ночи тема может быть не видна
             }

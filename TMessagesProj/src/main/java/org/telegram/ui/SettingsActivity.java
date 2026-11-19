@@ -913,6 +913,14 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
 
         items.add(UItem.asCustomShadow(versionView));
+        // MurkaGram: «Классические иконки настроек» — только строки этого экрана (в UserInfoActivity подписи — это значения)
+        if (MurkaConfig.classicSettingsIcons) {
+            for (UItem item : items) {
+                if (item.instanceOf(SettingCell.Factory.class)) {
+                    item.intValue = SettingCell.MURKA_CLASSIC_ROW;
+                }
+            }
+        }
     }
 
     private void presentSettingFragment(BaseFragment fragment) {
@@ -1345,6 +1353,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         private final TextView valueView;
         private final boolean mini;
         private boolean hasBackground = true;
+        private boolean murkaClassic; // MurkaGram: «Классические иконки настроек» — серая иконка без подложки и подписи (12.2.10)
+        private boolean murkaTinted;
+        public static final int MURKA_CLASSIC_ROW = 1;
+        public boolean murkaClassicRow; // строка экрана «Настройки» (UItem.intValue == MURKA_CLASSIC_ROW)
 
         public SettingCell(Context context, Theme.ResourcesProvider resourcesProvider) {
             this(context, resourcesProvider, false);
@@ -1395,12 +1407,22 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
             valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
             iconBackground.setDrawBorder(hasBackground && (resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark()));
+            if (murkaClassic) { // MurkaGram: «Классические иконки настроек»
+                iconView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon, resourcesProvider), PorterDuff.Mode.SRC_IN));
+                murkaTinted = true;
+            } else if (murkaTinted) {
+                iconView.setColorFilter(null);
+                murkaTinted = false;
+            }
         }
         @Override
         public void addColorKeys(HashSet<Integer> colors) {
             colors.add(Theme.key_windowBackgroundWhiteBlackText);
             colors.add(Theme.key_windowBackgroundWhiteGrayText);
             colors.add(Theme.key_windowBackgroundWhiteBlueText);
+            if (MurkaConfig.classicSettingsIcons) { // MurkaGram
+                colors.add(Theme.key_windowBackgroundWhiteGrayIcon);
+            }
         }
 
         private boolean twoLines;
@@ -1412,6 +1434,12 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             CharSequence value
         ) {
             hasBackground = iconColorTop != 0 || iconColorBottom != 0;
+            // MurkaGram: «Классические иконки настроек» — только для иконок на цветной подложке (свои цветные иконки, напр. кошелёк, не трогаем)
+            final boolean classic = MurkaConfig.classicSettingsIcons && hasBackground && murkaClassicRow;
+            if (classic != murkaClassic) {
+                murkaClassic = classic;
+                iconLayout.setBackground(classic ? null : iconBackground);
+            }
             iconLayout.setVisibility(icon != 0 ? View.VISIBLE : View.GONE);
             titleView.setTranslationX(icon == 0 ? dp(2) : 0);
             subtitleView.setTranslationX(icon == 0 ? dp(2) : 0);
@@ -1419,7 +1447,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             iconBackground.setColor(iconColorTop, iconColorBottom);
             iconView.setImageResource(icon);
             titleView.setText(title);
-            subtitleView.setVisibility((twoLines = !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE);
+            subtitleView.setVisibility((twoLines = !murkaClassic && !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE); // MurkaGram: без подписи в классическом виде
             subtitleView.setText(subtitle);
             setValue(value);
             updateColors();
@@ -1500,6 +1528,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
                 int iconColorTop    = (int) item.longValue;
                 int iconColorBottom = (int) (item.longValue >>> 32);
+                ((SettingCell) view).murkaClassicRow = item.intValue == MURKA_CLASSIC_ROW; // MurkaGram
                 ((SettingCell) view).set(
                     iconColorTop, iconColorBottom, item.iconResId,
                     item.text,

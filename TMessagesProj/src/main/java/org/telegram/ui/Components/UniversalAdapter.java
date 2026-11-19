@@ -807,7 +807,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 }
                 final boolean prev = prevItem != null && !isShadow(prevItem.viewType);
                 final boolean next = nextItem != null && !isShadow(nextItem.viewType);
-                if (listView.hasSections()) {
+                if (listView.hasSections() && !MurkaMD3.classicLists()) { // MurkaGram: «Классические списки» — тени 12.2.10 и в секциях
                     cell3.setBackground(null);
                 } else {
                     int drawable;

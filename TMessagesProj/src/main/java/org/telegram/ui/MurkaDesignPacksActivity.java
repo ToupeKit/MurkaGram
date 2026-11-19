@@ -12,6 +12,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -27,6 +28,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.MurkaDesignPack;
+import org.telegram.messenger.MurkaEdition;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -97,7 +99,7 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignPackInstalled)));
         for (int i = 0; i < packs.size(); i++) {
             final MurkaDesignPack pack = packs.get(i);
-            final UItem item = UItem.asButton(ID_PACK_BASE + i, R.drawable.msg_theme, pack.getDisplayName(), pack.author);
+            final UItem item = UItem.asButton(ID_PACK_BASE + i, pack.verified ? R.drawable.msg_murka_badge_cat : R.drawable.msg_theme, pack.getDisplayName(), pack.author); // MurkaGram: значок проверенного пакета
             item.object2 = pack;
             items.add(item);
         }
@@ -168,6 +170,7 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
                 pack = MurkaDesignPack.read(file, true);
                 pack.file = file;
                 pack.id = id;
+                pack.loadInstalledHash(); // MurkaGram: бейджик по хэшу исходного файла
             } catch (MurkaDesignPack.PackException e) {
                 error = e.error;
             }
@@ -213,7 +216,22 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
                 try {
                     tmp = MurkaDesignPack.copyFromUri(uri);
                     pack = MurkaDesignPack.read(tmp, true);
-                    if (!MurkaDesignPack.install(pack)) {
+                    if (pack.isEdition()) {
+                        // MurkaGram: пакет-редакция не копируется в установленные — лежит один в приватном каталоге до установки
+                        // (уникальное имя: повторный импорт не подменит файл, который сейчас проверяется)
+                        final File importFile = MurkaEdition.createImportFile();
+                        if (importFile == null) {
+                            pack = null;
+                        } else {
+                            if (tmp.renameTo(importFile)) {
+                                tmp = null;
+                                pack.file = importFile;
+                            } else {
+                                MurkaEdition.deleteQuietly(importFile);
+                                pack = null;
+                            }
+                        }
+                    } else if (!MurkaDesignPack.install(pack)) {
                         pack = null;
                     }
                 } catch (MurkaDesignPack.PackException e) {
@@ -412,6 +430,9 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
             int error = MurkaDesignPack.ERROR_INVALID;
             try {
                 pack = MurkaDesignPack.read(file, true);
+                if (pack.isEdition()) {
+                    pack.file = file; // MurkaGram: сборка распаковывается из этого файла при установке
+                }
             } catch (MurkaDesignPack.PackException e) {
                 error = e.error;
             } catch (Throwable e) {
@@ -436,6 +457,10 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
     public static void showPreview(BaseFragment fragment, MurkaDesignPack pack, boolean installed, Runnable onChanged) {
         final Activity activity = fragment.getParentActivity();
         if (activity == null) {
+            return;
+        }
+        if (pack.isEdition()) {
+            showEditionPreview(fragment, pack); // MurkaGram: пакет-редакция — своё окно
             return;
         }
         final LinearLayout layout = new LinearLayout(activity);
@@ -475,6 +500,9 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         }
         text.append("\n\n").append(LocaleController.getString(R.string.MurkaDesignPackBackupNote));
 
+        if (pack.verified) {
+            addVerifiedRow(activity, layout); // MurkaGram: бейджик «Проверенный пакет MurkaGram»
+        }
         final TextView textView = new TextView(activity);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         textView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
@@ -505,6 +533,141 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
                 ThemeBind.textColor((TextView) button, Theme.key_text_RedBold);
             }
         }
+    }
+
+    // MurkaGram: строка «Проверенный пакет MurkaGram» со значком
+    private static void addVerifiedRow(Activity activity, LinearLayout layout) {
+        final LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        final ImageView icon = new ImageView(activity);
+        icon.setImageResource(R.drawable.msg_murka_badge_cat);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        row.addView(icon, LayoutHelper.createLinear(22, 22, 0, 0, 8, 0));
+        final TextView label = new TextView(activity);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        label.setTextColor(Theme.getColor(Theme.key_dialogTextBlue));
+        label.setText(LocaleController.getString(R.string.MurkaDesignPackVerified));
+        row.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        layout.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 0, 24, 10));
+    }
+
+    // MurkaGram: окно пакета-редакции. «Применить» — только для проверенного пакета другой редакции.
+    private static void showEditionPreview(BaseFragment fragment, MurkaDesignPack pack) {
+        final Activity activity = fragment.getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        final LinearLayout layout = new LinearLayout(activity);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        if (pack.preview != null && !pack.preview.isRecycled()) {
+            final ImageView imageView = new ImageView(activity);
+            imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            imageView.setAdjustViewBounds(true);
+            imageView.setImageBitmap(pack.preview);
+            layout.addView(imageView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 200, 24, 0, 24, 12));
+        }
+        final String editionName = MurkaEdition.getEditionName(pack.edition);
+        final boolean current = MurkaEdition.isCurrent(pack.edition);
+        final boolean canApply = pack.verified && !current && pack.file != null;
+        if (pack.verified) {
+            addVerifiedRow(activity, layout);
+        }
+        final StringBuilder text = new StringBuilder();
+        text.append(LocaleController.formatString(R.string.MurkaEditionInfo, editionName));
+        if (!TextUtils.isEmpty(pack.author)) {
+            text.append('\n').append(LocaleController.formatString(R.string.MurkaDesignPackAuthor, pack.author));
+        }
+        if (!TextUtils.isEmpty(pack.version)) {
+            text.append('\n').append(LocaleController.formatString(R.string.MurkaDesignPackVersion, pack.version));
+        }
+        if (!TextUtils.isEmpty(pack.description)) {
+            text.append("\n\n").append(pack.description);
+        }
+        final TextView textView = new TextView(activity);
+        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        textView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        textView.setText(text.toString()); // обычный текст: без ссылок и разметки
+        layout.addView(textView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 0, 24, 4));
+        if (!canApply) {
+            final TextView warning = new TextView(activity);
+            warning.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            warning.setTextColor(Theme.getColor(pack.verified ? Theme.key_dialogTextGray2 : Theme.key_text_RedBold));
+            warning.setText(LocaleController.getString(!pack.verified ? R.string.MurkaEditionUnverified : current ? R.string.MurkaEditionSame : R.string.MurkaDesignPackInvalid));
+            layout.addView(warning, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 10, 24, 4));
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(pack.getDisplayName());
+        builder.setView(layout);
+        if (canApply) {
+            builder.setPositiveButton(LocaleController.getString(R.string.MurkaDesignPackApply), (dialog, which) -> confirmEdition(fragment, pack.file, editionName));
+            builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        } else {
+            builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
+        }
+        fragment.showDialog(builder.create());
+    }
+
+    private static void confirmEdition(BaseFragment fragment, File packFile, String editionName) {
+        final Activity activity = fragment.getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(LocaleController.getString(R.string.MurkaEditionInstallTitle));
+        builder.setMessage(LocaleController.formatString(R.string.MurkaEditionInstallConfirm, editionName));
+        builder.setPositiveButton(LocaleController.getString(R.string.MurkaDesignPackInstall), (dialog, which) -> installEdition(fragment, packFile));
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        fragment.showDialog(builder.create());
+    }
+
+    // Проверка (хэш, подпись, версия, редакция) и распаковка в фоне, затем системный установщик (как для APK из чата).
+    private static void installEdition(BaseFragment fragment, File packFile) {
+        final Activity activity = fragment.getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        final AlertDialog progress = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        try {
+            progress.show();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        Utilities.globalQueue.postRunnable(() -> {
+            MurkaEdition.Result prepared;
+            try {
+                prepared = MurkaEdition.prepare(packFile);
+            } catch (Throwable e) { // MurkaGram: спиннер закрывается при любой ошибке
+                FileLog.e(e);
+                prepared = new MurkaEdition.Result();
+            }
+            final MurkaEdition.Result result = prepared;
+            AndroidUtilities.runOnUIThread(() -> {
+                try {
+                    progress.dismiss();
+                } catch (Throwable ignore) {
+
+                }
+                final Activity parent = fragment.getParentActivity();
+                if (parent == null || fragment.isFinished) {
+                    MurkaEdition.cleanupApk(result); // MurkaGram: окно закрыто — распакованная сборка не нужна
+                    return;
+                }
+                if (result.error != MurkaEdition.OK || result.apk == null) {
+                    BulletinFactory.of(fragment).createErrorBulletin(MurkaEdition.getErrorText(result.error)).show();
+                    return;
+                }
+                try {
+                    AndroidUtilities.openForView(result.apk, MurkaEdition.ENTRY_APK, "application/vnd.android.package-archive", parent, null, false);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    MurkaEdition.cleanupApk(result);
+                    BulletinFactory.of(fragment).createErrorBulletin(LocaleController.getString(R.string.MurkaDesignPackInvalid)).show();
+                }
+            });
+        });
     }
 
     private static void applyPack(BaseFragment fragment, MurkaDesignPack pack, boolean install) {

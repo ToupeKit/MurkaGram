@@ -81,6 +81,18 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
 
     private boolean actionModeVisible;
 
+    // MurkaGram: «Классическая шапка» (12.2.10) — сплошной фон actionBarDefault (ставит BaseFragment), цвета шапки, без стеклянных кнопок
+    private boolean murkaClassic;
+
+    public void murkaSetClassic() {
+        murkaClassic = true;
+        updateColors();
+    }
+
+    public boolean murkaIsClassic() {
+        return murkaClassic;
+    }
+
     private BlurredBackgroundDrawable glassBack;
     private BlurredBackgroundDrawable glassMenu;
     private BlurredBackgroundDrawable glassDone;
@@ -336,7 +348,7 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
 
         final int p = dp(6);
 
-        if (glassBack != null && backButton.getVisibility() == VISIBLE && backButton.getAlpha() > 0) {
+        if (glassBack != null && !murkaClassic && backButton.getVisibility() == VISIBLE && backButton.getAlpha() > 0) { // MurkaGram: !murkaClassic
             final float cx = backButton.getX() + backButton.getWidth() / 2f, cy = backButton.getY() + backButton.getHeight() / 2f;
             final float hw = backButton.getWidth() / 2f * backButton.getScaleX(), hh = backButton.getHeight() / 2f * backButton.getScaleY();
             glassBack.setBounds((int) (cx - hw) - p, (int) (cy - hh) - p, (int) (cx + hw) + p, (int) (cy + hh) + p);
@@ -344,7 +356,7 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
             glassBack.draw(canvas);
         }
 
-        if (glassDone != null && doneButton != null && doneButton.drawsGlass() && doneButton.getVisibility() == VISIBLE && doneButton.getAlpha() > 0) {
+        if (glassDone != null && !murkaClassic && doneButton != null && doneButton.drawsGlass() && doneButton.getVisibility() == VISIBLE && doneButton.getAlpha() > 0) {
             final float cx = doneButton.getX() + doneButton.getWidth() / 2f, cy = doneButton.getY() + doneButton.getHeight() / 2f;
             final float hw = doneButton.getWidth() / 2f * doneButton.getScaleX(), hh = doneButton.getHeight() / 2f * doneButton.getScaleY();
             glassDone.setBounds((int) (cx - hw) - p, (int) (cy - hh) - p, (int) (cx + hw) + p, (int) (cy + hh) + p);
@@ -352,7 +364,7 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
             glassDone.draw(canvas);
         }
 
-        if (glassMenu != null) {
+        if (glassMenu != null && !murkaClassic) { // MurkaGram: !murkaClassic
             final float alpha = computeMenuPill(menuPillRect);
             // a menu growing out of the pill takes over its glass
             final boolean pillInOverlay = isMenuPillInOverlay();
@@ -611,6 +623,14 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
         if (!hasCustomItemsActionModeColor) itemsActionModeColor = getThemedColor(Theme.key_windowBackgroundWhiteBlackText);
         if (!hasCustomItemsBackgroundColor) itemsBackgroundColor = getThemedColor(Theme.key_listSelector);
         if (!hasCustomItemsActionModeBackgroundColor) itemsActionModeBackgroundColor = getThemedColor(Theme.key_listSelector);
+        if (murkaClassic) { // MurkaGram: «Классическая шапка»
+            if (!hasCustomTitleColor) titleColor = getThemedColor(Theme.key_actionBarDefaultTitle);
+            if (!hasCustomSubtitleColor) subtitleColor = getThemedColor(Theme.key_actionBarDefaultSubtitle);
+            if (!hasCustomItemsColor) itemsColor = getThemedColor(Theme.key_actionBarDefaultIcon);
+            if (!hasCustomItemsActionModeColor) itemsActionModeColor = getThemedColor(Theme.key_actionBarDefaultIcon);
+            if (!hasCustomItemsBackgroundColor) itemsBackgroundColor = getThemedColor(Theme.key_actionBarDefaultSelector);
+            if (!hasCustomItemsActionModeBackgroundColor) itemsActionModeBackgroundColor = getThemedColor(Theme.key_actionBarDefaultSelector);
+        }
     }
 
     @Override
@@ -1239,7 +1259,13 @@ public class SimpleActionBar extends FrameLayout implements FactorAnimator.Targe
         searchField.setCursorColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
         searchField.setHighlightColor(getThemedColor(Theme.key_chat_inTextSelectionHighlight));
         searchField.setHandlesColor(getThemedColor(Theme.key_chat_TextSelectionCursor));
-        final PorterDuffColorFilter filter = new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteGrayIcon), PorterDuff.Mode.SRC_IN);
+        if (murkaClassic) { // MurkaGram: «Классическая шапка» — поиск в шапке цветами шапки
+            searchField.setTextColor(getThemedColor(Theme.key_actionBarDefaultSearch));
+            searchCaptionView.setTextColor(getThemedColor(Theme.key_actionBarDefaultSearch));
+            searchField.setHintTextColor(getThemedColor(Theme.key_actionBarDefaultSearchPlaceholder));
+            searchField.setCursorColor(getThemedColor(Theme.key_actionBarDefaultSearch));
+        }
+        final PorterDuffColorFilter filter = new PorterDuffColorFilter(getThemedColor(murkaClassic ? Theme.key_actionBarDefaultIcon : Theme.key_windowBackgroundWhiteGrayIcon), PorterDuff.Mode.SRC_IN); // MurkaGram: «Классическая шапка»
         searchClearButton.setColorFilter(filter);
         searchClearButton.setBackground(Theme.createSelectorDrawable(itemsBackgroundColor, 1));
     }

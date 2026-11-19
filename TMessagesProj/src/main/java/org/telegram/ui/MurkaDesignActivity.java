@@ -66,6 +66,10 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_MD3_SWITCHES = 18;
     private static final int ID_EDITED_ICON = 19; // MurkaGram: «Заменять «изменено» иконкой»
     private static final int ID_DESIGN_PACKS = 20; // MurkaGram: «Пакеты дизайна»
+    // MurkaGram: категория «Классический вид 12.2.10»
+    private static final int ID_CLASSIC_HEADER = 21;
+    private static final int ID_CLASSIC_LISTS = 22;
+    private static final int ID_CLASSIC_SETTINGS_ICONS = 23;
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
@@ -112,6 +116,12 @@ public class MurkaDesignActivity extends UniversalFragment {
             items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
             items.add(UItem.asShadow(null));
         }
+        // MurkaGram: категория «Классический вид 12.2.10»
+        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaClassicCategory)));
+        items.add(UItem.asCheck(ID_CLASSIC_HEADER, LocaleController.getString(R.string.MurkaClassicHeader)).setChecked(MurkaConfig.classicHeader));
+        items.add(UItem.asCheck(ID_CLASSIC_LISTS, LocaleController.getString(R.string.MurkaClassicLists)).setChecked(MurkaConfig.classicLists));
+        items.add(UItem.asCheck(ID_CLASSIC_SETTINGS_ICONS, LocaleController.getString(R.string.MurkaClassicSettingsIcons)).setChecked(MurkaConfig.classicSettingsIcons));
+        items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaClassicInfo)));
         // MurkaGram: категория «Чаты»
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignChats)));
         if (!MurkaConfig.md3Design) { // MurkaGram: при MD3 пункт в категории «Material Design 3»
@@ -193,6 +203,28 @@ public class MurkaDesignActivity extends UniversalFragment {
             }
             updateList(); // MurkaGram: показать/скрыть категорию «Material Design 3»
             showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
+        } else if (item.id == ID_CLASSIC_HEADER) { // MurkaGram: «Классическая шапка» применяется после перезапуска
+            MurkaConfig.toggleClassicHeader();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.classicHeader);
+            }
+            if (!MurkaConfig.classicHeader) { // MurkaGram: светлая тема с синей шапкой -> ключи шапки 13.2.2 (без отправки темы на сервер)
+                MurkaDesignPack.fixCurrentHeaderColors();
+            }
+            showRestartDialog(LocaleController.getString(R.string.MurkaClassicHeaderRestart));
+        } else if (item.id == ID_CLASSIC_LISTS) { // MurkaGram: «Классические списки» — сразу (декорация секций), тени — при пересоздании экранов
+            MurkaConfig.toggleClassicLists();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.classicLists);
+            }
+            applyMd3Change();
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
+        } else if (item.id == ID_CLASSIC_SETTINGS_ICONS) { // MurkaGram: «Классические иконки настроек»
+            MurkaConfig.toggleClassicSettingsIcons();
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.classicSettingsIcons);
+            }
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
         } else if (item.id == ID_DIVIDERS) { // MurkaGram: «Тип разделителей»
             showDividersDialog();
         } else if (item.id == ID_MD3_CONTAINERS) { // MurkaGram: ui-13 — отступы/радиус задаёт декорация секций (RecyclerListView.murkaCheckMD3Version), применяется сразу без перезапуска
