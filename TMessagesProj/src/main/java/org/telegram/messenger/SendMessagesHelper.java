@@ -143,8 +143,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     private final LongSparseArray<Integer> sendingMessagesIdDialogs = new LongSparseArray<>();
     private final LongSparseArray<Integer> uploadingMessagesIdDialogs = new LongSparseArray<>();
     private final HashMap<String, MessageObject> waitingForLocation = new HashMap<>();
-    private final HashMap<String, Boolean> waitingForCallback = new HashMap<>();
-    private final HashMap<String, List<String>> waitingForCallbackMap = new HashMap<>();
+    final HashMap<String, Boolean> waitingForCallback = new HashMap<>(); // MurkaGram: dual UI, widened for the classic UI
+    final HashMap<String, List<String>> waitingForCallbackMap = new HashMap<>(); // MurkaGram: dual UI, widened for the classic UI
     private final HashMap<String, byte[]> waitingForVote = new HashMap<>();
     private final LongSparseArray<Long> voteSendTime = new LongSparseArray();
     private final HashMap<String, ImportingHistory> importingHistoryFiles = new HashMap<>();
@@ -1508,7 +1508,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
     }
 
-    private void revertEditingMessageObject(MessageObject object) {
+    void revertEditingMessageObject(MessageObject object) { // MurkaGram: dual UI, widened for the classic UI
         object.cancelEditing = true;
         object.messageOwner.media = object.previousMedia;
         object.messageOwner.message = object.previousMessage;
@@ -3035,7 +3035,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         return 0;
     }
 
-    private void writePreviousMessageData(TLRPC.Message message, SerializedData data) {
+    void writePreviousMessageData(TLRPC.Message message, SerializedData data) { // MurkaGram: dual UI, widened for the classic UI
         if (message.media == null) {
             TLRPC.TL_messageMediaEmpty media = new TLRPC.TL_messageMediaEmpty();
             media.serializeToStream(data);
@@ -4153,7 +4153,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                         getMessagesController().putUsers(form.users, false);
                         parentFragment.presentFragment(new PaymentFormActivity(form, messageObject, parentFragment));
                     } else if (response instanceof TLRPC.TL_payments_paymentReceiptStars) {
-                        StarsIntroActivity.showTransactionSheet(LaunchActivity.instance != null ? LaunchActivity.instance : ApplicationLoader.applicationContext, false, currentAccount, (TLRPC.TL_payments_paymentReceiptStars) response, null);
+                        StarsIntroActivity.showTransactionSheet(UiEdition.activity() != null ? UiEdition.activity() : ApplicationLoader.applicationContext, /* MurkaGram: dual UI */ false, currentAccount, (TLRPC.TL_payments_paymentReceiptStars) response, null);
                     } else if (response instanceof TLRPC.PaymentReceipt) {
                         parentFragment.presentFragment(new PaymentFormActivity((TLRPC.PaymentReceipt) response));
                     }
@@ -6582,7 +6582,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
     }
 
-    private void performSendDelayedMessage(final DelayedMessage message) {
+    void performSendDelayedMessage(final DelayedMessage message) { // MurkaGram: dual UI, widened for the classic UI
         performSendDelayedMessage(message, -1);
     }
 
@@ -8042,7 +8042,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }, null, ConnectionsManager.RequestFlagCanCompress | ConnectionsManager.RequestFlagInvokeAfter);
     }
 
-    private void performSendMessageRequest(final TLObject req, final MessageObject msgObj, final String originalPath, DelayedMessage delayedMessage, Object parentObject, HashMap<String, String> params, boolean scheduled) {
+    void performSendMessageRequest(final TLObject req, final MessageObject msgObj, final String originalPath, DelayedMessage delayedMessage, Object parentObject, HashMap<String, String> params, boolean scheduled) { // MurkaGram: dual UI, widened for the classic UI
         performSendMessageRequest(req, msgObj, originalPath, null, false, delayedMessage, parentObject, params, scheduled);
     }
 
@@ -8211,16 +8211,14 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                     return;
                 } else if ("BALANCE_TOO_LOW".equalsIgnoreCase(error.text)) {
                     final TLRPC.TL_inputMediaStakeDice media = (TLRPC.TL_inputMediaStakeDice) ((TLRPC.TL_messages_sendMedia) req).media;
-                    final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                    final UiHost lastFragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
                     if (lastFragment != null) {
                         AndroidUtilities.runOnUIThread(() -> {
-                            new TONIntroActivity.StarsNeededSheet(
-                                lastFragment.getContext(),
-                                lastFragment.getResourceProvider(),
+                            UiEdition.bridge().showTonNeededSheet( // MurkaGram: dual UI
+                                lastFragment,
                                 AmountUtils.Amount.fromNano(media.ton_amount, AmountUtils.Currency.TON),
-                                false,
                                 () -> performSendMessageRequest(req, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled)
-                            ).show();
+                            );
                             final ArrayList<MessageObject> arrayList = new ArrayList<>();
                             arrayList.add(msgObj);
                             cancelSendingMessage(arrayList);

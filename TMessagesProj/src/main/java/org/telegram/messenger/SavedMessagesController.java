@@ -1114,24 +1114,24 @@ public class SavedMessagesController {
         }
     }
     public static void openSavedMessages() {
-        BaseFragment lastFragment = LaunchActivity.getLastFragment();
+        UiHost lastFragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
         if (lastFragment == null) {
             return;
         }
         Bundle args = new Bundle();
         args.putLong("user_id", UserConfig.getInstance(lastFragment.getCurrentAccount()).getClientUserId());
-        lastFragment.presentFragment(new ChatActivity(args));
+        UiEdition.bridge().openChat(lastFragment, args); // MurkaGram: dual UI
     }
 
     public static void openSavedMessagesReminders() {
-        BaseFragment lastFragment = LaunchActivity.getLastFragment();
+        UiHost lastFragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
         if (lastFragment == null) {
             return;
         }
         Bundle args = new Bundle();
         args.putLong("user_id", UserConfig.getInstance(lastFragment.getCurrentAccount()).getClientUserId());
         args.putInt("chatMode", ChatActivity.MODE_SCHEDULED);
-        lastFragment.presentFragment(new ChatActivity(args));
+        UiEdition.bridge().openChat(lastFragment, args); // MurkaGram: dual UI
     }
 
     public void checkSavedDialogCount(long dialogId) {

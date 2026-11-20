@@ -8,6 +8,7 @@
 
 package org.telegram.messenger.browser;
 
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
@@ -488,7 +489,7 @@ public class Browser {
 
 
             final boolean inappBrowser = (
-                allowInAppBrowser && BubbleActivity.instance == null &&
+                allowInAppBrowser && UiEdition.bridge().bubbleActivity() == null && /* MurkaGram: dual UI */
                 uri != null && MessagesController.getInstance(currentAccount).isWebBrowserOpenInApp(uri.toString()) &&
                 TextUtils.isEmpty(browserPackage) &&
                 (uri.getScheme() == null || "https".equals(uri.getScheme()) || "http".equals(uri.getScheme()) || "tonsite".equals(uri.getScheme()))
@@ -496,8 +497,8 @@ public class Browser {
                 isTonsite(uri.toString())
             );
             final boolean isIntentScheme = uri.getScheme() != null && uri.getScheme().equalsIgnoreCase("intent");
-            if (internalUri && LaunchActivity.instance != null) {
-                openAsInternalIntent(LaunchActivity.instance, uri.toString(), forceNotInternalForApps, forceRequest, inCaseLoading);
+            if (internalUri && UiEdition.activity() != null) { // MurkaGram: dual UI
+                openAsInternalIntent(UiEdition.activity(), uri.toString(), forceNotInternalForApps, forceRequest, inCaseLoading); // MurkaGram: dual UI
             } else {
                 if (inappBrowser) {
                     if (!openInExternalApp(context, uri.toString(), allowIntent)) {
@@ -529,45 +530,11 @@ public class Browser {
         return openAsInternalIntent(context, url, forceNotInternalForApps, false, null);
     }
     public static boolean openAsInternalIntent(Context context, String url, boolean forceNotInternalForApps, boolean forceRequest, Progress progress) {
-        if (url == null) return false;
-        LaunchActivity activity = null;
-        if (AndroidUtilities.findActivity(context) instanceof LaunchActivity) {
-            activity = (LaunchActivity) AndroidUtilities.findActivity(context);
-        } else if (LaunchActivity.instance != null) {
-            activity = LaunchActivity.instance;
-        } else {
-            return false;
-        }
-        if (activity == null) return false;
-        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        ComponentName componentName = new ComponentName(context.getPackageName(), LaunchActivity.class.getName());
-        intent.setComponent(componentName);
-        intent.putExtra(android.provider.Browser.EXTRA_CREATE_NEW_TAB, true);
-        intent.putExtra(android.provider.Browser.EXTRA_APPLICATION_ID, context.getPackageName());
-        intent.putExtra(LaunchActivity.EXTRA_FORCE_NOT_INTERNAL_APPS, forceNotInternalForApps);
-        intent.putExtra(LaunchActivity.EXTRA_FORCE_REQUEST, forceRequest);
-        activity.onNewIntent(intent, progress);
-        return true;
+        return UiEdition.bridge().openAsInternalIntent(context, url, forceNotInternalForApps, forceRequest, progress); // MurkaGram: dual UI, the body moved to ModernUiBridge 1:1
     }
 
     public static boolean openInTelegramBrowser(Context context, String url, Browser.Progress progress) {
-        if (LaunchActivity.instance != null) {
-            BottomSheetTabs tabs = LaunchActivity.instance.getBottomSheetTabs();
-            if (tabs != null && tabs.tryReopenTab(url) != null) {
-                return true;
-            }
-        }
-        BaseFragment fragment = LaunchActivity.getSafeLastFragment();
-        if (fragment != null && fragment.getArticleViewer() != null) {
-            fragment.getArticleViewer().open(url, progress);
-            return true;
-        }
-        if (fragment != null && fragment.getParentLayout() instanceof ActionBarLayout) {
-            fragment = ((ActionBarLayout) fragment.getParentLayout()).getSheetFragment();
-        }
-        if (fragment == null) return false;
-        fragment.createArticleViewer(false).open(url, progress);
-        return true;
+        return UiEdition.bridge().openInTelegramBrowser(context, url, progress); // MurkaGram: dual UI, the body moved to ModernUiBridge 1:1
     }
 
     public static boolean openInExternalBrowser(Context context, String url, boolean allowIntent) {

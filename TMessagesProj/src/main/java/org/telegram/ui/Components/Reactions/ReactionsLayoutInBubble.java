@@ -804,7 +804,7 @@ public class ReactionsLayoutInBubble {
         public String countText;
         public TLRPC.Reaction reaction;
         VisibleReaction visibleReaction;
-        android.graphics.Rect drawingImageRect = new Rect();
+        public android.graphics.Rect drawingImageRect = new Rect(); // MurkaGram: dual UI, widened for the classic UI
 
         public boolean hasName;
         public String name;

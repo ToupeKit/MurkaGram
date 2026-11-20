@@ -478,6 +478,16 @@ public class AndroidUtilities {
         return compact ? roundPlayingMessageSize - dp(16 + 40 - 28 / 2) : roundPlayingMessageSize;
     }
 
+    // MurkaGram: core-13 compat
+    public static int roundPlayingMessageSize(boolean withSidemenu) {
+        return roundPlayingMessageSize(withSidemenu, false);
+    }
+
+    // MurkaGram: core-13 compat
+    public final static int LIGHT_STATUS_BAR_OVERLAY = 0x0f000000, DARK_STATUS_BAR_OVERLAY = 0x33000000;
+    // MurkaGram: core-13 compat
+    public final static String TYPEFACE_COURIER_NEW_BOLD = "fonts/courier_new_bold.ttf";
+
     public static DecelerateInterpolator decelerateInterpolator = new DecelerateInterpolator();
     public static AccelerateInterpolator accelerateInterpolator = new AccelerateInterpolator();
     public static OvershootInterpolator overshootInterpolator = new OvershootInterpolator();
@@ -718,7 +728,7 @@ public class AndroidUtilities {
 
     public static Activity getActivity(Context context) {
         Activity activity = findActivity(context);
-        if (activity == null || activity.isFinishing()) activity = LaunchActivity.instance;
+        if (activity == null || activity.isFinishing()) activity = UiEdition.activity(); // MurkaGram: dual UI
         if (activity == null || activity.isFinishing()) activity = findActivity(ApplicationLoader.applicationContext);
         return activity;
     }
@@ -5606,6 +5616,11 @@ public class AndroidUtilities {
     }
 
 
+    // MurkaGram: core-13 compat (status bar is always transparent, as noStatusBar was always true)
+    public static void setLightStatusBar(Window window, boolean enable, boolean forceTransparentStatusbar) {
+        setLightStatusBar(window, enable);
+    }
+
     public static void setLightStatusBar(Window window, boolean enable) {
         final View decorView = window.getDecorView();
         changeSetSystemUiVisibility(decorView, View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR, enable);
@@ -5824,6 +5839,18 @@ public class AndroidUtilities {
         return Settings.canDrawOverlays(context);
     }
 
+    // MurkaGram: core-13 compat (removed in 13.2.2, the classic 12.2.10 pip code still uses it)
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public static boolean checkPipPermissions(Context context) {
+        if (!context.getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            return false;
+        }
+        android.app.AppOpsManager appOps = (android.app.AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE, android.os.Process.myUid(), context.getPackageName());
+
+        return mode == android.app.AppOpsManager.MODE_ALLOWED;
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.O)
     public static boolean isInPictureInPictureMode(Activity activity) {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity.isInPictureInPictureMode();
@@ -5943,6 +5970,11 @@ public class AndroidUtilities {
 
     public static void updateViewVisibilityAnimated(View view, boolean show, float scaleFactor, boolean goneOnHide, boolean animated) {
         updateViewVisibilityAnimated(view, show, scaleFactor, goneOnHide, 1f, animated, null);
+    }
+
+    // MurkaGram: core-13 compat
+    public static void updateViewVisibilityAnimated(View view, boolean show, float scaleFactor, boolean goneOnHide, float maxAlpha, boolean animated) {
+        updateViewVisibilityAnimated(view, show, scaleFactor, goneOnHide, maxAlpha, animated, null);
     }
 
     public static void updateViewVisibilityAnimated(View view, boolean show, float scaleFactor, boolean goneOnHide, float maxAlpha, boolean animated, ValueAnimator.AnimatorUpdateListener onUpdate) {
@@ -7321,4 +7353,73 @@ public class AndroidUtilities {
         }
         return null;
     }
+
+    // MurkaGram: core-13 compat
+    public static boolean isWebAppLink(String url) {
+        if (url == null) return false;
+        try {
+            Uri uri = Uri.parse(url);
+            final String scheme = uri.getScheme();
+            if (scheme == null) return false;
+            final String path = uri.getPath();
+            if (path == null) return false;
+            switch (scheme) {
+                case "http":
+                case "https": {
+                    if (path.isEmpty()) return false;
+                    String host = uri.getHost().toLowerCase();
+                    Matcher prefixMatcher = LaunchActivity.PREFIX_T_ME_PATTERN.matcher(host);
+                    boolean isPrefix = prefixMatcher.find();
+                    if (host.equals("telegram.me") || host.equals("t.me") || host.equals("telegram.dog") || isPrefix) {
+                        ArrayList<String> segments = new ArrayList<>(uri.getPathSegments());
+                        if (segments.size() > 0 && segments.get(0).equals("s")) {
+                            segments.remove(0);
+                        }
+                        if (segments.size() > 0) {
+                            if (segments.size() >= 3 && "s".equals(segments.get(1))) {
+                                return false;
+                            } else if (segments.size() > 1) {
+                                final String segment0 = segments.get(0);
+                                if (TextUtils.isEmpty(segment0)) return false;
+                                switch (segment0) {
+                                    case "joinchat":
+                                    case "login":
+                                    case "addstickers":
+                                    case "addemoji":
+                                    case "msg":
+                                    case "share":
+                                    case "confirmphone":
+                                    case "setlanguage":
+                                    case "addtheme":
+                                    case "boost":
+                                    case "c":
+                                    case "contact":
+                                    case "folder":
+                                    case "addlist":
+                                        return false;
+                                }
+                                final String segment1 = segments.get(1);
+                                if (TextUtils.isEmpty(segment1)) return false;
+                                if (segment1.matches("^\\d+$")) return false;
+                                return true;
+                            } else if (segments.size() == 1) {
+                                return !TextUtils.isEmpty(uri.getQueryParameter("startapp"));
+                            }
+                        }
+                    }
+                    break;
+                }
+                case "tg": {
+                    if (url.startsWith("tg:resolve") || url.startsWith("tg://resolve")) {
+                        return !TextUtils.isEmpty(uri.getQueryParameter("appname"));
+                    }
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return false;
+    }
+
 }

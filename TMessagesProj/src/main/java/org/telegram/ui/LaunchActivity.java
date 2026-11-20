@@ -392,6 +392,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     private WindowAnimatedInsetsProvider rootAnimatedInsetsListener;
 
     public static LaunchActivity instance;
+    private boolean murkaRedirected; // MurkaGram: dual UI, this instance only handed its intent over to the classic edition
 
     public boolean voipLaunchedInBackground;
 
@@ -404,6 +405,13 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // MurkaGram: dual UI, the classic 12.2.10 edition is active: hand the intent over to its activity
+        if (org.telegram.messenger.UiEdition.isClassic()) {
+            murkaRedirected = true;
+            super.onCreate(null);
+            org.telegram.messenger.UiEdition.handOver(this, org.telegram.messenger.UiEdition.bridge().component(org.telegram.messenger.UiBridge.COMPONENT_LAUNCH));
+            return;
+        }
         isActive = true;
         activeInstanceCount++;
         if (BuildVars.DEBUG_VERSION) {
@@ -6297,6 +6305,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onNewIntent(Intent intent) {
+        if (murkaRedirected) { super.onNewIntent(intent); return; } // MurkaGram: dual UI, trampoline
         super.onNewIntent(intent);
         // a fold / unfold in the background may already have switched isTablet() (the application gets the new
         // configuration first) while this activity's layouts are still the old ones: switch them before opening anything
@@ -6306,6 +6315,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     }
 
     public void onNewIntent(Intent intent, Browser.Progress progress) {
+        if (murkaRedirected) { super.onNewIntent(intent); return; } // MurkaGram: dual UI, trampoline
         super.onNewIntent(intent);
         invalidateTabletMode();
         checkLayout();
@@ -6799,6 +6809,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (murkaRedirected) { super.onActivityResult(requestCode, resultCode, data); return; } // MurkaGram: dual UI, trampoline
         if (SharedConfig.passcodeHash.length() != 0 && SharedConfig.lastPauseTime != 0) {
             SharedConfig.lastPauseTime = 0;
             if (BuildVars.LOGS_ENABLED) {
@@ -6870,6 +6881,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (murkaRedirected) { super.onRequestPermissionsResult(requestCode, permissions, grantResults); return; } // MurkaGram: dual UI, trampoline
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (!checkPermissionsResult(requestCode, permissions, grantResults)) return;
         if (ApplicationLoader.applicationLoaderInstance != null && ApplicationLoader.applicationLoaderInstance.checkRequestPermissionResult(requestCode, permissions, grantResults)) return;
@@ -6910,6 +6922,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onPause() {
+        if (murkaRedirected) { super.onPause(); return; } // MurkaGram: dual UI, trampoline
         super.onPause();
         isResumed = false;
         WidgetMedia.onAppPaused(true);
@@ -6967,6 +6980,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onStart() {
+        if (murkaRedirected) { super.onStart(); return; } // MurkaGram: dual UI, trampoline
         super.onStart();
         isStarted = true;
         PipCoordinator.getInstance().onActivityStart(this);
@@ -6980,6 +6994,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onStop() {
+        if (murkaRedirected) { super.onStop(); return; } // MurkaGram: dual UI, trampoline
         super.onStop();
         GramWalletStorageAuth.onActivityStopped(this);
         isStarted = false;
@@ -6997,6 +7012,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public boolean onPictureInPictureRequested() {
+        if (murkaRedirected) { return super.onPictureInPictureRequested(); } // MurkaGram: dual UI, trampoline
         PipCoordinator.getInstance().onPictureInPictureRequested();
         return super.onPictureInPictureRequested();
     }
@@ -7004,12 +7020,14 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     @Override
     public void onPictureInPictureUiStateChanged(@NonNull PictureInPictureUiState pipState) {
         super.onPictureInPictureUiStateChanged(pipState);
+        if (murkaRedirected) { return; } // MurkaGram: dual UI, trampoline
         PipCoordinator.getInstance().onPictureInPictureUiStateChanged(pipState);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
+        if (murkaRedirected) { super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig); return; } // MurkaGram: dual UI, trampoline
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
         PipCoordinator.getInstance().onPictureInPictureModeChanged(isInPictureInPictureMode);
 
@@ -7107,6 +7125,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onDestroy() {
+        if (murkaRedirected) { super.onDestroy(); return; } // MurkaGram: dual UI, trampoline
         GramWalletStorageAuth.onActivityDestroyed(this);
         PipCoordinator.getInstance().onActivityDestroy(this);
         isActive = false;
@@ -7209,6 +7228,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onUserLeaveHint() {
+        if (murkaRedirected) { super.onUserLeaveHint(); return; } // MurkaGram: dual UI, trampoline
         PipCoordinator.getInstance().onUserLeaveHint();
         for (Runnable callback : onUserLeaveHintListeners) {
             callback.run();
@@ -7222,6 +7242,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onResume() {
+        if (murkaRedirected) { super.onResume(); return; } // MurkaGram: dual UI, trampoline
         super.onResume();
         WidgetMedia.onAppPaused(false);
         isResumed = true;
@@ -7388,6 +7409,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
+        if (murkaRedirected) { super.onConfigurationChanged(newConfig); return; } // MurkaGram: dual UI, trampoline
         AndroidUtilities.checkDisplaySize(this, newConfig);
         orientationController.update();
         AndroidUtilities.setPreferredMaxRefreshRate(getWindow());
@@ -7430,6 +7452,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onMultiWindowModeChanged(boolean isInMultiWindowMode) {
+        if (murkaRedirected) { super.onMultiWindowModeChanged(isInMultiWindowMode); return; } // MurkaGram: dual UI, trampoline
         AndroidUtilities.isInMultiwindow = isInMultiWindowMode;
         orientationController.update();
         checkLayout();
@@ -8537,6 +8560,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
+        if (murkaRedirected) { super.onSaveInstanceState(outState); return; } // MurkaGram: dual UI, trampoline
         try {
             super.onSaveInstanceState(outState);
             BaseFragment lastFragment = null;
@@ -8591,6 +8615,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onBackPressed() {
+        if (murkaRedirected) { super.onBackPressed(); return; } // MurkaGram: dual UI, trampoline
         if (!onBackPressed(true)) {
             return;
         }
@@ -8644,6 +8669,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onLowMemory() {
+        if (murkaRedirected) { super.onLowMemory(); return; } // MurkaGram: dual UI, trampoline
         super.onLowMemory();
         if (actionBarLayout != null) {
             actionBarLayout.onLowMemory();
@@ -8660,6 +8686,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onActionModeStarted(ActionMode mode) {
+        if (murkaRedirected) { super.onActionModeStarted(mode); return; } // MurkaGram: dual UI, trampoline
         super.onActionModeStarted(mode);
         visibleActionMode = mode;
         try {
@@ -8688,6 +8715,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public void onActionModeFinished(ActionMode mode) {
+        if (murkaRedirected) { super.onActionModeFinished(mode); return; } // MurkaGram: dual UI, trampoline
         super.onActionModeFinished(mode);
         if (visibleActionMode == mode) {
             visibleActionMode = null;
@@ -8719,6 +8747,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (murkaRedirected) { return super.dispatchKeyEvent(event); } // MurkaGram: dual UI, trampoline
         int keyCode = event.getKeyCode();
         if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN) {
             BaseFragment baseFragment = getLastFragment();
@@ -8766,6 +8795,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (murkaRedirected) { return super.onKeyUp(keyCode, event); } // MurkaGram: dual UI, trampoline
         if (keyCode == KeyEvent.KEYCODE_MENU && !SharedConfig.isWaitingForPasscodeEnter) {
             if (PhotoViewer.hasInstance() && PhotoViewer.getInstance().isVisible()) {
                 return super.onKeyUp(keyCode, event);

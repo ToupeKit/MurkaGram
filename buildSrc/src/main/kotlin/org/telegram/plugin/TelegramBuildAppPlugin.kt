@@ -30,6 +30,10 @@ class TelegramBuildAppPlugin : Plugin<Project> {
                     },
                     project.fileTree("src/main/res/values") {
                         include("strings.xml")
+                    },
+                    // MurkaGram: dual UI, strings that exist only in the classic 12.2.10 UI
+                    telegramModule.fileTree("src/classic/res/values") {
+                        include("classic_strings.xml")
                     }
                 )
 
@@ -115,6 +119,10 @@ class TelegramBuildAppPlugin : Plugin<Project> {
                 variant.sources.res?.all?.let { layers ->
                     rawResourceDirs.from(
                         telegramModule.fileTree("src/main/res") {
+                            include("raw*/*.json")
+                        },
+                        // MurkaGram: dual UI, classic_* lottie of the classic 12.2.10 UI
+                        telegramModule.fileTree("src/classic/res") {
                             include("raw*/*.json")
                         },
                         project.fileTree("src/main/res") {

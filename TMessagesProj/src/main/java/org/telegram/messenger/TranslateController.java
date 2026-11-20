@@ -993,14 +993,9 @@ public class TranslateController extends BaseController {
                 callback.run(res);
             } else if (err != null) {
                 if ("SUMMARY_FLOOD_PREMIUM".equalsIgnoreCase(err.text)) {
-                    final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                    final UiHost lastFragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
                     if (lastFragment != null) {
-                        BulletinFactory.of(lastFragment)
-                            .createSimpleBulletin(R.raw.star_premium_2, getString(R.string.SummaryLimit), getString(R.string.SummaryLimitUpgrade), () -> {
-                                lastFragment.presentFragment(new PremiumPreviewFragment("summarize_limit"));
-                            })
-                            .setDuration(Bulletin.DURATION_PROLONG)
-                            .show(true);
+                        UiEdition.bridge().showSummaryLimitBulletin(lastFragment); // MurkaGram: dual UI
                     }
                 }
                 loadingSummarizations.remove(id);

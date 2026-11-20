@@ -190,12 +190,16 @@ public final class SlotsDrawable extends RLottieDiceDrawable {
     }
 
     public boolean setBaseDice(ChatMessageCell messageCell, TLRPC.TL_messages_stickerSet stickerSet) {
+        return setBaseDice(messageCell.getMessageObject(), messageCell, stickerSet);
+    }
+
+    // MurkaGram: dual UI, the cell is only a message holder + download listener here, so the classic ChatMessageCell can use it too
+    public boolean setBaseDice(MessageObject currentMessageObject, DownloadController.FileDownloadProgressListener messageCell, TLRPC.TL_messages_stickerSet stickerSet) {
         if (nativePtr != null || loadingInBackground) {
             return true;
         }
         loadingInBackground = true;
-        MessageObject currentMessageObject = messageCell.getMessageObject();
-        int account = messageCell.getMessageObject().currentAccount;
+        int account = currentMessageObject.currentAccount;
         Utilities.globalQueue.postRunnable(() -> {
             if (destroyAfterLoading) {
                 AndroidUtilities.runOnUIThread(() -> {
@@ -264,12 +268,16 @@ public final class SlotsDrawable extends RLottieDiceDrawable {
     }
 
     public boolean setDiceNumber(ChatMessageCell messageCell, int number, TLRPC.TL_messages_stickerSet stickerSet, boolean instant) {
+        return setDiceNumber(messageCell.getMessageObject(), messageCell, number, stickerSet, instant);
+    }
+
+    // MurkaGram: dual UI, see setBaseDice
+    public boolean setDiceNumber(MessageObject currentMessageObject, DownloadController.FileDownloadProgressListener messageCell, int number, TLRPC.TL_messages_stickerSet stickerSet, boolean instant) {
         if (secondNativePtr != null || secondLoadingInBackground) {
             return true;
         }
         init(number);
-        MessageObject currentMessageObject = messageCell.getMessageObject();
-        int account = messageCell.getMessageObject().currentAccount;
+        int account = currentMessageObject.currentAccount;
 
         secondLoadingInBackground = true;
         Utilities.globalQueue.postRunnable(() -> {

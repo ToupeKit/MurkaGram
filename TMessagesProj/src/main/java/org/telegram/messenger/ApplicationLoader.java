@@ -688,6 +688,11 @@ public class ApplicationLoader extends Application {
         return false;
     }
 
+    // MurkaGram: core-13 compat (the classic 12.2.10 LaunchActivity passes the side menu too)
+    public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenu, ViewGroup sideMenuContainer) {
+        return takeUpdateLayout(activity, sideMenuContainer);
+    }
+
     public IUpdateLayout takeUpdateLayout(Activity activity, ViewGroup sideMenuContainer) {
         return null;
     }

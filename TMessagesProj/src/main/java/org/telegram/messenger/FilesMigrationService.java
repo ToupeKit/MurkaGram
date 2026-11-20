@@ -43,7 +43,7 @@ public class FilesMigrationService extends Service {
     public static FilesMigrationBottomSheet filesMigrationBottomSheet;
     private int totalFilesCount;
     private int movedFilesCount;
-    private static boolean wasShown = false;
+    static boolean wasShown = false; // MurkaGram: dual UI, widened for the classic UI
 
     @Nullable
     @Override

@@ -1535,7 +1535,7 @@ public class ChatObject {
                 }
             }
 
-            if (!GroupCallActivity.isLandscapeMode && visibleVideoParticipants.size() % 2 == 1) {
+            if (!UiEdition.bridge().isGroupCallLandscape() /* MurkaGram: dual UI */ && visibleVideoParticipants.size() % 2 == 1) {
                 VideoParticipant videoParticipant = visibleVideoParticipants.remove(wideVideoIndex);
                 visibleVideoParticipants.add(videoParticipant);
             }
@@ -2561,7 +2561,7 @@ public class ChatObject {
         private void setAspectRatio(float aspectRatio, Call call) {
             if (this.aspectRatio != aspectRatio) {
                 this.aspectRatio = aspectRatio;
-                if (!GroupCallActivity.isLandscapeMode && call.visibleVideoParticipants.size() % 2 == 1) {
+                if (!UiEdition.bridge().isGroupCallLandscape() /* MurkaGram: dual UI */ && call.visibleVideoParticipants.size() % 2 == 1) {
                     call.updateVisibleParticipants();
                 }
             }

@@ -1516,6 +1516,11 @@ public class LocaleController {
         return getString(key, 0);
     }
 
+    // MurkaGram: core-13 compat
+    public static int getStringResId(String key) {
+        return ApplicationLoader.applicationContext.getResources().getIdentifier(key, "string", ApplicationLoader.applicationContext.getPackageName());
+    }
+
     public static String nullable(String val) {
         if (val == null || val.startsWith("LOC_ERR")) return null;
         return val;

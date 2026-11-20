@@ -80,7 +80,7 @@ import org.telegram.utils.glass.GlassEngine;
 import java.util.ArrayList;
 import java.util.HashSet;
 
-public abstract class BaseFragment {
+public abstract class BaseFragment implements org.telegram.messenger.UiHost { // MurkaGram: dual UI
 
     public boolean isFinished;
     protected boolean finishing;

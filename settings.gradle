@@ -1,4 +1,5 @@
 include ':TMessagesProj'
+include ':TMessagesProj_Classic' // MurkaGram: dual UI, classic 12.2.10 UI module
 include ':TMessagesProj_App'
 include ':TMessagesProj_AppHuawei'
 include ':TMessagesProj_AppHockeyApp'

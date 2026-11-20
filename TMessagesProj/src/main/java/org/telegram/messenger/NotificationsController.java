@@ -566,7 +566,7 @@ public class NotificationsController extends BaseController implements Notificat
             if (!popupArray.isEmpty() && !AndroidUtilities.needShowPasscode() && !SharedConfig.isWaitingForPasscodeEnter) {
                 AndroidUtilities.runOnUIThread(() -> {
                     popupReplyMessages = popupArray;
-                    Intent popupIntent = new Intent(ApplicationLoader.applicationContext, PopupNotificationActivity.class);
+                    Intent popupIntent = new Intent(ApplicationLoader.applicationContext, UiEdition.bridge().component(UiBridge.COMPONENT_POPUP)); // MurkaGram: dual UI
                     popupIntent.putExtra("force", true);
                     popupIntent.putExtra("currentAccount", currentAccount);
                     popupIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NO_USER_ACTION | Intent.FLAG_FROM_BACKGROUND);
@@ -1333,7 +1333,7 @@ public class NotificationsController extends BaseController implements Notificat
                     popupMessages.addAll(0, popupArrayAdd);
                     if (ApplicationLoader.mainInterfacePaused || !ApplicationLoader.isScreenOn) {
                         if (popupFinal == 3 || popupFinal == 1 && ApplicationLoader.isScreenOn || popupFinal == 2 && !ApplicationLoader.isScreenOn) {
-                            Intent popupIntent = new Intent(ApplicationLoader.applicationContext, PopupNotificationActivity.class);
+                            Intent popupIntent = new Intent(ApplicationLoader.applicationContext, UiEdition.bridge().component(UiBridge.COMPONENT_POPUP)); // MurkaGram: dual UI
                             popupIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NO_USER_ACTION | Intent.FLAG_FROM_BACKGROUND);
                             try {
                                 ApplicationLoader.applicationContext.startActivity(popupIntent);
@@ -3699,7 +3699,7 @@ public class NotificationsController extends BaseController implements Notificat
             ShortcutInfoCompat shortcut = shortcutBuilder.build();
             ShortcutManagerCompat.pushDynamicShortcut(ApplicationLoader.applicationContext, shortcut);
             builder.setShortcutInfo(shortcut);
-            Intent intent = new Intent(ApplicationLoader.applicationContext, BubbleActivity.class);
+            Intent intent = new Intent(ApplicationLoader.applicationContext, UiEdition.bridge().component(UiBridge.COMPONENT_BUBBLE)); // MurkaGram: dual UI
             intent.setAction("com.tmessages.openchat" + Math.random() + Integer.MAX_VALUE);
             if (DialogObject.isUserDialog(did)) {
                 intent.putExtra("userId", did);

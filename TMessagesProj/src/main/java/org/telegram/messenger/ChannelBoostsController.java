@@ -39,9 +39,9 @@ public class ChannelBoostsController {
             if (response != null) {
                 consumer.run((TL_stories.TL_premium_boostsStatus) response);
             } else {
-                BaseFragment fragment = LaunchActivity.getLastFragment();
+                UiHost fragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
                 if (error != null && fragment != null && "CHANNEL_PRIVATE".equals(error.text)) {
-                    if (!(LaunchActivity.instance != null && LaunchActivity.instance.isFinishing())) {
+                    if (!(UiEdition.activity() != null && UiEdition.activity().isFinishing())) { // MurkaGram: dual UI
                         AlertDialog.Builder builder = new AlertDialog.Builder(fragment.getContext(), fragment.getResourceProvider());
                         builder.setTitle(LocaleController.getString(R.string.AppName));
                         Map<String, Integer> colorsReplacement = new HashMap<>();

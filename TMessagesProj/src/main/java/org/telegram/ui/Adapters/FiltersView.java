@@ -792,7 +792,7 @@ public class FiltersView extends RecyclerListView implements Theme.Colorable {
 
         public int iconResFilled;
         public int titleResId;
-        private String title;
+        public String title; // MurkaGram: dual UI, widened for the classic UI
         public int filterType;
         public TLRPC.MessagesFilter filter;
         public TLObject chat;
@@ -852,7 +852,7 @@ public class FiltersView extends RecyclerListView implements Theme.Colorable {
         public final long minDate;
         public final long maxDate;
 
-        private DateData(String title, long minDate, long maxDate) {
+        public DateData(String title, long minDate, long maxDate) { // MurkaGram: dual UI, widened for the classic UI
             this.title = title;
             this.minDate = minDate;
             this.maxDate = maxDate;

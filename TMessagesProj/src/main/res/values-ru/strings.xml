@@ -60,6 +60,11 @@
     <string name="MurkaClassicSettingsIcons">Классические иконки настроек</string>
     <string name="MurkaClassicInfo">Синие шапки, плоские списки с тенями и серые иконки в «Настройках», как в MurkaGram 12.2.10. Лучше всего вместе с классической палитрой из пакета дизайна.</string>
     <string name="MurkaClassicHeaderRestart">Перезапустите приложение, чтобы применить классическую шапку.</string>
+    <!-- MurkaGram: dual UI -->
+    <string name="MurkaUiEdition">Интерфейс</string>
+    <string name="MurkaUiEditionModern">13.2.2 (новый)</string>
+    <string name="MurkaUiEditionClassic">12.2.10 (классический)</string>
+    <string name="MurkaUiEditionRestart">Перезапустите приложение, чтобы сменить интерфейс.</string>
     <string name="MurkaFabShapeCircle">Круглая кнопка</string>
     <string name="MurkaFabShapeSquare">Квадратная кнопка</string>
     <string name="MurkaEditedIcon">Заменять «изменено» иконкой</string>

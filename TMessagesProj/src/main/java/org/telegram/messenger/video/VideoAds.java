@@ -1,5 +1,6 @@
 package org.telegram.messenger.video;
 
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import static org.telegram.messenger.AndroidUtilities.checkAndroidTheme;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.lerp;
@@ -788,12 +789,12 @@ public static VideoAds make(
             }
             @Override
             public Context getContext() {
-                return AndroidUtilities.findActivity(LaunchActivity.instance);
+                return AndroidUtilities.findActivity(UiEdition.activity()); // MurkaGram: dual UI
             }
             @Override
             public Activity getParentActivity() {
                 Activity activity = AndroidUtilities.findActivity(ApplicationLoader.applicationContext);
-                if (activity == null) activity = LaunchActivity.instance;
+                if (activity == null) activity = UiEdition.activity(); // MurkaGram: dual UI
                 return activity;
             }
         };

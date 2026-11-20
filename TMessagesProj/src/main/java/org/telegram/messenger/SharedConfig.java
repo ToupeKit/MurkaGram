@@ -80,7 +80,7 @@ public class SharedConfig {
                 if (readOnlyStorageDirAlertShowed) {
                     return;
                 }
-                BaseFragment fragment = LaunchActivity.getLastFragment();
+                UiHost fragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
                 if (fragment != null && fragment.getParentActivity() != null) {
                     SharedConfig.storageCacheDir = null;
                     SharedConfig.saveConfig();
@@ -290,6 +290,10 @@ public class SharedConfig {
     public static boolean raiseToListen = true;
     public static boolean nextMediaTap = true;
     public static boolean recordViaSco = false;
+    // MurkaGram: core-13 compat (removed in 13.x, used by the classic 12.2.10 browser settings)
+    public static boolean customTabs = true;
+    public static boolean inappBrowser = true;
+    public static final boolean noStatusBar = true;
     public static boolean adaptableColorInBrowser = true;
     public static boolean onlyLocalInstantView = false;
     public static boolean directShare = true;
@@ -603,6 +607,8 @@ public class SharedConfig {
             raiseToSpeak = preferences.getBoolean("raise_to_speak", false);
             nextMediaTap = preferences.getBoolean("next_media_on_tap", true);
             recordViaSco = preferences.getBoolean("record_via_sco", false);
+            customTabs = preferences.getBoolean("custom_tabs", true); // MurkaGram: core-13 compat
+            inappBrowser = preferences.getBoolean("inapp_browser", true); // MurkaGram: core-13 compat
             adaptableColorInBrowser = preferences.getBoolean("adaptableBrowser", false);
             onlyLocalInstantView = preferences.getBoolean("onlyLocalInstantView", BuildVars.DEBUG_PRIVATE_VERSION);
             directShare = preferences.getBoolean("direct_share", true);
@@ -1289,6 +1295,24 @@ public class SharedConfig {
 
     public static boolean enabledRaiseTo(boolean speak) {
         return raiseToListen && (!speak || raiseToSpeak);
+    }
+
+    // MurkaGram: core-13 compat
+    public static void toggleCustomTabs(boolean newValue) {
+        customTabs = newValue;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putBoolean("custom_tabs", customTabs);
+        editor.apply();
+    }
+
+    // MurkaGram: core-13 compat
+    public static void toggleInappBrowser() {
+        inappBrowser = !inappBrowser;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putBoolean("inapp_browser", inappBrowser);
+        editor.apply();
     }
 
     public static void toggleBrowserAdaptableColors() {

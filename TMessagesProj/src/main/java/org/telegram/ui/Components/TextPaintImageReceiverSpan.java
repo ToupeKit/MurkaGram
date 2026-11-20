@@ -60,6 +60,32 @@ public class TextPaintImageReceiverSpan extends ReplacementSpan {
         alignTop = top;
     }
 
+    // MurkaGram: dual UI, the classic ArticleViewer loads the image itself (its own WebInstantView.WebPhoto type)
+    public TextPaintImageReceiverSpan(View parentView, int w, int h, boolean top, boolean invert, org.telegram.messenger.Utilities.Callback<ImageReceiver> load) {
+        width = w;
+        height = h;
+        imageReceiver = new ImageReceiver(parentView);
+        imageReceiver.setInvalidateAll(true);
+        if (invert) {
+            imageReceiver.setDelegate((imageReceiver, set, thumb, memCache) -> {
+                if (!imageReceiver.canInvertBitmap()) {
+                    return;
+                }
+                float[] NEGATIVE = {
+                        -1.0f, 0, 0, 0, 255,
+                        0, -1.0f, 0, 0, 255,
+                        0, 0, -1.0f, 0, 255,
+                        0, 0, 0, 1.0f, 0
+                };
+                imageReceiver.setColorFilter(new ColorMatrixColorFilter(NEGATIVE));
+            });
+        }
+        if (load != null) {
+            load.run(imageReceiver);
+        }
+        alignTop = top;
+    }
+
     public TextPaintImageReceiverSpan(View parentView, WebInstantView.WebPhoto webPhoto, Object parentObject, int w, int h, boolean top, boolean invert) {
         width = w;
         height = h;

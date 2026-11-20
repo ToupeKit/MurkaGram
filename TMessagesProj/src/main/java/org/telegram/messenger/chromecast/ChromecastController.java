@@ -1,5 +1,6 @@
 package org.telegram.messenger.chromecast;
 
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -112,7 +113,7 @@ public class ChromecastController implements SessionManagerListener<CastSession>
         final CastDevice device = castSession.getCastDevice();
         final String deviceName = device != null ? device.getFriendlyName() : null;
 
-        PhotoViewer.getInstance().showChromecastBulletin(ChromecastFileServer.getHost(), deviceName);
+        UiEdition.bridge().showChromecastBulletin(ChromecastFileServer.getHost(), deviceName); // MurkaGram: dual UI
     }
 
 

@@ -1924,7 +1924,7 @@ public class ContactsController extends BaseController {
         phoneBookContacts = sortedPhoneBookContacts;
     }
 
-    private void buildContactsSectionsArrays(boolean sort) {
+    void buildContactsSectionsArrays(boolean sort) { // MurkaGram: dual UI, widened for the classic UI
         final Collator collator = getLocaleCollator();
         if (sort) {
             Collections.sort(contacts, (tl_contact, tl_contact2) -> {

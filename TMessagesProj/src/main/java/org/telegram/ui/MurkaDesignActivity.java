@@ -66,6 +66,7 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_MD3_SWITCHES = 18;
     private static final int ID_EDITED_ICON = 19; // MurkaGram: «Заменять «изменено» иконкой»
     private static final int ID_DESIGN_PACKS = 20; // MurkaGram: «Пакеты дизайна»
+    private static final int ID_UI_EDITION = 24; // MurkaGram: dual UI, «Интерфейс: 13.2.2 / 12.2.10»
     // MurkaGram: категория «Классический вид 12.2.10»
     private static final int ID_CLASSIC_HEADER = 21;
     private static final int ID_CLASSIC_LISTS = 22;
@@ -100,6 +101,9 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_MD3, LocaleController.getString(R.string.MurkaMD3Design)).setChecked(MurkaConfig.md3Design)); // MurkaGram
         items.add(UItem.asButton(ID_FONT, LocaleController.getString(R.string.MurkaFont), getFontModeName(MurkaConfig.fontMode)));
         items.add(UItem.asButton(ID_DESIGN_PACKS, LocaleController.getString(R.string.MurkaDesignPacks))); // MurkaGram: «Пакеты дизайна»
+        if (org.telegram.messenger.UiEdition.classicAvailable()) { // MurkaGram: dual UI, the interface of this app (applied after a restart)
+            items.add(UItem.asButton(ID_UI_EDITION, LocaleController.getString(R.string.MurkaUiEdition), getUiEditionName(org.telegram.messenger.UiEdition.next())));
+        }
         // MurkaGram: ui-13 TODO — 13.2.2 has no side drawer (decision deferred), «Настройки бокового меню» hidden
         // items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings)));
         items.add(UItem.asShadow(null));
@@ -294,6 +298,8 @@ public class MurkaDesignActivity extends UniversalFragment {
             showFontDialog();
         } else if (item.id == ID_DRAWER) { // MurkaGram
             presentFragment(new MurkaDrawerSettingsActivity());
+        } else if (item.id == ID_UI_EDITION) { // MurkaGram: dual UI
+            showUiEditionDialog();
         } else if (item.id == ID_DESIGN_PACKS) { // MurkaGram: «Пакеты дизайна»
             presentFragment(new MurkaDesignPacksActivity());
         }
@@ -329,6 +335,31 @@ public class MurkaDesignActivity extends UniversalFragment {
     }
 
     // MurkaGram: «Тип разделителей»
+    // MurkaGram: dual UI, the interface edition: 13.2.2 (modern) or 12.2.10 (classic), stored for the next start
+    private static String getUiEditionName(String edition) {
+        return LocaleController.getString(org.telegram.messenger.UiEdition.CLASSIC.equals(edition) ? R.string.MurkaUiEditionClassic : R.string.MurkaUiEditionModern);
+    }
+
+    // MurkaGram: dual UI
+    private void showUiEditionDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final String[] options = new String[]{
+            getUiEditionName(org.telegram.messenger.UiEdition.MODERN),
+            getUiEditionName(org.telegram.messenger.UiEdition.CLASSIC)
+        };
+        final int selected = org.telegram.messenger.UiEdition.CLASSIC.equals(org.telegram.messenger.UiEdition.next()) ? 1 : 0;
+        showDialog(AlertsCreator.createSingleChoiceDialog(getParentActivity(), options, LocaleController.getString(R.string.MurkaUiEdition), selected, (dialog, which) -> {
+            if (which == selected) {
+                return;
+            }
+            org.telegram.messenger.UiEdition.setForNextLaunch(which == 1 ? org.telegram.messenger.UiEdition.CLASSIC : org.telegram.messenger.UiEdition.MODERN);
+            updateList();
+            showRestartDialog(LocaleController.getString(R.string.MurkaUiEditionRestart));
+        }));
+    }
+
     private void showDividersDialog() {
         if (getParentActivity() == null) {
             return;

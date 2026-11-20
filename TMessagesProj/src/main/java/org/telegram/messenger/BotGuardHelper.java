@@ -23,10 +23,10 @@ public class BotGuardHelper extends BaseController {
     }
 
     private void openGuardBotWebApp(long dialogId, long guardBotId, long queryId, boolean confirmed) {
-        if (LaunchActivity.instance == null) {
+        if (UiEdition.activity() == null) { // MurkaGram: dual UI
             return;
         }
-        final BaseFragment lastFragment = LaunchActivity.getLastFragment();
+        final UiHost lastFragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
         if (lastFragment == null) {
             return;
         }
@@ -37,7 +37,7 @@ public class BotGuardHelper extends BaseController {
             if (SharedPrefsHelper.isWebViewConfirmShown(currentAccount, guardBotId) || getMessagesController().whitelistedBots.contains(guardBotId)) {
                 openGuardBotWebApp(dialogId, guardBotId, queryId, true);
             } else {
-                AlertsCreator.createBotLaunchAlert(lastFragment, botUser, () -> {
+                UiEdition.bridge().showBotLaunchAlert(lastFragment, botUser, () -> { // MurkaGram: dual UI
                     openGuardBotWebApp(dialogId, guardBotId, queryId, true);
                     SharedPrefsHelper.setWebViewConfirmShown(currentAccount, guardBotId, true);
                 }, () -> {});
@@ -47,20 +47,8 @@ public class BotGuardHelper extends BaseController {
 
         queryIdToBotId.put(queryId, guardBotId);
 
-        final BaseFragment parentFragment = LaunchActivity.getLastFragment();
-        final Theme.ResourcesProvider resourcesProvider = null;
-
-        final WebViewRequestProps props = WebViewRequestProps.of(currentAccount, dialogId, guardBotId,
-            null, null, BotWebViewAttachedSheet.TYPE_WEB_VIEW_GUARD, 0, 0,
-            false, null, false, null, null, 0, false, false);
-        props.queryId = queryId;
-
-        BotWebViewSheet webViewSheet = new BotWebViewSheet(LaunchActivity.instance, resourcesProvider);
-        webViewSheet.setDefaultFullsize(false);
-        webViewSheet.setNeedsContext(true);
-        webViewSheet.setParentActivity(LaunchActivity.instance);
-        webViewSheet.requestWebView(parentFragment, props);
-        webViewSheet.show();
+        final UiHost parentFragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
+        UiEdition.bridge().openGuardBotWebApp(parentFragment, currentAccount, dialogId, guardBotId, queryId); // MurkaGram: dual UI
     }
 
     public void closeGuardBotWebApp(long dialogId, long queryId, TLRPC.JoinChatBotResult result) {

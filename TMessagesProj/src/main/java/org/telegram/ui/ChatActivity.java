@@ -15206,7 +15206,7 @@ public class ChatActivity extends BaseFragment implements
             );
         }
 
-        private boolean update() {
+        public boolean update() { // MurkaGram: dual UI, widened for the classic UI
             if (isRich) {
                 if (start < 0 || end < 0) {
                     // restored from quote_rich, there's no selection to rebuild it from

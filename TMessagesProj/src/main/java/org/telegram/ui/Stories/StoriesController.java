@@ -110,7 +110,7 @@ public class StoriesController {
     private ArrayList<TL_stories.PeerStories> hiddenListStories = new ArrayList<>();
     private LongSparseArray<TL_stories.PeerStories> allStoriesMap = new LongSparseArray();
     private LongSparseIntArray loadingDialogsStories = new LongSparseIntArray();
-    StoriesStorage storiesStorage;
+    public StoriesStorage storiesStorage; // MurkaGram: dual UI, widened for the classic UI
     SharedPreferences mainSettings;
     final LongSparseArray<ViewsForPeerStoriesRequester> pollingViewsForSelfStoriesRequester = new LongSparseArray<>();
 
@@ -1538,7 +1538,7 @@ public class StoriesController {
 
     HashSet<Long> loadingAllStories = new HashSet<>();
 
-    void loadSkippedStories(long dialogId) {
+    public void loadSkippedStories(long dialogId) { // MurkaGram: dual UI, widened for the classic UI
         boolean profile = false;
         TL_stories.PeerStories peerStories = getStories(dialogId);
         if (peerStories == null) {
@@ -1548,7 +1548,7 @@ public class StoriesController {
         loadSkippedStories(peerStories, profile);
     }
 
-    void loadSkippedStories(TL_stories.PeerStories userStories, boolean profile) {
+    public void loadSkippedStories(TL_stories.PeerStories userStories, boolean profile) { // MurkaGram: dual UI, widened for the classic UI
         if (userStories == null) {
             return;
         }
@@ -1964,14 +1964,14 @@ public class StoriesController {
 
         public final StoryEntry entry;
         private boolean entryDestroyed;
-        String path;
+        public String path; // MurkaGram: dual UI, widened for the classic UI
         public String firstFramePath;
         public float progress;
         float convertingProgress, uploadProgress;
         boolean ready;
-        boolean isVideo;
+        public boolean isVideo; // MurkaGram: dual UI, widened for the classic UI
 
-        boolean canceled;
+        public boolean canceled; // MurkaGram: dual UI, widened for the classic UI
         private int currentRequest;
         private long firstSecondSize = -1;
         private long duration;
@@ -3639,6 +3639,11 @@ public class StoriesController {
             return year * 10000L + month * 100L + day;
         }
 
+        // MurkaGram: dual UI, public access for the classic UI (subclasses override getDays() as protected)
+        public ArrayList<ArrayList<Integer>> murkaGetDays() {
+            return getDays();
+        }
+
         protected ArrayList<ArrayList<Integer>> getDays() {
             final ArrayList<Long> keys = new ArrayList<>(groupedByDay.keySet());
             Collections.sort(keys, (a, b) -> (int) (b - a));
@@ -3767,6 +3772,11 @@ public class StoriesController {
                     saving = false;
                 });
             });
+        }
+
+        // MurkaGram: dual UI, public access for the classic UI (subclasses override markAsRead() as protected)
+        public boolean murkaMarkAsRead(int storyId) {
+            return markAsRead(storyId);
         }
 
         protected boolean markAsRead(int storyId) {

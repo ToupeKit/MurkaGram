@@ -553,7 +553,7 @@ public class StoryEntry {
         return file;
     }
 
-    private String ext(File file) {
+    String ext(File file) { // MurkaGram: dual UI, widened for the classic UI
         if (file == null) {
             return null;
         }

@@ -88,9 +88,9 @@ public class UserNameResolver {
                 }
 
                 if (error != null && error.text != null && error.text.contains("FLOOD_WAIT")) {
-                    BaseFragment fragment = LaunchActivity.getLastFragment();
+                    UiHost fragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
                     if (fragment != null) {
-                        BulletinFactory.of(fragment).createErrorBulletin(LocaleController.getString(R.string.FloodWait)).show();
+                        UiEdition.bridge().showErrorBulletin(fragment, LocaleController.getString(R.string.FloodWait)); // MurkaGram: dual UI
                     }
                 }
                 return;

@@ -1035,6 +1035,31 @@ public class MessageObject {
             return AndroidUtilities.lerp(height, collapsedHeight, collapsed(tp));
         }
 
+        // MurkaGram: dual UI, the same for the classic 12.2.10 ChatMessageCell.TransitionParams
+        public int height(QuoteCollapseParams tp) {
+            if (!quoteCollapse)
+                return height;
+            return AndroidUtilities.lerp(height, collapsedHeight, collapsed(tp));
+        }
+
+        // MurkaGram: dual UI
+        public float collapsed(QuoteCollapseParams tp) {
+            final boolean pastCollapsed = tp.murkaAnimateExpandedQuotes() ? (tp.murkaAnimateExpandedQuotesFrom() == null ? true : !tp.murkaAnimateExpandedQuotesFrom().contains(index)) : collapsed();
+            return AndroidUtilities.lerp(pastCollapsed ? 1f : 0f, collapsed() ? 1f : 0f, tp.murkaAnimateChangeProgress());
+        }
+
+        // MurkaGram: dual UI
+        public float textYOffset(ArrayList<TextLayoutBlock> blocks, QuoteCollapseParams tp) {
+            if (blocks == null) return 0;
+            int h = 0;
+            for (int i = 0; i < blocks.size(); ++i) {
+                TextLayoutBlock block = blocks.get(i);
+                if (block == this) break;
+                h += block.padTop + block.height(tp) + block.padBottom;
+            }
+            return h;
+        }
+
         public float collapsed(ChatMessageTransitionParams tp) {
             final boolean pastCollapsed = tp.animateExpandedQuotes ? (tp.animateExpandedQuotesFrom == null ? true : !tp.animateExpandedQuotesFrom.contains(index)) : collapsed();
             return AndroidUtilities.lerp(pastCollapsed ? 1f : 0f, collapsed() ? 1f : 0f, tp.animateChangeProgress);
@@ -1940,6 +1965,7 @@ public class MessageObject {
             public boolean pinnedBotton;
 
             public ChatMessageCell cell;
+            public android.view.View murkaClassicCell; // MurkaGram: dual UI, the classic ChatMessageCell of the group
             public float captionEnterProgress = 1f;
             public boolean drawCaptionLayout;
             public boolean isNewGroup;
@@ -9447,6 +9473,23 @@ public class MessageObject {
         return h;
     }
 
+    // MurkaGram: dual UI, quote collapse state of the classic 12.2.10 ChatMessageCell.TransitionParams
+    public interface QuoteCollapseParams {
+        boolean murkaAnimateExpandedQuotes();
+        java.util.Set<Integer> murkaAnimateExpandedQuotesFrom();
+        float murkaAnimateChangeProgress();
+    }
+
+    // MurkaGram: dual UI
+    public int textHeight(QuoteCollapseParams tp) {
+        if (textLayoutBlocks == null) return 0;
+        int h = 0;
+        for (int i = 0; i < textLayoutBlocks.size(); ++i) {
+            h += textLayoutBlocks.get(i).padTop + textLayoutBlocks.get(i).height(tp) + textLayoutBlocks.get(i).padBottom;
+        }
+        return h;
+    }
+
     public int textHeight(ChatMessageTransitionParams tp) {
         if (textLayoutBlocks == null) return 0;
         int h = 0;
@@ -9471,6 +9514,15 @@ public class MessageObject {
             int h = 0;
             for (int i = 0; i < textLayoutBlocks.size(); ++i) {
                 h += textLayoutBlocks.get(i).padTop + textLayoutBlocks.get(i).height() + textLayoutBlocks.get(i).padBottom;
+            }
+            return h;
+        }
+
+        // MurkaGram: dual UI
+        public int textHeight(QuoteCollapseParams tp) {
+            int h = 0;
+            for (int i = 0; i < textLayoutBlocks.size(); ++i) {
+                h += textLayoutBlocks.get(i).padTop + textLayoutBlocks.get(i).height(tp) + textLayoutBlocks.get(i).padBottom;
             }
             return h;
         }
@@ -13522,8 +13574,8 @@ public class MessageObject {
     public Float cachedSavedTimestamp;
     public float getVideoSavedProgress() {
 //        if (cachedSavedTimestamp != null) return cachedSavedTimestamp;
-        if (cachedSavedTimestamp != null) return PhotoViewer.getSavedProgressFast(this);
-        return cachedSavedTimestamp = PhotoViewer.getSavedProgress(this);
+        if (cachedSavedTimestamp != null) return UiEdition.bridge().savedVideoProgress(this, true); // MurkaGram: dual UI
+        return cachedSavedTimestamp = UiEdition.bridge().savedVideoProgress(this, false); // MurkaGram: dual UI
     }
 
     public TLRPC.Photo getVideoCover() {

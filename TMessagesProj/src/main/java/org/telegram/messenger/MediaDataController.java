@@ -272,25 +272,25 @@ public class MediaDataController extends BaseController {
     private boolean isLoadingPremiumPromo;
     private int premiumPromoUpdateDate;
 
-    private ArrayList<TLRPC.TL_messages_stickerSet>[] stickerSets = new ArrayList[]{new ArrayList<>(), new ArrayList<>(), new ArrayList<>(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()};
+    ArrayList<TLRPC.TL_messages_stickerSet>[] stickerSets = new ArrayList[]{new ArrayList<>(), new ArrayList<>(), new ArrayList<>(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()}; // MurkaGram: dual UI, widened for the classic UI
     private LongSparseArray<TLRPC.Document>[] stickersByIds = new LongSparseArray[]{new LongSparseArray<>(), new LongSparseArray<>(), new LongSparseArray<>(), new LongSparseArray<>(), new LongSparseArray<>(), new LongSparseArray<>()};
-    private LongSparseArray<TLRPC.TL_messages_stickerSet> stickerSetsById = new LongSparseArray<>();
-    private LongSparseArray<TLRPC.TL_messages_stickerSet> installedStickerSetsById = new LongSparseArray<>();
+    LongSparseArray<TLRPC.TL_messages_stickerSet> stickerSetsById = new LongSparseArray<>(); // MurkaGram: dual UI, widened for the classic UI
+    LongSparseArray<TLRPC.TL_messages_stickerSet> installedStickerSetsById = new LongSparseArray<>(); // MurkaGram: dual UI, widened for the classic UI
     private ArrayList<Long> installedForceStickerSetsById = new ArrayList<>();
     private ArrayList<Long> uninstalledForceStickerSetsById = new ArrayList<>();
     private LongSparseArray<TLRPC.TL_messages_stickerSet> groupStickerSets = new LongSparseArray<>();
-    private ConcurrentHashMap<String, TLRPC.TL_messages_stickerSet> stickerSetsByName = new ConcurrentHashMap<>(100, 1.0f, 1);
+    ConcurrentHashMap<String, TLRPC.TL_messages_stickerSet> stickerSetsByName = new ConcurrentHashMap<>(100, 1.0f, 1); // MurkaGram: dual UI, widened for the classic UI
     private TLRPC.TL_messages_stickerSet stickerSetDefaultStatuses = null;
     private TLRPC.TL_messages_stickerSet stickerSetDefaultChannelStatuses = null;
     private HashMap<String, TLRPC.TL_messages_stickerSet> diceStickerSetsByEmoji = new HashMap<>();
     private LongSparseArray<String> diceEmojiStickerSetsById = new LongSparseArray<>();
     private HashSet<String> loadingDiceStickerSets = new HashSet<>();
-    private LongSparseArray<Runnable> removingStickerSetsUndos = new LongSparseArray<>();
+    LongSparseArray<Runnable> removingStickerSetsUndos = new LongSparseArray<>(); // MurkaGram: dual UI, widened for the classic UI
     private Runnable[] scheduledLoadStickers = new Runnable[7];
     private boolean[] loadingStickers = new boolean[7];
     private boolean[] stickersLoaded = new boolean[7];
-    private long[] loadHash = new long[7];
-    private int[] loadDate = new int[7];
+    long[] loadHash = new long[7]; // MurkaGram: dual UI, widened for the classic UI
+    int[] loadDate = new int[7]; // MurkaGram: dual UI, widened for the classic UI
     public HashMap<String, RingtoneUploader> ringtoneUploaderHashMap = new HashMap<>();
 
     private HashMap<String, ArrayList<TLRPC.Message>> verifyingMessages = new HashMap<>();
@@ -3069,7 +3069,7 @@ public class MediaDataController extends BaseController {
         }
     }
 
-    private void putStickersToCache(int type, ArrayList<TLRPC.TL_messages_stickerSet> stickers, int date, long hash) {
+    void putStickersToCache(int type, ArrayList<TLRPC.TL_messages_stickerSet> stickers, int date, long hash) { // MurkaGram: dual UI, widened for the classic UI
         ArrayList<TLRPC.TL_messages_stickerSet> stickersFinal = stickers != null ? new ArrayList<>(stickers) : null;
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
             try {
@@ -3151,7 +3151,7 @@ public class MediaDataController extends BaseController {
         return null;
     }
 
-    private static long calcStickersHash(ArrayList<TLRPC.TL_messages_stickerSet> sets) {
+    static long calcStickersHash(ArrayList<TLRPC.TL_messages_stickerSet> sets) { // MurkaGram: dual UI, widened for the classic UI
         long acc = 0;
         for (int a = 0; a < sets.size(); a++) {
             if (sets.get(a) == null) {

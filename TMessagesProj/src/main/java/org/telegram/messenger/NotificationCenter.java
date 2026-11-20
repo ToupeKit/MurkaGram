@@ -47,6 +47,7 @@ public class NotificationCenter {
     public static final int murkaReadDateSaved = totalEvents++; // MurkaGram
     public static final int murkaDrawerItemsChanged = totalEvents++; // MurkaGram
     public static final int murkaBadgesUpdated = totalEvents++; // MurkaGram
+    public static final int webViewResolved = totalEvents++; // MurkaGram: core-13 compat
     public static final int historyCleared = totalEvents++;
     public static final int messagesRead = totalEvents++;
     public static final int threadMessagesRead = totalEvents++;

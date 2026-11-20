@@ -28,8 +28,10 @@ public class MurkaConfig {
         return !ghostMode && userId == UserConfig.getInstance(account).getClientUserId();
     }
 
-    // MurkaGram: редакция интерфейса этой сборки ("modern" — ui-13, "classic" — core-13). Пакеты-редакции .mgdesign ставят другую.
-    public static final String UI_EDITION = "modern";
+    // MurkaGram: редакция интерфейса ("modern" — 13.2.2, "classic" — 12.2.10). Dual UI: выбирается во время работы, см. UiEdition.current().
+    public static String uiEdition() {
+        return UiEdition.current();
+    }
 
     // Раздел «Дизайн».
     public static final int FONT_DEFAULT = 0;
@@ -527,7 +529,8 @@ public class MurkaConfig {
         "md3Design", "md3FabShape", "md3DividerMode", "md3Containers", "md3SeparateHeaders", "md3Switches",
         "centerTitle", "noBubbleTail", "editedIcon", "messageMenuIconBar", "springAnimation",
         "noNumberRounding", "timeWithSeconds", "fontMode", "emojiMode",
-        "classicHeader", "classicLists", "classicSettingsIcons"
+        "classicHeader", "classicLists", "classicSettingsIcons",
+        "uiEdition" // MurkaGram: dual UI, "modern" | "classic", applied on the next start
     };
 
     // Проверяет значение настройки дизайна. Возвращает Boolean/Integer или null, если ключ неизвестен или значение недопустимо.
@@ -552,6 +555,8 @@ public class MurkaConfig {
             case "classicLists":
             case "classicSettingsIcons":
                 return value instanceof Boolean ? value : null;
+            case "uiEdition": // MurkaGram: dual UI
+                return UiEdition.MODERN.equals(value) || UiEdition.CLASSIC.equals(value) ? value : null;
             case "md3FabShape":
                 return validateDesignInt(value, FAB_CIRCLE, FAB_SQUARE);
             case "md3DividerMode":
@@ -596,6 +601,9 @@ public class MurkaConfig {
         map.put("classicHeader", classicHeader);
         map.put("classicLists", classicLists);
         map.put("classicSettingsIcons", classicSettingsIcons);
+        if (UiEdition.classicAvailable()) { // MurkaGram: dual UI, the edition chosen for the next start
+            map.put("uiEdition", UiEdition.next());
+        }
         if (includeCustom || fontMode != FONT_CUSTOM) {
             map.put("fontMode", fontMode);
         }
@@ -662,6 +670,11 @@ public class MurkaConfig {
                 case "classicHeader": classicHeader = (Boolean) v; break;
                 case "classicLists": classicLists = (Boolean) v; break;
                 case "classicSettingsIcons": classicSettingsIcons = (Boolean) v; break;
+                case "uiEdition": // MurkaGram: dual UI, only builds with both editions; takes effect after a restart
+                    if (UiEdition.classicAvailable()) {
+                        UiEdition.setForNextLaunch((String) v);
+                    }
+                    continue;
                 case "md3FabShape": md3FabShape = (Integer) v; break;
                 case "md3DividerMode": md3DividerMode = (Integer) v; break;
                 case "fontMode": {

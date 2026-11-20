@@ -128,7 +128,7 @@ public class LiveCommentsView extends FrameLayout implements NotificationCenter.
         public int currentAccount;
         public long dialogId;
         public int lastSentDate;
-        private long max_stars;
+        public long max_stars; // MurkaGram: dual UI, widened for the classic UI
         public int place;
 
         public ArrayList<Message> messages = new ArrayList<>();

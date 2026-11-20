@@ -32,10 +32,19 @@ import org.telegram.ui.Components.ShareAlert;
 
 public class ShareActivity extends Activity {
 
+    private boolean murkaRedirected; // MurkaGram: dual UI, this instance only handed its intent over to the classic edition
+
     private Dialog visibleDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // MurkaGram: dual UI, the classic 12.2.10 edition is active: hand the intent over to its activity
+        if (org.telegram.messenger.UiEdition.isClassic()) {
+            murkaRedirected = true;
+            super.onCreate(null);
+            org.telegram.messenger.UiEdition.handOver(this, org.telegram.messenger.UiEdition.bridge().component(org.telegram.messenger.UiBridge.COMPONENT_SHARE));
+            return;
+        }
         ApplicationLoader.postInitApplication();
         AndroidUtilities.checkDisplaySize(this, getResources().getConfiguration());
         AndroidUtilities.setPreferredMaxRefreshRate(getWindow());
@@ -94,6 +103,7 @@ public class ShareActivity extends Activity {
 
     @Override
     public void onPause() {
+        if (murkaRedirected) { super.onPause(); return; } // MurkaGram: dual UI, trampoline
         super.onPause();
         try {
             if (visibleDialog != null && visibleDialog.isShowing()) {

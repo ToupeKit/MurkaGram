@@ -118,7 +118,7 @@ public class RLottieDrawable extends BitmapDrawable implements Animatable, Bitma
     private final RectF dstRect = new RectF();
     private final RectF[] dstRectBackground = new RectF[DrawingInBackgroundThreadDrawable.THREAD_COUNT];
     private final Paint[] backgroundPaint = new Paint[DrawingInBackgroundThreadDrawable.THREAD_COUNT];
-    protected volatile boolean isRunning;
+    public volatile boolean isRunning; // MurkaGram: dual UI, widened for the classic UI
     protected volatile boolean isRecycled;
     protected volatile RLottieNative nativePtr;
     private boolean fallbackCache;
@@ -207,7 +207,7 @@ public class RLottieDrawable extends BitmapDrawable implements Animatable, Bitma
 
     public Runnable whenCacheDone;
 
-    BitmapsCache bitmapsCache;
+    public BitmapsCache bitmapsCache; // MurkaGram: dual UI, widened for the classic UI
     int generateCacheFramePointer;
 
     public static void createCacheGenQueue() {
@@ -631,6 +631,16 @@ public class RLottieDrawable extends BitmapDrawable implements Animatable, Bitma
         this.onAnimationEndListener = onAnimationEndListener;
     }
 
+    // MurkaGram: dual UI, 12.2.10 constructors with a cache name, used all over the classic UI; the name is no longer needed
+    public RLottieDrawable(@RawRes int rawRes, String name, int w, int h) {
+        this(rawRes, w, h);
+    }
+
+    // MurkaGram: dual UI, see above
+    public RLottieDrawable(@RawRes int rawRes, String name, int w, int h, boolean startDecode, int[] colorReplacement) {
+        this(rawRes, w, h, startDecode, colorReplacement);
+    }
+
     public RLottieDrawable(@RawRes int rawRes, int w, int h) {
         this(rawRes, w, h, true, null);
     }
@@ -892,6 +902,10 @@ public class RLottieDrawable extends BitmapDrawable implements Animatable, Bitma
     }
 
     public final void setLayerColor(String layerName, int color) {
+        // MurkaGram: dual UI, the 13.x lottie renderer matches plain layer names, the classic 12.x UI passes "Name.**" keypaths
+        if (layerName != null && layerName.endsWith(".**")) {
+            layerName = layerName.substring(0, layerName.length() - 3);
+        }
         newColorUpdates.put(layerName, color);
         requestRedrawColors();
     }
@@ -1410,6 +1424,37 @@ public class RLottieDrawable extends BitmapDrawable implements Animatable, Bitma
                 Choreographer60FpsContent.getInstance().removeFrameCallback(mUiThreadChoreographerCallback);
                 // Log.i("CHOREOGRAPHER_DEBUG", "- LottieDrawable " + activeChoreographersCount);
             }
+        }
+    }
+
+    // MurkaGram: dual UI, the classic QrActivity draws a fixed logo frame
+    private Bitmap rawBackgroundBitmap;
+    private int rawBackgroundBitmapFrame = -1;
+
+    // MurkaGram: dual UI
+    public void cacheFrame(int frame) {
+        final RLottieNative ptr = nativePtr;
+        if (ptr == null) {
+            return;
+        }
+        if (rawBackgroundBitmapFrame != frame || rawBackgroundBitmap == null) {
+            if (rawBackgroundBitmap == null) {
+                rawBackgroundBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            }
+            try {
+                ptr.getFrame(rawBackgroundBitmapFrame = frame, rawBackgroundBitmap, true);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+    }
+
+    // MurkaGram: dual UI
+    public void drawFrame(Canvas canvas, int frame) {
+        cacheFrame(frame);
+        if (rawBackgroundBitmap != null) {
+            AndroidUtilities.rectTmp2.set(0, 0, width, height);
+            canvas.drawBitmap(rawBackgroundBitmap, AndroidUtilities.rectTmp2, getBounds(), getPaint());
         }
     }
 }

@@ -60,6 +60,11 @@
     <string name="MurkaClassicSettingsIcons">Classic settings icons</string>
     <string name="MurkaClassicInfo">Blue headers, flat lists with shadows and gray icons in Settings, as in MurkaGram 12.2.10. Works best with a classic palette from a design pack.</string>
     <string name="MurkaClassicHeaderRestart">Restart the app to apply the classic header.</string>
+    <!-- MurkaGram: dual UI -->
+    <string name="MurkaUiEdition">Interface</string>
+    <string name="MurkaUiEditionModern">13.2.2 (new)</string>
+    <string name="MurkaUiEditionClassic">12.2.10 (classic)</string>
+    <string name="MurkaUiEditionRestart">Restart the app to switch the interface.</string>
     <string name="MurkaFabShapeCircle">Round button</string>
     <string name="MurkaFabShapeSquare">Square button</string>
     <string name="MurkaEditedIcon">Replace «edited» with an icon</string>

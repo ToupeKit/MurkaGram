@@ -51,8 +51,8 @@ public class MurkaDesignPack {
     public static final long MAX_FILE_SIZE = 8L * 1024 * 1024;
     private static final int MAX_ENTRIES = 16;
     private static final int MAX_MANIFEST_SIZE = 64 * 1024;
-    private static final int MAX_DESIGN_SIZE = 64 * 1024;
-    private static final int MAX_THEME_SIZE = 512 * 1024;
+    static final int MAX_DESIGN_SIZE = 64 * 1024; // MurkaGram: dual UI, widened for the classic UI
+    static final int MAX_THEME_SIZE = 512 * 1024; // MurkaGram: dual UI, widened for the classic UI
     private static final int MAX_PREVIEW_SIZE = 2 * 1024 * 1024;
     private static final int MAX_PREVIEW_SIDE = 1024;
     private static final int MAX_PREVIEW_SOURCE_SIDE = 4096;
@@ -404,7 +404,7 @@ public class MurkaDesignPack {
     }
 
     // Оставляет только строки «ключ=цвет» для известных ключей ThemeColors. WLS/WPS (обои, ссылки) и всё прочее выбрасывается.
-    private void sanitizeTheme(byte[] bytes) {
+    void sanitizeTheme(byte[] bytes) { // MurkaGram: dual UI, widened for the classic UI
         final String text = new String(bytes, StandardCharsets.ISO_8859_1);
         final LinkedHashMap<Integer, Integer> colors = new LinkedHashMap<>();
         int start = 0;
@@ -565,7 +565,7 @@ public class MurkaDesignPack {
         return ApplicationLoader.getFilesDirFixed("mgdesign/packs");
     }
 
-    private static File getBackupDir() {
+    static File getBackupDir() { // MurkaGram: dual UI, widened for the classic UI
         return ApplicationLoader.getFilesDirFixed("mgdesign/backup");
     }
 
@@ -805,7 +805,7 @@ public class MurkaDesignPack {
         return "MG " + safe + (tag == null ? "" : " (" + tag + ")");
     }
 
-    private static String getThemeTag(String packName, String themeText) {
+    static String getThemeTag(String packName, String themeText) { // MurkaGram: dual UI, widened for the classic UI
         try {
             final byte[] hash = Utilities.computeSHA256((packName == null ? "" : packName).getBytes(StandardCharsets.UTF_8), themeText.getBytes(StandardCharsets.ISO_8859_1));
             return Utilities.bytesToHex(hash).substring(0, 8).toLowerCase(Locale.ROOT);
@@ -845,16 +845,17 @@ public class MurkaDesignPack {
         }
     }
 
-    private static void saveLastDayTheme(String key) {
+    static void saveLastDayTheme(String key) { // MurkaGram: dual UI, widened for the classic UI
         SharedPreferences.Editor editor = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE).edit();
         editor.putString("lastDayTheme", key);
         editor.commit();
     }
 
-    private static String restartState() {
+    static String restartState() { // MurkaGram: dual UI, widened for the classic UI
         return MurkaConfig.md3Design + "|" + MurkaConfig.md3Switches + "|" + MurkaConfig.fontMode + "|" + MurkaConfig.customFontPath
                 + "|" + MurkaConfig.emojiMode + "|" + MurkaConfig.customEmojiPath
-                + "|" + MurkaConfig.classicHeader; // MurkaGram: «Классическая шапка» — с перезапуском
+                + "|" + MurkaConfig.classicHeader // MurkaGram: «Классическая шапка» — с перезапуском
+                + "|" + UiEdition.next(); // MurkaGram: dual UI, the interface edition — с перезапуском
     }
 
     // MurkaGram: ключи шапки и их значения в 13.2.2 (тема «Синяя»). Без classicHeader шапка 13.2.2 рисуется на белом/стекле,
@@ -942,7 +943,7 @@ public class MurkaDesignPack {
         return applyThemeText(fixed, getThemeName(name, getThemeTag(name, fixed))) != null;
     }
 
-    private static void afterApply() {
+    static void afterApply() { // MurkaGram: dual UI, widened for the classic UI
         MurkaMD3.bump();
         LocaleController.getInstance().recreateFormatters();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
@@ -1085,7 +1086,7 @@ public class MurkaDesignPack {
         return !before.equals(restartState());
     }
 
-    private static byte[] readFile(File file) throws Exception {
+    static byte[] readFile(File file) throws Exception { // MurkaGram: dual UI, widened for the classic UI
         try (InputStream in = new java.io.FileInputStream(file)) {
             final ByteArrayOutputStream out = new ByteArrayOutputStream();
             final byte[] buffer = new byte[8192];

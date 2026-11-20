@@ -648,6 +648,11 @@ public class MotionBackgroundDrawable extends Drawable {
         updateAnimation();
     }
 
+    // MurkaGram: dual UI, 12.2.10 signature used by the classic UI
+    public void updateAnimation(boolean invalidate) {
+        updateAnimation();
+    }
+
     public void updateAnimation() {
         long newTime = SystemClock.elapsedRealtime();
         long dt = newTime - lastUpdateTime;

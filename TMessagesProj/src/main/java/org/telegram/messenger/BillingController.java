@@ -376,15 +376,7 @@ public class BillingController implements PurchasesUpdatedListener, BillingClien
                                 if (req.purpose instanceof TLRPC.TL_inputStorePaymentAuthCode) {
                                     for (TL_update.TL_updateSentPhoneCode u : findUpdatesAndRemove((TLRPC.Updates) response, TL_update.TL_updateSentPhoneCode.class)) {
                                         AndroidUtilities.runOnUIThread(() -> {
-                                            LoginActivity fragment = LaunchActivity.findFragment(LoginActivity.class);
-                                            if (fragment == null) {
-                                                fragment = new LoginActivity(acc.getCurrentAccount());
-                                                BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
-                                                if (lastFragment != null) {
-                                                    lastFragment.presentFragment(fragment);
-                                                }
-                                            }
-                                            fragment.open(((TLRPC.TL_inputStorePaymentAuthCode) req.purpose).phone_number, u.sent_code);
+                                            UiEdition.bridge().openLoginWithCode(acc.getCurrentAccount(), ((TLRPC.TL_inputStorePaymentAuthCode) req.purpose).phone_number, u.sent_code); // MurkaGram: dual UI
                                         });
                                     }
                                 }

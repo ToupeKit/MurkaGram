@@ -1,5 +1,6 @@
 package org.telegram.messenger.voip;
 
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import android.Manifest;
 import android.app.KeyguardManager;
 import android.app.Notification;
@@ -107,9 +108,7 @@ public class VoIPPreNotificationService { // } extends Service implements AudioM
         public void destroy() {
             if (destroyed) return;
             destroyed = true;
-            if (VoIPFragment.getInstance() != null) {
-                VoIPFragment.getInstance().onStateChanged(getCallState());
-            }
+            UiEdition.bridge().voipOnStateChanged(getCallState()); // MurkaGram: dual UI
         }
 
         @Override
@@ -594,15 +593,7 @@ public class VoIPPreNotificationService { // } extends Service implements AudioM
                 MessagesController.getInstance(i).ignoreSetOnline = false;
             }
             AndroidUtilities.runOnUIThread(() -> {
-                final LaunchActivity activity = LaunchActivity.instance;
-                if (activity != null && activity.voipLaunchedInBackground && VoIPService.getSharedInstance() == null) {
-                    activity.voipLaunchedInBackground = false;
-                    final VoIPFragment fragment = VoIPFragment.getInstance();
-                    if (fragment != null) {
-                        fragment.finish();
-                    }
-                    activity.moveTaskToBack(true);
-                }
+                UiEdition.bridge().voipMoveToBackIfLaunchedInBackground(); // MurkaGram: dual UI
             });
         }
     }

@@ -52,6 +52,8 @@ import java.util.ArrayList;
 
 public class ExternalActionActivity extends Activity implements INavigationLayout.INavigationLayoutDelegate {
 
+    private boolean murkaRedirected; // MurkaGram: dual UI, this instance only handed its intent over to the classic edition
+
     private boolean finished;
     private static final ArrayList<BaseFragment> mainFragmentsStack = new ArrayList<>();
     private static final ArrayList<BaseFragment> layerFragmentsStack = new ArrayList<>();
@@ -72,6 +74,13 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // MurkaGram: dual UI, the classic 12.2.10 edition is active: hand the intent over to its activity
+        if (org.telegram.messenger.UiEdition.isClassic()) {
+            murkaRedirected = true;
+            super.onCreate(null);
+            org.telegram.messenger.UiEdition.handOver(this, org.telegram.messenger.UiEdition.bridge().component(org.telegram.messenger.UiBridge.COMPONENT_EXTERNAL));
+            return;
+        }
         ApplicationLoader.postInitApplication();
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -429,6 +438,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     protected void onNewIntent(Intent intent) {
+        if (murkaRedirected) { super.onNewIntent(intent); return; } // MurkaGram: dual UI, trampoline
         super.onNewIntent(intent);
         handleIntent(intent, true, false, false, UserConfig.selectedAccount, 0);
     }
@@ -507,6 +517,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     protected void onPause() {
+        if (murkaRedirected) { super.onPause(); return; } // MurkaGram: dual UI, trampoline
         super.onPause();
         actionBarLayout.onPause();
         if (AndroidUtilities.isTablet() && layersActionBarLayout != null) {
@@ -521,12 +532,14 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     protected void onDestroy() {
+        if (murkaRedirected) { super.onDestroy(); return; } // MurkaGram: dual UI, trampoline
         super.onDestroy();
         onFinish();
     }
 
     @Override
     protected void onResume() {
+        if (murkaRedirected) { super.onResume(); return; } // MurkaGram: dual UI, trampoline
         super.onResume();
         actionBarLayout.onResume();
         if (AndroidUtilities.isTablet() && layersActionBarLayout != null) {
@@ -600,6 +613,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
+        if (murkaRedirected) { super.onConfigurationChanged(newConfig); return; } // MurkaGram: dual UI, trampoline
         AndroidUtilities.checkDisplaySize(this, newConfig);
         AndroidUtilities.setPreferredMaxRefreshRate(getWindow());
         super.onConfigurationChanged(newConfig);
@@ -608,6 +622,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     public void onBackPressed() {
+        if (murkaRedirected) { super.onBackPressed(); return; } // MurkaGram: dual UI, trampoline
         if (passcodeView.getVisibility() == View.VISIBLE) {
             finish();
             return;
@@ -627,6 +642,7 @@ public class ExternalActionActivity extends Activity implements INavigationLayou
 
     @Override
     public void onLowMemory() {
+        if (murkaRedirected) { super.onLowMemory(); return; } // MurkaGram: dual UI, trampoline
         super.onLowMemory();
         actionBarLayout.onLowMemory();
         if (AndroidUtilities.isTablet() && layersActionBarLayout != null) {

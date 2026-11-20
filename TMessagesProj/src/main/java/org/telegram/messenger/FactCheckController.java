@@ -347,10 +347,10 @@ public class FactCheckController {
 
     private static AlertDialog currentDialog;
     public void openFactCheckEditor(Context context, Theme.ResourcesProvider resourcesProvider, MessageObject messageObject, boolean forceNotAdaptive) {
-        BaseFragment fragment = LaunchActivity.getLastFragment();
+        UiHost fragment = UiEdition.bridge().lastFragment(); // MurkaGram: dual UI
         Activity activity = AndroidUtilities.findActivity(context);
         View currentFocus = activity != null ? activity.getCurrentFocus() : null;
-        final boolean isKeyboardVisible = fragment != null && fragment.getFragmentView() instanceof SizeNotifierFrameLayout && ((SizeNotifierFrameLayout) fragment.getFragmentView()).measureKeyboardHeight() > dp(20);
+        final boolean isKeyboardVisible = UiEdition.bridge().isKeyboardVisible(fragment); // MurkaGram: dual UI
         final boolean adaptive = isKeyboardVisible && !forceNotAdaptive;
         AlertDialog[] dialog = new AlertDialog[1];
         AlertDialog.Builder builder;
@@ -572,7 +572,7 @@ public class FactCheckController {
             req = r;
         }
 
-        final Context context = LaunchActivity.instance != null ? LaunchActivity.instance : ApplicationLoader.applicationContext;
+        final Context context = UiEdition.activity() != null ? UiEdition.activity() : ApplicationLoader.applicationContext; // MurkaGram: dual UI
         final AlertDialog progressDialog = new AlertDialog(context, AlertDialog.ALERT_TYPE_SPINNER);
         progressDialog.showDelayed(320);
         ConnectionsManager.getInstance(currentAccount).sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
@@ -581,11 +581,11 @@ public class FactCheckController {
                     MessagesController.getInstance(currentAccount).processUpdates((TLRPC.Updates) res, false);
                 });
 
-                BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+                UiHost fragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
                 if (fragment != null) {
                     final boolean deleted = text == null || TextUtils.isEmpty(text.text);
                     if (deleted || !created) {
-                        BulletinFactory.of(fragment).createSimpleBulletin(deleted ? R.raw.ic_delete : R.raw.contact_check, getString(deleted ? R.string.FactCheckDeleted : R.string.FactCheckEdited)).show();
+                        UiEdition.bridge().showSimpleBulletin(fragment, deleted ? R.raw.ic_delete : R.raw.contact_check, getString(deleted ? R.string.FactCheckDeleted : R.string.FactCheckEdited)); // MurkaGram: dual UI
                     }
                 }
             }

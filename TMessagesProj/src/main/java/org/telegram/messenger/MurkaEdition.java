@@ -83,7 +83,7 @@ public class MurkaEdition {
     }
 
     public static boolean isCurrent(String edition) {
-        return MurkaConfig.UI_EDITION.equals(edition);
+        return MurkaConfig.uiEdition().equals(edition); // MurkaGram: dual UI
     }
 
     public static String getEditionName(String edition) {

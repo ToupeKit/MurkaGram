@@ -1,0 +1,78 @@
+// MurkaGram: dual UI. Classic 12.2.10 UI (org.telegram.classic.ui.*), generated from the core-13 branch by
+// murka-plans/tools/dual/classic_copy.py. Layers: TMessagesProj_App -> TMessagesProj_Classic -> TMessagesProj,
+// so the core and the modern UI can never reference classic classes directly (only through UiBridge).
+// Resources of the classic UI live in TMessagesProj/src/classic (same org.telegram.messenger.R), this module has none.
+apply plugin: 'com.android.library'
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+configurations.all {
+    exclude group: 'com.google.firebase', module: 'firebase-core'
+    exclude group: 'androidx.recyclerview', module: 'recyclerview'
+}
+
+dependencies {
+    api project(':TMessagesProj')
+    compileOnly 'org.checkerframework:checker-qual:2.5.2'
+    compileOnly 'org.checkerframework:checker-compat-qual:2.5.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+}
+
+android {
+    compileSdkVersion 36
+    buildToolsVersion '36.0.0'
+
+    lintOptions {
+        disable 'MissingTranslation'
+        disable 'ExtraTranslation'
+        disable 'BlockedPrivateApi'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+
+        coreLibraryDesugaringEnabled true
+    }
+
+    defaultConfig {
+        minSdkVersion 23
+        targetSdkVersion 36
+        multiDexEnabled true
+    }
+
+    buildTypes {
+        debug {
+        }
+        HA_private {
+            matchingFallbacks = ['release']
+        }
+        HA_public {
+            matchingFallbacks = ['release']
+        }
+        HA_hardcore {
+            matchingFallbacks = ['release']
+        }
+        standalone {
+            matchingFallbacks = ['release']
+        }
+        release {
+        }
+    }
+
+    buildFeatures {
+        buildConfig = false
+        resValues = false
+    }
+
+    namespace 'org.telegram.classic'
+}
+
+// ~1 million lines of generated code: show every compiler error, not just the first 100
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xmaxerrs', '100000', '-Xmaxwarns', '0']
+    options.encoding = 'UTF-8'
+}

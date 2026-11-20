@@ -1,5 +1,6 @@
 package org.telegram.messenger.voip;
 
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -110,9 +111,7 @@ public class VoIPGroupNotification {
         public void destroy() {
             if (destroyed) return;
             destroyed = true;
-            if (VoIPFragment.getInstance() != null) {
-                VoIPFragment.getInstance().onStateChanged(getCallState());
-            }
+            UiEdition.bridge().voipOnStateChanged(getCallState()); // MurkaGram: dual UI
         }
 
         @Override
@@ -337,9 +336,9 @@ public class VoIPGroupNotification {
         VoIPPreNotificationService.stopRinging();
 
         Activity activity = AndroidUtilities.findActivity(ApplicationLoader.applicationContext);
-        if (activity == null) activity = LaunchActivity.instance;
+        if (activity == null) activity = UiEdition.activity(); // MurkaGram: dual UI
         if (activity != null) {
-            VoIPFragment.show(activity, account);
+            UiEdition.bridge().showVoIP(activity, account); // MurkaGram: dual UI
         }
     }
 
@@ -360,7 +359,7 @@ public class VoIPGroupNotification {
 
         final TLRPC.TL_inputGroupCallInviteMessage call = new TLRPC.TL_inputGroupCallInviteMessage();
         call.msg_id = msg_id;
-        VoIPHelper.joinConference(LaunchActivity.instance, account, call, video, groupCall);
+        UiEdition.bridge().joinConference(UiEdition.activity(), account, call, video, groupCall); // MurkaGram: dual UI
     }
 
     public static void decline(Context context, int account, int msg_id) {
@@ -381,9 +380,7 @@ public class VoIPGroupNotification {
             }
         });
 
-        if (VoIPFragment.getInstance() != null) {
-            VoIPFragment.getInstance().finish();
-        }
+        UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
     }
 
     public static void hide(Context context) {
@@ -403,9 +400,7 @@ public class VoIPGroupNotification {
         nm.cancel(VoIPService.ID_INCOMING_CALL_PRENOTIFICATION);
         VoIPPreNotificationService.stopRinging();
 
-        if (VoIPFragment.getInstance() != null) {
-            VoIPFragment.getInstance().finish();
-        }
+        UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
     }
     public static void hideByCallId(Context context, int currentAccount, long call_id) {
         if (currentState == null || currentState.currentAccount != currentAccount || currentState.call_id != call_id) {
@@ -420,9 +415,7 @@ public class VoIPGroupNotification {
         nm.cancel(VoIPService.ID_INCOMING_CALL_PRENOTIFICATION);
         VoIPPreNotificationService.stopRinging();
 
-        if (VoIPFragment.getInstance() != null) {
-            VoIPFragment.getInstance().finish();
-        }
+        UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
     }
 
 }

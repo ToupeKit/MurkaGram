@@ -228,7 +228,7 @@ public class MurkaAntiScam {
     }
 
     // Убирает @, домен и всё после / ? #; null — не похоже на юзернейм.
-    private static String cleanUsername(String raw) {
+    static String cleanUsername(String raw) { // MurkaGram: dual UI, widened for the classic UI
         if (raw == null) {
             return null;
         }
@@ -334,7 +334,7 @@ public class MurkaAntiScam {
     public static void showWarning(BaseFragment fragment, String official, String clicked, Runnable openOfficial, Runnable proceed) {
         android.content.Context context = fragment != null ? fragment.getParentActivity() : null;
         if (context == null) {
-            context = LaunchActivity.instance;
+            context = UiEdition.activity(); // MurkaGram: dual UI
         }
         if (context == null) {
             if (proceed != null) {

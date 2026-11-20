@@ -569,7 +569,9 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         }
         final String editionName = MurkaEdition.getEditionName(pack.edition);
         final boolean current = MurkaEdition.isCurrent(pack.edition);
-        final boolean canApply = pack.verified && !current && pack.file != null;
+        // MurkaGram: dual UI, with both editions in this app an edition pack just switches the interface (no APK)
+        final boolean dualUi = org.telegram.messenger.UiEdition.classicAvailable();
+        final boolean canApply = (dualUi || pack.verified && pack.file != null) && !current;
         if (pack.verified) {
             addVerifiedRow(activity, layout);
         }
@@ -601,7 +603,14 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         builder.setTitle(pack.getDisplayName());
         builder.setView(layout);
         if (canApply) {
-            builder.setPositiveButton(LocaleController.getString(R.string.MurkaDesignPackApply), (dialog, which) -> confirmEdition(fragment, pack.file, editionName));
+            builder.setPositiveButton(LocaleController.getString(R.string.MurkaDesignPackApply), (dialog, which) -> {
+                if (dualUi) { // MurkaGram: dual UI
+                    org.telegram.messenger.UiEdition.setForNextLaunch(pack.edition);
+                    showRestartDialog(fragment);
+                } else {
+                    confirmEdition(fragment, pack.file, editionName);
+                }
+            });
             builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         } else {
             builder.setPositiveButton(LocaleController.getString(R.string.OK), null);

@@ -153,7 +153,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     private final HashMap<Long, TLRPC.Chat> activeVoiceChatsMap = new HashMap<>();
 
-    private final ArrayList<Long> joiningToChannels = new ArrayList<>();
+    final ArrayList<Long> joiningToChannels = new ArrayList<>(); // MurkaGram: dual UI, widened for the classic UI
 
     private final LongSparseArray<TLRPC.TL_chatInviteExported> exportedChats = new LongSparseArray<>();
 
@@ -411,7 +411,7 @@ public class MessagesController extends BaseController implements NotificationCe
     private String uploadingAvatar;
     private final LongSparseArray<ArrayList<MessageObject>> welcomeMessages = new LongSparseArray<>();
 
-    private HashMap<String, Object> uploadingThemes = new HashMap<>();
+    HashMap<String, Object> uploadingThemes = new HashMap<>(); // MurkaGram: dual UI, widened for the classic UI
 
     public String uploadingWallpaper;
     public Theme.OverrideWallpaperInfo uploadingWallpaperInfo;
@@ -773,6 +773,10 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public final AppGlobalConfig config = new AppGlobalConfig();
+
+    // MurkaGram: core-13 compat (venue bot config was removed in 13.x, the classic 12.2.10 location UI still uses it)
+    public String venueSearchBot;
+    public String storyVenueSearchBot;
 
     public boolean enableGiftsInProfile;
 
@@ -1652,6 +1656,8 @@ public class MessagesController extends BaseController implements NotificationCe
         maxEditTime = mainPreferences.getInt("maxEditTime", 3600);
         ratingDecay = mainPreferences.getInt("ratingDecay", 2419200);
         linkPrefix = mainPreferences.getString("linkPrefix", "t.me");
+        venueSearchBot = mainPreferences.getString("venueSearchBot", "foursquare"); // MurkaGram: core-13 compat
+        storyVenueSearchBot = mainPreferences.getString("storyVenueSearchBot", "foursquare"); // MurkaGram: core-13 compat
         callReceiveTimeout = mainPreferences.getInt("callReceiveTimeout", 20000);
         callRingTimeout = mainPreferences.getInt("callRingTimeout", 90000);
         callConnectTimeout = mainPreferences.getInt("callConnectTimeout", 30000);
@@ -8384,8 +8390,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
                 if (taskMedia != null) {
-                    final boolean checkViewer = SecretMediaViewer.hasInstance() && SecretMediaViewer.getInstance().isVisible();
-                    final MessageObject viewerObject = checkViewer ? SecretMediaViewer.getInstance().getCurrentMessageObject() : null;
+                    final boolean checkViewer = UiEdition.bridge().secretViewerVisible(); // MurkaGram: dual UI
+                    final MessageObject viewerObject = checkViewer ? UiEdition.bridge().secretViewerMessage() : null; // MurkaGram: dual UI
                     for (int a = 0, N = taskMedia.size(); a < N; a++) {
                         long dialogId = taskMedia.keyAt(a);
                         ArrayList<Integer> mids = taskMedia.valueAt(a);
@@ -8394,7 +8400,7 @@ public class MessagesController extends BaseController implements NotificationCe
                             mids.remove((Integer) id);
                             viewerObject.forceExpired = true;
                             final long taskId = createDeleteShowOnceTask(dialogId, id);
-                            SecretMediaViewer.getInstance().setOnClose(() -> doDeleteShowOnceTask(taskId, dialogId, id));
+                            UiEdition.bridge().secretViewerSetOnClose(() -> doDeleteShowOnceTask(taskId, dialogId, id)); // MurkaGram: dual UI
                             getNotificationCenter().postNotificationName(NotificationCenter.updateMessageMedia, viewerObject.messageOwner);
                         }
                         if (!mids.isEmpty()) {
@@ -16506,9 +16512,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (account != -1) {
                     UserConfig.selectedAccount = account;
                     UserConfig.getInstance(0).saveConfig(false);
-                    if (LaunchActivity.instance != null) {
-                        LaunchActivity.instance.clearFragments();
-                    }
+                    UiEdition.bridge().clearFragments(); // MurkaGram: dual UI
                 }
             }
         }
@@ -23205,7 +23209,7 @@ public class MessagesController extends BaseController implements NotificationCe
         return checkCanOpenChat(bundle, fragment, originalMessage, null);
     }
 
-    private final HashSet<Long> sensitiveAgreed = new HashSet<>();
+    final HashSet<Long> sensitiveAgreed = new HashSet<>(); // MurkaGram: dual UI, widened for the classic UI
 
     public boolean checkCanOpenChat(Bundle bundle, BaseFragment fragment, MessageObject originalMessage, Browser.Progress progress) {
         if (bundle == null || fragment == null) {

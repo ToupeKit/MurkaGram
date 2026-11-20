@@ -29,7 +29,7 @@ import me.vkryl.core.reference.ReferenceMap;
 public class GiftAuctionController extends BaseController {
     private final ReferenceMap<Long, OnAuctionUpdateListener> listeners = new ReferenceMap<>(false);
 
-    private final LongSparseArray<AuctionInternal> auctions = new LongSparseArray<>();
+    final LongSparseArray<AuctionInternal> auctions = new LongSparseArray<>(); // MurkaGram: dual UI, widened for the classic UI
     private final ArrayList<Auction> activeAuctions = new ArrayList<>();
 
 
@@ -491,7 +491,7 @@ public class GiftAuctionController extends BaseController {
         performUpdateActiveAuctions();
     }
 
-    private static class AuctionInternal {
+    static class AuctionInternal { // MurkaGram: dual UI, widened for the classic UI
         public final long giftId;
 
         private Auction internalState;
@@ -499,11 +499,11 @@ public class GiftAuctionController extends BaseController {
 
         private @Nullable Runnable resubscribe;
         private boolean subscription;
-        private boolean pendingBid;
+        boolean pendingBid; // MurkaGram: dual UI, widened for the classic UI
 
         private @Nullable ArrayList<TL_stars.TL_StarGiftAuctionAcquiredGift> acquiredGifts;
 
-        private AuctionInternal(long giftId) {
+        AuctionInternal(long giftId) { // MurkaGram: dual UI, widened for the classic UI
             this.giftId = giftId;
         }
 

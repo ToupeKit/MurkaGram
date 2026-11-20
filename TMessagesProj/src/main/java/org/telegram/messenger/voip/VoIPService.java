@@ -8,6 +8,8 @@
 
 package org.telegram.messenger.voip;
 
+import org.telegram.messenger.UiHost; // MurkaGram: dual UI
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import static org.telegram.messenger.MessagesController.findUpdates;
 import static org.telegram.messenger.MessagesController.findUpdatesAndRemove;
 
@@ -1000,10 +1002,10 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 
 			if (openFragment) {
 				Activity activity = AndroidUtilities.findActivity(this);
-				if (activity == null) activity = LaunchActivity.instance;
+				if (activity == null) activity = UiEdition.activity(); // MurkaGram: dual UI
 				if (activity == null) activity = AndroidUtilities.findActivity(ApplicationLoader.applicationContext);
 				if (activity != null) {
-					VoIPFragment.show(activity, currentAccount);
+					UiEdition.bridge().showVoIP(activity, currentAccount); // MurkaGram: dual UI
 				}
 			}
 		}
@@ -1352,9 +1354,7 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 			} else {
 				requestVideoCall(true);
 				setVideoState(true, Instance.VIDEO_STATE_ACTIVE);
-				if (VoIPFragment.getInstance() != null) {
-					VoIPFragment.getInstance().onScreenCastStart();
-				}
+				UiEdition.bridge().voipOnScreenCastStart(); // MurkaGram: dual UI
 			}
 		} else {
 			if (captureDevice[index] != 0 || tgVoip[index] == null) {
@@ -2337,10 +2337,8 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 							}
 						}
 					}
-					if (VoIPFragment.getInstance() != null) {
-						VoIPFragment.getInstance().finish();
-					}
-					GroupCallActivity.create(LaunchActivity.instance, AccountInstance.getInstance(currentAccount), null, null, false, null);
+					UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
+					UiEdition.bridge().openGroupCall(AccountInstance.getInstance(currentAccount)); // MurkaGram: dual UI
 				} else if (response instanceof TL_phone.groupCall) {
 					try {
 						groupCallBottomSheetLatch.await(800, TimeUnit.MILLISECONDS);
@@ -2363,10 +2361,8 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 							}
 						}
 					}
-					if (VoIPFragment.getInstance() != null) {
-						VoIPFragment.getInstance().finish();
-					}
-					GroupCallActivity.create(LaunchActivity.instance, AccountInstance.getInstance(currentAccount), null, null, false, null);
+					UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
+					UiEdition.bridge().openGroupCall(AccountInstance.getInstance(currentAccount)); // MurkaGram: dual UI
 				} else {
 					NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.needShowAlert, 6, error.text);
 					hangUp(0);
@@ -2453,10 +2449,8 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 					groupCall.addInvitedUser(userId);
 				}
 			}
-			if (VoIPFragment.getInstance() != null) {
-				VoIPFragment.getInstance().finish();
-			}
-			GroupCallActivity.create(LaunchActivity.instance, AccountInstance.getInstance(UserConfig.selectedAccount), null, null, false, null);
+			UiEdition.bridge().voipFinish(); // MurkaGram: dual UI
+			UiEdition.bridge().openGroupCall(AccountInstance.getInstance(UserConfig.selectedAccount)); // MurkaGram: dual UI
 		} else {
 			if (getSharedInstance() == null || groupCall == null && conference == null) {
 				return;
@@ -2630,11 +2624,9 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 															req3.id.add(MessagesController.getInstance(currentAccount).getInputUser(userId1));
 														}
 														final Runnable showLimitSheet = () -> {
-															BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+															UiHost fragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
 															if (fragment == null) return;
-															final LimitReachedBottomSheet restricterdUsersBottomSheet = new LimitReachedBottomSheet(fragment, fragment.getContext(), LimitReachedBottomSheet.TYPE_CALL_RESTRICTED, currentAccount, new DarkBlueThemeResourcesProvider());
-															restricterdUsersBottomSheet.setRestrictedUsers(null, users2, premiumBlockedUsers, premiumInviteBlockedUsers, link);
-															restricterdUsersBottomSheet.show();
+															UiEdition.bridge().showCallRestrictedSheet(fragment, currentAccount, users2, premiumBlockedUsers, premiumInviteBlockedUsers, link); // MurkaGram: dual UI
 														};
 														if (UserConfig.getInstance(currentAccount).isPremium()) {
 															showLimitSheet.run();
@@ -2724,11 +2716,9 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 													req3.id.add(MessagesController.getInstance(currentAccount).getInputUser(userId1));
 												}
 												final Runnable showLimitSheet = () -> {
-													BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+													UiHost fragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
 													if (fragment == null) return;
-													final LimitReachedBottomSheet restricterdUsersBottomSheet = new LimitReachedBottomSheet(fragment, fragment.getContext(), LimitReachedBottomSheet.TYPE_CALL_RESTRICTED, currentAccount, new DarkBlueThemeResourcesProvider());
-													restricterdUsersBottomSheet.setRestrictedUsers(null, users2, premiumBlockedUsers, premiumInviteBlockedUsers, link);
-													restricterdUsersBottomSheet.show();
+													UiEdition.bridge().showCallRestrictedSheet(fragment, currentAccount, users2, premiumBlockedUsers, premiumInviteBlockedUsers, link); // MurkaGram: dual UI
 												};
 												if (UserConfig.getInstance(currentAccount).isPremium()) {
 													showLimitSheet.run();
@@ -2762,12 +2752,9 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 							} else if (error.text.startsWith("CONF_WRITE_CHAIN_INVALID")) {
 								stopSelf();
 							} else if ("GROUPCALL_INVALID".equals(error.text)) {
-								BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+								UiHost lastFragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
 								if (lastFragment != null) {
-									BulletinFactory.of(lastFragment)
-										.createSimpleBulletin(R.raw.linkbroken, LocaleController.getString(R.string.ConferenceClosed))
-										.show()
-										.hideAfterBottomSheet = false;
+									UiEdition.bridge().showConferenceClosedBulletin(lastFragment); // MurkaGram: dual UI
 								}
 								hangUp(0);
 							} else {
@@ -5623,7 +5610,7 @@ public class VoIPService extends Service implements SensorEventListener, AudioMa
 					wasEstablished = true;
 					if (!isProximityNear && !privateCall.video) {
 						try {
-							LaunchActivity.getLastFragment().getFragmentView().performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+							UiEdition.bridge().lastFragment().getFragmentView().performHapticFeedback( /* MurkaGram: dual UI */ HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
 						} catch (Exception ignore) {}
 					}
 					AndroidUtilities.runOnUIThread(new Runnable() {

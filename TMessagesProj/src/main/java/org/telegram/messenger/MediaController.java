@@ -1331,7 +1331,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
 
         private void scheduleReloadRunnable() {
             AndroidUtilities.runOnUIThread(refreshGalleryRunnable = () -> {
-                if (PhotoViewer.getInstance().isVisible()) {
+                if (UiEdition.bridge().photoViewerVisible()) { // MurkaGram: dual UI
                     scheduleReloadRunnable();
                     return;
                 }
@@ -2294,7 +2294,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         final boolean wakelockAllowed = (
             accelerometerDetected ||
             alreadyPlaying
-        ) && !forbidRaiseToListen() && !VoIPService.isAnyKindOfCallActive() && (allowRecording || allowListening) && !PhotoViewer.getInstance().isVisible();
+        ) && !forbidRaiseToListen() && !VoIPService.isAnyKindOfCallActive() && (allowRecording || allowListening) && !UiEdition.bridge().photoViewerVisible(); // MurkaGram: dual UI
         if (proximityWakeLock != null) {
             final boolean held = proximityWakeLock.isHeld();
             if (held && !wakelockAllowed) {
@@ -2605,7 +2605,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             currentTextureView = null;
             goingToShowMessageObject = null;
             if (transferPlayerToPhotoViewer) {
-                PhotoViewer.getInstance().injectVideoPlayer(videoPlayer);
+                UiEdition.bridge().photoViewerInjectPlayer(videoPlayer); // MurkaGram: dual UI
                 goingToShowMessageObject = playingMessageObject;
                 NotificationCenter.getInstance(playingMessageObject.currentAccount).postNotificationName(NotificationCenter.messagePlayingGoingToStop, playingMessageObject, true);
             } else {
@@ -3554,8 +3554,8 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     }
                     pipSwitchingState = 0;
                     return true;
-                } else if (PhotoViewer.hasInstance() && PhotoViewer.getInstance().isInjectingVideoPlayer()) {
-                    PhotoViewer.getInstance().injectVideoPlayerSurface(surfaceTexture);
+                } else if (UiEdition.bridge().photoViewerInjecting()) { // MurkaGram: dual UI
+                    UiEdition.bridge().photoViewerInjectSurface(surfaceTexture); // MurkaGram: dual UI
                     return true;
                 }
                 return false;
@@ -3900,8 +3900,8 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         }
                         pipSwitchingState = 0;
                         return true;
-                    } else if (PhotoViewer.hasInstance() && PhotoViewer.getInstance().isInjectingVideoPlayer()) {
-                        PhotoViewer.getInstance().injectVideoPlayerSurface(surfaceTexture);
+                    } else if (UiEdition.bridge().photoViewerInjecting()) { // MurkaGram: dual UI
+                        UiEdition.bridge().photoViewerInjectSurface(surfaceTexture); // MurkaGram: dual UI
                         return true;
                     }
                     return false;
@@ -5641,7 +5641,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoaded);
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoadProgressChanged);
             currentAccount.getNotificationCenter().addObserver(this, NotificationCenter.fileLoadFailed);
-            final Theme.ResourcesProvider resourcesProvider = PhotoViewer.getInstance().isVisible() ? new DarkThemeResourceProvider() : null;
+            final Theme.ResourcesProvider resourcesProvider = UiEdition.bridge().photoViewerVisible() ? new DarkThemeResourceProvider() : null; // MurkaGram: dual UI
             progressDialog = new AlertDialog(context, AlertDialog.ALERT_TYPE_LOADING, resourcesProvider);
             progressDialog.setMessage(LocaleController.getString(R.string.Loading));
             progressDialog.setCancelable(true);
@@ -6940,7 +6940,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             AndroidUtilities.cancelRunOnUIThread(broadcastPhotosRunnable);
         }
         AndroidUtilities.runOnUIThread(broadcastPhotosRunnable = () -> {
-            if (PhotoViewer.getInstance().isVisible() && !forceBroadcastNewPhotos) {
+            if (UiEdition.bridge().photoViewerVisible() && !forceBroadcastNewPhotos) { // MurkaGram: dual UI
                 broadcastNewPhotos(guid, mediaAlbumsSorted, photoAlbumsSorted, cameraAlbumIdFinal, allMediaAlbumFinal, allPhotosAlbumFinal, allVideosAlbumFinal, 1000);
                 return;
             }

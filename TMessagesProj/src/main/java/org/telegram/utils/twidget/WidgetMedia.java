@@ -1,5 +1,7 @@
 package org.telegram.utils.twidget;
 
+import org.telegram.messenger.UiHost; // MurkaGram: dual UI
+import org.telegram.messenger.UiEdition; // MurkaGram: dual UI
 import android.content.Context;
 import android.text.TextUtils;
 import android.view.HapticFeedbackConstants;
@@ -978,7 +980,7 @@ public final class WidgetMedia {
      */
     private static void wallet(Entry entry, WidgetSandboxMessage message, long id, JSONObject call) {
         TLRPC.User bot = entry == null || entry.botId == 0 ? null : MessagesController.getInstance(entry.account).getUser(entry.botId);
-        BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+        UiHost fragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
         if (entry == null || !walletAvailable(entry) || bot == null || !bot.bot) {
             message.answerRequest(id, WidgetSandboxSession.REQUEST_BAD_REQUEST, null);
             return;
@@ -1016,10 +1018,10 @@ public final class WidgetMedia {
         if (TextUtils.isEmpty(text)) return;
         AndroidUtilities.addToClipboard(text);
         // Android 13+ shows the copied text itself; the toast would cover it.
-        BaseFragment fragment = AndroidUtilities.shouldShowClipboardToast() ? LaunchActivity.getSafeLastFragment() : null;
+        UiHost fragment = AndroidUtilities.shouldShowClipboardToast() ? UiEdition.bridge().safeLastFragment() : null; // MurkaGram: dual UI
         if (fragment == null) return;
         String shown = text.length() > 80 ? text.substring(0, 80) + "…" : text;
-        BulletinFactory.of(fragment).createSimpleBulletin(R.raw.copy, LocaleController.formatString(R.string.WidgetTextCopied, shown)).show();
+        UiEdition.bridge().showSimpleBulletin(fragment, R.raw.copy, LocaleController.formatString(R.string.WidgetTextCopied, shown)); // MurkaGram: dual UI
     }
 
     // ── a shared widget's shared state, polled while watched (docs/integration.md) ──
@@ -1259,7 +1261,7 @@ public final class WidgetMedia {
      */
     private static void openLink(String url, boolean telegram) {
         if (TextUtils.isEmpty(url) || linkDialogShown) return;
-        BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+        UiHost fragment = UiEdition.bridge().safeLastFragment(); // MurkaGram: dual UI
         if (fragment == null || fragment.getParentActivity() == null) return;
         Context context = fragment.getParentActivity();
         if (telegram) {
