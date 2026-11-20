@@ -7054,6 +7054,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onStart();
         isStarted = true;
         pipActivityHandler.onStart();
+        org.telegram.messenger.MurkaScreenPrivacy.onActivityStarted(this); // MurkaGram: «Скрывать при записи экрана»
         Browser.bindCustomTabsService(this);
         ApplicationLoader.mainInterfaceStopped = false;
         GroupCallPip.updateVisibility(this);
@@ -7068,6 +7069,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onStop();
         isStarted = false;
         pipActivityHandler.onStop();
+        org.telegram.messenger.MurkaScreenPrivacy.onActivityStopped(this); // MurkaGram: «Скрывать при записи экрана»
         Browser.unbindCustomTabsService(this);
         ApplicationLoader.mainInterfaceStopped = true;
         GroupCallPip.updateVisibility(this);
@@ -7140,7 +7142,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         if (GroupCallActivity.groupCallInstance != null) {
             GroupCallActivity.groupCallInstance.dismissInternal();
         }
-        PipRoundVideoView pipRoundVideoView = PipRoundVideoView.getInstance();
+        org.telegram.ui.Components.PipRoundVideoView pipRoundVideoView = org.telegram.ui.Components.PipRoundVideoView.getInstance(); // MurkaGram: dual UI, the core (MediaController) shows the shared round-video PiP
         MediaController.getInstance().setBaseActivity(this, false);
         MediaController.getInstance().setFeedbackView(feedbackView, false);
         if (pipRoundVideoView != null) {
@@ -7256,7 +7258,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             PhotoViewer.getInstance().onResume();
         }
         StoryRecorder.onResume();
-        PipRoundVideoView pipRoundVideoView = PipRoundVideoView.getInstance();
+        org.telegram.ui.Components.PipRoundVideoView pipRoundVideoView = org.telegram.ui.Components.PipRoundVideoView.getInstance(); // MurkaGram: dual UI, the core (MediaController) shows the shared round-video PiP
         if (pipRoundVideoView != null && MediaController.getInstance().isMessagePaused()) {
             MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
             if (messageObject != null) {
@@ -7352,7 +7354,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onConfigurationChanged(newConfig);
         pipActivityHandler.onConfigurationChanged(newConfig);
         checkLayout();
-        PipRoundVideoView pipRoundVideoView = PipRoundVideoView.getInstance();
+        org.telegram.ui.Components.PipRoundVideoView pipRoundVideoView = org.telegram.ui.Components.PipRoundVideoView.getInstance(); // MurkaGram: dual UI, the core (MediaController) shows the shared round-video PiP
         if (pipRoundVideoView != null) {
             pipRoundVideoView.onConfigurationChanged();
         }

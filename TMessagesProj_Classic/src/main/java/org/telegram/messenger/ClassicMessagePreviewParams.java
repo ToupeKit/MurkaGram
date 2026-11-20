@@ -27,7 +27,25 @@ public final class ClassicMessagePreviewParams {
 
     // MurkaGram: dual UI, core-13 MessagePreviewParams.attach
     public static void attach(MessagePreviewParams self, MessagePreviewView previewView) {
-        // MurkaGram: dual UI, self.previewView is a modern MessagePreviewView. TODO(E5): updates of the classic preview
+        // MurkaGram: dual UI, self.previewView is a modern MessagePreviewView: the classic one is attached through attachClassic
+        if (self == null) {
+            return;
+        }
+        if (previewView == null) {
+            self.attachClassic(null);
+            return;
+        }
+        self.attachClassic(new MessagePreviewParams.ClassicPreviewView() {
+            @Override
+            public void updateLink() {
+                previewView.updateLink();
+            }
+
+            @Override
+            public void updateAll() {
+                previewView.updateAll();
+            }
+        });
     }
 
 }

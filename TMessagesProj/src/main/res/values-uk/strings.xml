@@ -20,6 +20,9 @@
     <string name="MurkaSecurity">Безпека</string>
     <string name="MurkaAntiScam">Захист від шахраїв</string>
     <string name="MurkaAntiScamInfo">Попереджає, якщо посилання або юзернейм схожі на офіційні (наприклад, NFT-маркети @mrkt, @portals, @Tonnel_Network_bot), але відрізняються парою символів — так часто роблять шахраї.</string>
+    <string name="MurkaHideOnScreenRecording">Приховувати під час запису екрана</string>
+    <string name="MurkaHideOnScreenRecordingInfo">Поки триває запис екрана, аватари й назви чатів, а також тексти повідомлень приховуються під спойлером. Працює на Android 15 і новіших.</string>
+    <string name="MurkaHideOnScreenRecordingUnsupported">Поки триває запис екрана, аватари й назви чатів, а також тексти повідомлень приховуються під спойлером. Потрібен Android 15 або новіший — на цьому пристрої недоступно.</string>
     <string name="MurkaAntiScamTitle">Можливо, це шахраї</string>
     <string name="MurkaAntiScamText">Це посилання схоже на офіційне **@%1$s**, але це **@%2$s**. Офіційне посилання: @%1$s.</string>
     <string name="MurkaAntiScamOpenOfficial">Перейти до @%1$s</string>
@@ -118,6 +121,13 @@
     <string name="MurkaUnlimitedPins">Необмежене закріплення чатів</string>
     <string name="MurkaUnlimitedPinsInfo">Понад ліміт Telegram чати закріплюються лише на цьому пристрої.</string>
     <string name="MurkaDrawerStatus">Емодзі-статус</string>
+    <string name="MurkaDialogsMenuSettings">Меню «⋮» у списку чатів</string>
+    <string name="MurkaDialogsMenuTitle">Меню «⋮»</string>
+    <string name="MurkaDialogsMenuNight">Денний / нічний режим</string>
+    <string name="MurkaDialogsMenuBots">Гаманець і боти</string>
+    <string name="MurkaDialogsMenuInfo">Вимкніть непотрібні пункти меню «⋮» у верхній частині списку чатів. Щоб змінити порядок, затисніть пункт і перетягніть його.</string>
+    <string name="MurkaIntroSubtitle">fork Telegram</string>
+    <string name="MurkaIntroTitle">MurkaGram</string>
     <string name="MurkaCustomIcon">Своя іконка</string>
     <string name="MurkaCustomIconInfo">Android не дозволяє застосункам змінювати іконку в меню на довільне зображення, тому на робочому столі буде створено ярлик MurkaGram з вашим зображенням.</string>
     <string name="MurkaCustomIconPick">Вибрати зображення</string>
@@ -163,8 +173,8 @@
     <string name="MurkaDesignPackMyDesign">Мій дизайн</string>
     <string name="MurkaDesignPackVerified">Перевірений пакет MurkaGram</string>
     <string name="MurkaEditionInfo">Редакція інтерфейсу: %1$s. Під час застосування ця збірка MurkaGram буде встановлена поверх поточної.</string>
-    <string name="MurkaInterfaceModernName">MurkaGram Modern (13.2.2)</string>
-    <string name="MurkaInterfaceClassicName">MurkaGram Classic (12.2.10)</string>
+    <string name="MurkaInterfaceModernName">MurkaGram 13.2.2 (актуальний)</string>
+    <string name="MurkaInterfaceClassicName">MurkaGram 12.2.10</string>
     <string name="MurkaInterfaceCurrent">Поточний</string>
     <string name="MurkaInterfaceNext">Вибрано після перезапуску</string>
     <string name="MurkaInterfaceSame">Цей інтерфейс уже вибрано</string>

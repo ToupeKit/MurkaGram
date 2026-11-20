@@ -382,7 +382,8 @@ public class ChatActivity extends BaseFragment implements
         ChatActivityInterface,
         FloatingDebugProvider,
         InstantCameraView.Delegate,
-        FactorAnimator.Target
+        FactorAnimator.Target,
+        MediaController.RaiseToEarChat // MurkaGram: dual UI, raise-to-ear registration in the shared MediaController
 {
     private final static boolean PULL_DOWN_BACK_FRAGMENT = false;
     private final static boolean DISABLE_PROGRESS_VIEW = true;
@@ -6188,6 +6189,9 @@ public class ChatActivity extends BaseFragment implements
                             canvas.translate(dp(24) * getSideMenuAlpha(), 0f);
                         }
                         imageReceiver.draw(canvas);
+                        if (org.telegram.messenger.MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие аватара при записи экрана
+                            org.telegram.messenger.MurkaScreenPrivacy.drawImageCover(this, canvas, imageReceiver, getThemedColor(Theme.key_chat_inBubble), getThemedColor(Theme.key_chat_messageTextIn));
+                        }
                         canvas.restore();
 
                         if (!replaceAnimation && child.getTranslationY() != 0) {
@@ -10657,7 +10661,7 @@ public class ChatActivity extends BaseFragment implements
             @Override
             protected void onFullDismiss(boolean canShowKeyboard) {
                 if (messagePreviewParams != null) {
-                    messagePreviewParams.attach(null);
+                    ClassicMessagePreviewParams.attach(messagePreviewParams, null); // MurkaGram: dual UI
                 }
                 if (canShowKeyboard) {
                     AndroidUtilities.runOnUIThread(() -> {
@@ -15162,7 +15166,7 @@ public class ChatActivity extends BaseFragment implements
                         videoPlayerContainer.setTranslationY(-AndroidUtilities.roundPlayingMessageSize(isSideMenued()) - 100);
                         fragmentView.invalidate();
                         if (messageObject.isRoundVideo() || messageObject.isVideo()) {
-                            if (checkTextureViewPosition || PipRoundVideoView.getInstance() != null) {
+                            if (checkTextureViewPosition || org.telegram.ui.Components.PipRoundVideoView.getInstance() != null) { // MurkaGram: dual UI, the core shows the shared round-video PiP
                                 MediaController.getInstance().setCurrentVideoVisible(false);
                             } else if (needScroll) {
                                 scrollToMessageId(messageObject.getId(), 0, false, 0, true, 0);
@@ -31839,7 +31843,7 @@ public class ChatActivity extends BaseFragment implements
             if (pending != null && cell instanceof BaseCell) {
                 final StarReactionsOverlay overlay = getStarReactionsOverlay();
                 overlay.setMessageCell((BaseCell) cell);
-                // MurkaGram: dual UI, pending.setOverlay(overlay) takes the modern StarReactionsOverlay
+                ClassicStarsController.setOverlay(pending, overlay); // MurkaGram: dual UI, 12.2.10 pending.setOverlay(overlay)
                 overlay.show();
                 final int[] loc = new int[2], loc2 = new int[2];
                 cell.getLocationInWindow(loc);
@@ -36343,7 +36347,7 @@ public class ChatActivity extends BaseFragment implements
                                 @Override
                                 public boolean onPreDraw() {
 
-                                    PipRoundVideoView pipRoundVideoView = PipRoundVideoView.getInstance();
+                                    org.telegram.ui.Components.PipRoundVideoView pipRoundVideoView = org.telegram.ui.Components.PipRoundVideoView.getInstance(); // MurkaGram: dual UI, the core shows the shared round-video PiP
                                     if (pipRoundVideoView != null) {
                                         pipRoundVideoView.showTemporary(true);
                                     }

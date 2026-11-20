@@ -191,10 +191,26 @@ public final class ClassicUiBridge implements UiBridge {
         AlertsCreator.createBotLaunchAlert((BaseFragment) host, bot, onConfirm, onCancel);
     }
 
-    // BotGuardHelper.openGuardBotWebApp: the 12.2.10 BotWebViewSheet has no guard bot mode (TYPE_WEB_VIEW_GUARD), as in core-13
+    // BotGuardHelper.openGuardBotWebApp. MurkaGram: dual UI, the classic BotWebViewSheet got the 13.2.2 guard mode (TYPE_WEB_VIEW_GUARD)
     @Override
     public void openGuardBotWebApp(UiHost host, int currentAccount, long dialogId, long guardBotId, long queryId) {
-        org.telegram.messenger.FileLog.d("BotGuardHelper: guard bot web app is not supported by the classic UI, bot=" + guardBotId + " query=" + queryId);
+        final BaseFragment parentFragment = (BaseFragment) host;
+        if (LaunchActivity.instance == null) {
+            return;
+        }
+        final Theme.ResourcesProvider resourcesProvider = null;
+
+        final org.telegram.classic.ui.bots.WebViewRequestProps props = org.telegram.classic.ui.bots.WebViewRequestProps.of(currentAccount, dialogId, guardBotId,
+            null, null, org.telegram.classic.ui.bots.BotWebViewSheet.TYPE_WEB_VIEW_GUARD, 0, 0,
+            false, null, false, null, null, 0, false, false);
+        props.queryId = queryId;
+
+        final org.telegram.classic.ui.bots.BotWebViewSheet webViewSheet = new org.telegram.classic.ui.bots.BotWebViewSheet(LaunchActivity.instance, resourcesProvider);
+        webViewSheet.setDefaultFullsize(false);
+        webViewSheet.setNeedsContext(true);
+        webViewSheet.setParentActivity(LaunchActivity.instance);
+        webViewSheet.requestWebView(parentFragment, props);
+        webViewSheet.show();
     }
 
     // --- links

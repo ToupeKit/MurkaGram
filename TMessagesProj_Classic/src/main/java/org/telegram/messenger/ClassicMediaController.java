@@ -2,16 +2,18 @@ package org.telegram.messenger;
 
 import org.telegram.classic.ui.ChatActivity;
 
-// MurkaGram: dual UI. Raise-to-ear in MediaController keeps a modern ChatActivity (raiseChat) and calls it from the
-// sensor callbacks, so the classic chat cannot take part directly. TODO(E5): route through UiBridge.
+// MurkaGram: dual UI. Raise-to-ear: MediaController keeps the open chat as MediaController.RaiseToEarChat, which both
+// the modern and the classic ChatActivity implement, so the classic chat registers the same way as in 12.2.10.
 public final class ClassicMediaController {
 
     private ClassicMediaController() {
     }
 
     public static void startRaiseToEarSensors(MediaController self, ChatActivity chatActivity) {
+        self.startRaiseToEarSensors(chatActivity); // MurkaGram: dual UI
     }
 
     public static void stopRaiseToEarSensors(MediaController self, ChatActivity chatActivity, boolean fromChat, boolean stopRecording) {
+        self.stopRaiseToEarSensors(chatActivity, fromChat, stopRecording); // MurkaGram: dual UI
     }
 }

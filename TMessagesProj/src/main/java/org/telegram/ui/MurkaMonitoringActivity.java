@@ -21,6 +21,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MurkaConfig;
+import org.telegram.messenger.MurkaScreenPrivacy;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
@@ -44,6 +45,7 @@ public class MurkaMonitoringActivity extends UniversalFragment {
     private static final int ID_EXCEPTIONS = 6; // MurkaGram: «Исключения»
     private static final int ID_GHOST_WARNING = 7; // MurkaGram: «Предупреждение призрака»
     private static final int ID_ANTI_SCAM = 8; // MurkaGram: «Защита от мошенников»
+    private static final int ID_HIDE_ON_RECORDING = 9; // MurkaGram: «Скрывать при записи экрана»
 
     @Override
     public View createView(Context context) {
@@ -77,6 +79,10 @@ public class MurkaMonitoringActivity extends UniversalFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaSecurity)));
         items.add(UItem.asCheck(ID_ANTI_SCAM, LocaleController.getString(R.string.MurkaAntiScam)).setChecked(MurkaConfig.antiScam));
         items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaAntiScamInfo)));
+        // MurkaGram: «Скрывать при записи экрана» (Android 15+)
+        final boolean recordingSupported = MurkaScreenPrivacy.isSupported();
+        items.add(UItem.asCheck(ID_HIDE_ON_RECORDING, LocaleController.getString(R.string.MurkaHideOnScreenRecording)).setChecked(recordingSupported && MurkaConfig.hideOnScreenRecording).setEnabled(recordingSupported));
+        items.add(UItem.asShadow(LocaleController.getString(recordingSupported ? R.string.MurkaHideOnScreenRecordingInfo : R.string.MurkaHideOnScreenRecordingUnsupported)));
     }
 
     @Override
@@ -114,6 +120,15 @@ public class MurkaMonitoringActivity extends UniversalFragment {
             MurkaConfig.toggleAntiScam();
             if (view instanceof TextCheckCell) {
                 ((TextCheckCell) view).setChecked(MurkaConfig.antiScam);
+            }
+        } else if (item.id == ID_HIDE_ON_RECORDING) { // MurkaGram
+            if (!MurkaScreenPrivacy.isSupported()) {
+                return;
+            }
+            MurkaConfig.toggleHideOnScreenRecording();
+            MurkaScreenPrivacy.onSettingChanged(getParentActivity());
+            if (view instanceof TextCheckCell) {
+                ((TextCheckCell) view).setChecked(MurkaConfig.hideOnScreenRecording);
             }
         }
     }

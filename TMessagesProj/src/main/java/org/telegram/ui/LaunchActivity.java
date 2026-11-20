@@ -6984,6 +6984,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         super.onStart();
         isStarted = true;
         PipCoordinator.getInstance().onActivityStart(this);
+        org.telegram.messenger.MurkaScreenPrivacy.onActivityStarted(this); // MurkaGram: «Скрывать при записи экрана»
         Browser.bindCustomTabsService(this);
         ApplicationLoader.mainInterfaceStopped = false;
         GroupCallPip.updateVisibility(this);
@@ -6999,6 +7000,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         GramWalletStorageAuth.onActivityStopped(this);
         isStarted = false;
         PipCoordinator.getInstance().onActivityStop(this);
+        org.telegram.messenger.MurkaScreenPrivacy.onActivityStopped(this); // MurkaGram: «Скрывать при записи экрана»
         if (PhotoViewer.hasInstance() && PhotoViewer.getInstance().isVisible()) {
             PhotoViewer.getInstance().onStop();
         }

@@ -393,7 +393,8 @@ public class ChatActivity extends BaseFragment implements
         ChatActivityInterface,
         FloatingDebugProvider,
         InstantCameraView.Delegate,
-        FactorAnimator.Target
+        FactorAnimator.Target,
+        MediaController.RaiseToEarChat // MurkaGram: dual UI, raise-to-ear registration in the shared MediaController
 {
     private final static boolean PULL_DOWN_BACK_FRAGMENT = false;
     private final static boolean DISABLE_PROGRESS_VIEW = true;
@@ -6454,6 +6455,9 @@ public class ChatActivity extends BaseFragment implements
                             canvas.translate(dp(24) * getSideMenuAlpha(), 0f);
                         }
                         imageReceiver.draw(canvas);
+                        if (org.telegram.messenger.MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие аватара при записи экрана
+                            org.telegram.messenger.MurkaScreenPrivacy.drawImageCover(this, canvas, imageReceiver, getThemedColor(Theme.key_chat_inBubble), getThemedColor(Theme.key_chat_messageTextIn));
+                        }
                         canvas.restore();
 
                         if (!replaceAnimation && child.getTranslationY() != 0) {

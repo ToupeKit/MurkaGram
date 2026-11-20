@@ -1857,11 +1857,36 @@ public class StarsController {
         return peer != null ? peer : 0;
     }
 
+    // MurkaGram: dual UI. The undo bulletin / "stars needed" sheet of paid reactions for a chat that is not the modern
+    // ChatActivity (the classic 12.2.10 chat, TMessagesProj_Classic: ClassicStarsController). With a host, chatActivity is null.
+    public interface PaidReactionsHost {
+        Context getContext();
+
+        PaidReactionsBulletin createBulletin(PendingPaidReactions pending);
+
+        void showStarsNeeded(long stars, String name, Runnable whenPurchased);
+    }
+
+    // MurkaGram: dual UI. One undo bulletin (+ star reactions overlay) of a PendingPaidReactions, see PaidReactionsHost.
+    public interface PaidReactionsBulletin {
+        void setTexts(CharSequence title, CharSequence subtitle);
+
+        void resetTimer();
+
+        void show(Runnable onHide);
+
+        void hide();
+
+        void hideOverlay(MessageObject messageObject, boolean onlyIfShowing);
+    }
+
     public class PendingPaidReactions {
 
         public MessageId message;
         public MessageObject messageObject;
         public ChatActivity chatActivity;
+        public PaidReactionsHost host; // MurkaGram: dual UI, set instead of chatActivity by the classic chat
+        public PaidReactionsBulletin hostBulletin; // MurkaGram: dual UI
         public Bulletin bulletin;
         public Bulletin.TwoLineAnimatedLottieLayout bulletinLayout;
         public Bulletin.UndoButton bulletinButton;
@@ -1941,6 +1966,31 @@ public class StarsController {
             wasChosen = messageObject.isPaidReactionChosen();
         }
 
+        // MurkaGram: dual UI, the same as the constructor above with the bulletin built by a PaidReactionsHost
+        public PendingPaidReactions(
+            MessageId message,
+            MessageObject messageObject,
+            PaidReactionsHost host,
+            long currentTime,
+            boolean affect
+        ) {
+            this.message = message;
+            this.messageObject = messageObject;
+            this.host = host;
+
+            hostBulletin = host.createBulletin(this);
+            hostBulletin.setTexts(getToastTitle(), null);
+            if (affect) {
+                hostBulletin.show(closeRunnable);
+                shownBulletin = true;
+            }
+
+            this.amount = 0;
+            this.lastTime = System.currentTimeMillis();
+
+            wasChosen = messageObject.isPaidReactionChosen();
+        }
+
         public void add(long amount, boolean affect) {
             if (committed || cancelled) {
                 if (BuildVars.DEBUG_PRIVATE_VERSION) {
@@ -1952,10 +2002,15 @@ public class StarsController {
             this.amount += amount;
             this.lastTime = System.currentTimeMillis();
 
+            if (hostBulletin != null) { // MurkaGram: dual UI
+                hostBulletin.setTexts(null, AndroidUtilities.replaceTags(LocaleController.formatPluralString("StarsSentText", (int) this.amount)));
+            } else {
             bulletinLayout.subtitleTextView.cancelAnimation();
             bulletinLayout.subtitleTextView.setText(AndroidUtilities.replaceTags(LocaleController.formatPluralString("StarsSentText", (int) this.amount)), true);
+            }
 
             if (shownBulletin) {
+                if (hostBulletin != null) hostBulletin.resetTimer(); else // MurkaGram: dual UI
                 timerView.timeLeft = REACTIONS_TIMEOUT;
                 AndroidUtilities.cancelRunOnUIThread(closeRunnable);
                 AndroidUtilities.runOnUIThread(closeRunnable, REACTIONS_TIMEOUT);
@@ -1976,6 +2031,7 @@ public class StarsController {
                 not_added += amount;
             }
 
+            if (hostBulletin != null) hostBulletin.setTexts(getToastTitle(), null); else // MurkaGram: dual UI
             bulletinLayout.titleTextView.setText(getToastTitle());
         }
 
@@ -1991,14 +2047,22 @@ public class StarsController {
             if (!shownBulletin) {
                 shownBulletin = true;
 
+                if (hostBulletin != null) { // MurkaGram: dual UI
+                    hostBulletin.resetTimer();
+                    AndroidUtilities.cancelRunOnUIThread(closeRunnable);
+                    AndroidUtilities.runOnUIThread(closeRunnable, REACTIONS_TIMEOUT);
+                    hostBulletin.show(closeRunnable);
+                } else {
                 timerView.timeLeft = REACTIONS_TIMEOUT;
                 AndroidUtilities.cancelRunOnUIThread(closeRunnable);
                 AndroidUtilities.runOnUIThread(closeRunnable, REACTIONS_TIMEOUT);
 
                 bulletin.show(true);
                 bulletin.setOnHideListener(closeRunnable);
+                }
             }
 
+            if (hostBulletin != null) hostBulletin.setTexts(getToastTitle(), null); else // MurkaGram: dual UI
             bulletinLayout.titleTextView.setText(getToastTitle());
         }
 
@@ -2014,9 +2078,14 @@ public class StarsController {
                 minus -= amount;
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starBalanceUpdated);
             }
+            if (hostBulletin != null) { // MurkaGram: dual UI
+                hostBulletin.hide();
+                hostBulletin.hideOverlay(messageObject, true);
+            } else {
             bulletin.hide();
             if (overlay != null && overlay.isShowing(messageObject)) {
                 overlay.hide();
+            }
             }
 
             if (currentPendingReactions == this) {
@@ -2029,9 +2098,14 @@ public class StarsController {
             AndroidUtilities.cancelRunOnUIThread(closeRunnable);
 
             cancelled = true;
+            if (hostBulletin != null) { // MurkaGram: dual UI
+                hostBulletin.hide();
+                hostBulletin.hideOverlay(messageObject, false);
+            } else {
             bulletin.hide();
             if (overlay != null) {
                 overlay.hide();
+            }
             }
 
             messageObject.addPaidReactions((int) -amount, wasChosen, getPeerId());
@@ -2062,6 +2136,12 @@ public class StarsController {
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.starBalanceUpdated);
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.didUpdateReactions, messageObject.getDialogId(), messageObject.getId(), messageObject.messageOwner.reactions);
 
+                if (host != null) { // MurkaGram: dual UI
+                    host.showStarsNeeded(totalStars, paidReactionsPeerName(message.did), () -> {
+                        sendPaidReaction(messageObject, host, totalStars, true, true, peer);
+                    });
+                    return;
+                }
                 String name;
                 if (message.did >= 0) {
                     TLRPC.User user = chatActivity.getMessagesController().getUser(message.did);
@@ -2109,7 +2189,11 @@ public class StarsController {
                     messageObject.addPaidReactions((int) -amount, wasChosen, getPeerId());
                     NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.didUpdateReactions, messageObject.getDialogId(), messageObject.getId(), messageObject.messageOwner.reactions);
 
-                    if ("BALANCE_TOO_LOW".equals(error.text)) {
+                    if ("BALANCE_TOO_LOW".equals(error.text) && host != null) { // MurkaGram: dual UI
+                        host.showStarsNeeded(totalStars, paidReactionsPeerName(message.did), () -> {
+                            sendPaidReaction(messageObject, host, totalStars, true, true, peer);
+                        });
+                    } else if ("BALANCE_TOO_LOW".equals(error.text)) {
                         String name;
                         if (message.did >= 0) {
                             TLRPC.User user = chatActivity.getMessagesController().getUser(message.did);
@@ -2205,6 +2289,62 @@ public class StarsController {
             return null;
         }
         currentPendingReactions.add(amount, (messageObject != null && !messageObject.doesPaidReactionExist()) || affect);
+        currentPendingReactions.peer = peer;
+        return currentPendingReactions;
+    }
+
+    // MurkaGram: dual UI, the name shown in the "stars needed" sheet
+    private String paidReactionsPeerName(long dialogId) {
+        final MessagesController messagesController = MessagesController.getInstance(currentAccount);
+        if (dialogId >= 0) {
+            return UserObject.getForcedFirstName(messagesController.getUser(dialogId));
+        } else {
+            final TLRPC.Chat chat = messagesController.getChat(-dialogId);
+            return chat == null ? "" : chat.title;
+        }
+    }
+
+    // MurkaGram: dual UI. sendPaidReaction for a chat that is not the modern ChatActivity (the classic chat): the same
+    // logic, the bulletin and the "stars needed" sheet come from the host.
+    public StarsController.PendingPaidReactions sendPaidReaction(
+        MessageObject messageObject,
+        PaidReactionsHost host,
+        long amount,
+        boolean affect,
+        boolean checkBalance,
+        Long peer
+    ) {
+        if (messageObject == null || host == null) return null;
+        final MessageId key = MessageId.from(messageObject);
+        final StarsController s = StarsController.getInstance(currentAccount);
+        final long totalStars = amount;
+        if (host.getContext() == null) return null;
+        if (checkBalance && s.balanceAvailable() && s.getBalance(false) <= 0) {
+            host.showStarsNeeded(totalStars, paidReactionsPeerName(messageObject.getDialogId()), () -> {
+                sendPaidReaction(messageObject, host, totalStars, true, true, peer);
+            });
+            return null;
+        }
+        if (currentPendingReactions == null || !currentPendingReactions.message.equals(key)) {
+            if (currentPendingReactions != null) {
+                currentPendingReactions.close();
+            }
+            currentPendingReactions = new PendingPaidReactions(key, messageObject, host, ConnectionsManager.getInstance(currentAccount).getCurrentTime(), affect);
+            currentPendingReactions.peer = peer;
+        }
+        if (currentPendingReactions.amount + amount > MessagesController.getInstance(currentAccount).starsPaidReactionAmountMax) {
+            currentPendingReactions.close();
+            currentPendingReactions = new PendingPaidReactions(key, messageObject, host, ConnectionsManager.getInstance(currentAccount).getCurrentTime(), affect);
+        }
+        final long totalStars2 = currentPendingReactions.amount + amount;
+        if (checkBalance && s.balanceAvailable() && s.getBalance(false) < totalStars2) {
+            currentPendingReactions.cancel();
+            host.showStarsNeeded(totalStars2, paidReactionsPeerName(messageObject.getDialogId()), () -> {
+                sendPaidReaction(messageObject, host, totalStars2, true, true, peer);
+            });
+            return null;
+        }
+        currentPendingReactions.add(amount, !messageObject.doesPaidReactionExist() || affect);
         currentPendingReactions.peer = peer;
         return currentPendingReactions;
     }

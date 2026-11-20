@@ -109,7 +109,7 @@ public class MurkaGramSettingsActivity extends UniversalFragment {
         nameView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
         nameView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         nameView.setTypeface(AndroidUtilities.bold());
-        nameView.setText("MurkaGram " + org.telegram.messenger.MurkaEdition.getEditionName(org.telegram.messenger.MurkaConfig.uiEdition() /* MurkaGram: dual UI */)); // MurkaGram: редакция интерфейса (Classic)
+        nameView.setText("MurkaGram"); // MurkaGram: одно название для обоих интерфейсов
         layout.addView(nameView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 14, 0, 0));
 
         String version;

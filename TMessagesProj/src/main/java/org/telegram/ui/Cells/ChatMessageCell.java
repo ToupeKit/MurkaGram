@@ -129,6 +129,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaScreenPrivacy;
 import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MurkaConfig;
 import org.telegram.messenger.NotificationCenter;
@@ -4095,6 +4096,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             row.avatar.setImageCoords(cx, y, size, size);
             row.avatar.setAlpha(1f);
             row.avatar.draw(canvas);
+            if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                MurkaScreenPrivacy.drawImageCover(this, canvas, row.avatar, getThemedColor(Theme.key_chat_inBubble), color);
+            }
             cx += size + dp(COMPACT_HEADER_AVATAR_GAP);
         }
         if (row.name != null) {
@@ -4102,6 +4106,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 // the source is accented too, but softer than the label
                 row.name.getPaint().setColor(ColorUtils.compositeColors(Theme.multAlpha(accentColor, .7f), getThemedColor(Theme.key_chat_compact_background)));
             }
+            if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                canvas.save();
+                canvas.translate(cx - row.name.getLineLeft(0), y + (dp(COMPACT_HEADER_ROW) - row.name.getHeight()) / 2f);
+                MurkaScreenPrivacy.drawLayoutCover(this, canvas, row.name, row.name.getPaint().getColor());
+                canvas.restore();
+            } else
             drawCompactHeaderLine(canvas, row.name, cx, y);
             if (row.forward) {
                 row.name.getPaint().setColor(color);
@@ -4111,7 +4121,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (row.text != null) {
             canvas.save();
             canvas.translate(cx - row.text.getLineLeft(0), y + (size - row.text.getHeight()) / 2f);
-            if (row.forward) {
+            if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                MurkaScreenPrivacy.drawLayoutCover(this, canvas, row.text, color);
+            } else if (row.forward) {
                 row.text.draw(canvas);
             } else {
                 SpoilerEffect.renderWithRipple(this, invalidateSpoilersParent, color, -dp(2), compactReplySpoilersPatchedLayout, 0, row.text, replySpoilers, canvas, false);
@@ -13194,6 +13206,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarImage.setImageCoords(photoImage.getImageX() + dp(7), photoImage.getImageY() + dp(7), dp(26) * scale, dp(26) * scale);
                 avatarImage.setAlpha(avatarAlpha);
                 avatarImage.draw(canvas);
+                if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                    MurkaScreenPrivacy.drawImageCover(this, canvas, avatarImage, getThemedColor(Theme.key_chat_inBubble), getThemedColor(Theme.key_chat_messageTextIn));
+                }
                 avatarImage.setImageCoords(wasX, wasY, wasWidth, wasHeight);
                 avatarImage.setAlpha(wasAlpha);
                 avatarImage.setVisible(wasVisible, false);
@@ -14231,8 +14246,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     Emoji.emojiDrawingYOffset = -transitionYOffsetForDrawables;
 
                     boolean needDrawTextDefault = true;
+                    final boolean murkaHide = MurkaScreenPrivacy.isHiding(); // MurkaGram: скрытие при записи экрана
+                    if (murkaHide) {
+                        needDrawTextDefault = false;
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, block.textLayout, blockSpoilersColor);
+                    }
 
-                    if (botDraftTypingAnimator != null && botDraftTypingAnimator.isRunning()) {
+                    if (!murkaHide && botDraftTypingAnimator != null && botDraftTypingAnimator.isRunning()) {
                         needDrawTextDefault = false;
                         if (botDraftTypingAnimator.needDraw(block)) {
                             if (botDraftTypingAnimator.isFadeBlock(block)) {
@@ -18750,6 +18770,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawAnimatedEmojis(Canvas canvas, float alpha) {
+        if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+            return;
+        }
         drawAnimatedEmojiMessageText(canvas, alpha);
         if (shouldDrawCaptionLayout()) {
             drawAnimatedEmojiCaption(canvas, alpha);
@@ -19500,6 +19523,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
                 avatarImage.setAlpha(avatarAlpha);
                 avatarImage.draw(canvas);
+                if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                    MurkaScreenPrivacy.drawImageCover(this, canvas, avatarImage, getThemedColor(Theme.key_chat_inBubble), getThemedColor(Theme.key_chat_messageTextIn));
+                }
                 avatarImage.setImageCoords(wasX, wasY, wasWidth, wasHeight);
                 avatarImage.setAlpha(wasAlpha);
                 avatarImage.setVisible(wasVisible, false);
@@ -19555,6 +19581,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             canvas.translate(nx, ny);
             oldAlpha = Theme.chat_namePaint.getAlpha();
             Theme.chat_namePaint.setAlpha((int) (oldAlpha * nameAlpha));
+            if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                MurkaScreenPrivacy.drawLayoutCover(this, canvas, nameLayout, Theme.chat_namePaint.getColor());
+            } else
             nameLayout.draw(canvas);
             Theme.chat_namePaint.setAlpha(oldAlpha);
             canvas.restore();
@@ -19947,7 +19976,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             for (int a = 0; a < 2; a++) {
                 canvas.save();
                 canvas.translate(-forwardNameOffsetX[a], (forwardHeight / 2f + dp(1.33f)) * a);
-                if (animatingAlpha != 1f || replyForwardAlpha != 1f) {
+                if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                    MurkaScreenPrivacy.drawLayoutCover(this, canvas, forwardedNameLayoutLocal[a], forwardedNameLayoutLocal[a].getPaint().getColor());
+                } else if (animatingAlpha != 1f || replyForwardAlpha != 1f) {
                     int oldAlpha = forwardedNameLayoutLocal[a].getPaint().getAlpha();
                     forwardedNameLayoutLocal[a].getPaint().setAlpha((int) (oldAlpha * animatingAlpha * replyForwardAlpha));
                     forwardedNameLayoutLocal[a].draw(canvas);
@@ -20255,6 +20286,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (replyNameLayout != null) {
                     canvas.save();
                     canvas.translate(replyStartX + offsetX - replyNameOffset + offset + (needReplyImage ? replyImageSz + dp(3) : 0), replyStartY + offsetY);
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, replyNameLayout, replyNameLayout.getPaint().getColor());
+                    } else
                     replyNameLayout.draw(canvas);
                     canvas.restore();
                 }
@@ -20283,8 +20317,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     final TextPaint paint = transitionParams.animateReplyTextLayout.getPaint();
                     int wasAlpha2 = paint.getAlpha();
                     paint.setAlpha((int) (wasAlpha2 * (1f - transitionParams.animateChangeProgress)));
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, transitionParams.animateReplyTextLayout, spoilersColor);
+                    } else {
                     SpoilerEffect.renderWithRipple(this, invalidateSpoilersParent, spoilersColor, -dp(2), spoilersPatchedReplyTextLayout, 0, transitionParams.animateReplyTextLayout, replySpoilers, canvas, false);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, transitionParams.animateReplyTextLayout, transitionParams.animateOutAnimateEmojiReply, 0, replySpoilers, 0, 0, 0, alpha, getAdaptiveEmojiColorFilter(2, paint.getColor()));
+                    }
                     paint.setAlpha(wasAlpha2);
                     canvas.restore();
                 }
@@ -20316,8 +20354,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     final TextPaint paint = replyTextLayout.getPaint();
                     int wasAlpha2 = paint.getAlpha();
                     paint.setAlpha((int) (wasAlpha2 * (transitionParams.animateReplyTextLayout != null ? transitionParams.animateChangeProgress : 1)));
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, replyTextLayout, spoilersColor);
+                    } else {
                     SpoilerEffect.renderWithRipple(this, invalidateSpoilersParent, spoilersColor, -dp(2), spoilersPatchedReplyTextLayout, 0, replyTextLayout, replySpoilers, canvas, false);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, replyTextLayout, animatedEmojiReplyStack, 0, replySpoilers, 0, 0, 0, alpha, getAdaptiveEmojiColorFilter(2, paint.getColor()));
+                    }
                     paint.setAlpha(wasAlpha2);
                     canvas.restore();
                 }

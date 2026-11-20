@@ -78,6 +78,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaScreenPrivacy;
 import org.telegram.messenger.MurkaBadges; // MurkaGram
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
@@ -4249,8 +4250,12 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
                 canvas.save();
                 canvas.translate(nameLeft + nameLayoutTranslateX, nameTop);
+                if (MurkaScreenPrivacy.isHiding() && currentDialogFolderId == 0) { // MurkaGram: скрытие при записи экрана
+                    MurkaScreenPrivacy.drawLayoutCover(this, canvas, nameLayout, nameLayout.getPaint().getColor());
+                } else {
                 SpoilerEffect.layoutDrawMaybe(nameLayout, canvas);
                 AnimatedEmojiSpan.drawAnimatedEmojis(canvas, nameLayout, animatedEmojiStackName, -.075f, null, 0, 0, 0, 1f, getAdaptiveEmojiColorFilter(0, nameLayout.getPaint().getColor()));
+                }
                 canvas.restore();
                 if (nameLayoutEllipsizeByGradient && !nameLayoutFits) {
                     canvas.save();
@@ -4331,8 +4336,12 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 canvas.save();
                 canvas.translate(messageNameLeft, messageNameTop);
                 try {
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, messageNameLayout, messageNameLayout.getPaint().getColor());
+                    } else {
                     SpoilerEffect.layoutDrawMaybe(messageNameLayout, canvas);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, messageNameLayout, animatedEmojiStack2, -.075f, null, 0, 0, 0, 1f, getAdaptiveEmojiColorFilter(1, messageNameLayout.getPaint().getColor()));
+                    }
                 } catch (Exception e) {
                     FileLog.e(e);
                 }
@@ -4364,7 +4373,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                     canvas.translate(messageLeft, top);
                     int oldAlpha = messageLayout.getPaint().getAlpha();
                     messageLayout.getPaint().setAlpha((int) (oldAlpha * (1f - updateHelper.typingProgres)));
-                    if (!spoilers.isEmpty()) {
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawLayoutCover(this, canvas, messageLayout, messageLayout.getPaint().getColor());
+                    } else if (!spoilers.isEmpty()) {
                         try {
                             canvas.save();
                             SpoilerEffect.clipOutCanvas(canvas, spoilers);
@@ -4482,7 +4493,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
 
 
                 canvas.translate(buttonLeft, buttonTop);
-                if (!spoilers2.isEmpty()) {
+                if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                    MurkaScreenPrivacy.drawLayoutCover(this, canvas, buttonLayout, buttonLayout.getPaint().getColor());
+                } else if (!spoilers2.isEmpty()) {
                     try {
                         canvas.save();
                         SpoilerEffect.clipOutCanvas(canvas, spoilers2);
@@ -4813,7 +4826,9 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                     //        thumbBackgroundPaint
                     //);
                     thumbImage[i].draw(canvas);
-                    if (drawSpoiler[i]) {
+                    if (MurkaScreenPrivacy.isHiding()) { // MurkaGram: скрытие при записи экрана
+                        MurkaScreenPrivacy.drawImageCover(this, canvas, thumbImage[i], Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), Theme.getColor(Theme.key_chats_message, resourcesProvider));
+                    } else if (drawSpoiler[i]) {
                         if (thumbPath == null) {
                             thumbPath = new Path();
                         } else {
@@ -4913,6 +4928,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
 
                 communityArrowDrawable.draw(canvas);
             }
+        }
+
+        // MurkaGram: скрытие аватара при записи экрана
+        if (MurkaScreenPrivacy.isHiding() && drawAvatar && currentDialogFolderId == 0) {
+            MurkaScreenPrivacy.drawImageCover(this, canvas, avatarImage, Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), Theme.getColor(Theme.key_chats_name, resourcesProvider));
         }
 
         if (animatingArchiveAvatar) {

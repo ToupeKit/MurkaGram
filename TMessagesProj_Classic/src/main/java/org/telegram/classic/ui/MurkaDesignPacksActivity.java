@@ -84,7 +84,6 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         items.add(UItem.asButton(ID_IMPORT, R.drawable.classic_msg_add, LocaleController.getString(R.string.MurkaDesignPackImport)));
         items.add(UItem.asButton(ID_EXPORT, R.drawable.classic_msg_share, LocaleController.getString(R.string.MurkaDesignPackExport)));
-        items.add(UItem.asButton(ID_RESTORE, R.drawable.classic_msg_reset, LocaleController.getString(R.string.MurkaDesignPackRestore)).setEnabled(hasBackup));
         items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaDesignPacksInfo)));
         int id = ID_PACK_BASE;
         // MurkaGram: dual UI, раздел «Интерфейс» — пакеты-редакции и выбор интерфейса (13.2.2 / 12.2.10)
@@ -92,7 +91,8 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         if (!interfaces.isEmpty()) {
             items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaUiEdition)));
             for (MurkaDesignPack pack : interfaces) {
-                final UItem item = UItem.asButton(id++, pack.verified ? R.drawable.msg_murka_badge_cat : R.drawable.classic_msg_theme, pack.getDisplayName(), getInterfaceStatus(pack));
+                final String status = getInterfaceStatus(pack);
+                final UItem item = status != null ? UItem.asButton(id++, pack.verified ? R.drawable.msg_murka_badge_cat : R.drawable.classic_msg_theme, getInterfaceName(pack.edition), status) : UItem.asButton(id++, pack.verified ? R.drawable.msg_murka_badge_cat : R.drawable.classic_msg_theme, getInterfaceName(pack.edition)); // MurkaGram: фиксированные названия, без описания
                 item.object2 = pack;
                 items.add(item);
             }
@@ -140,7 +140,7 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
             if (!found && both) {
                 final MurkaDesignPack builtIn = new MurkaDesignPack();
                 builtIn.edition = edition;
-                builtIn.name = LocaleController.getString(UiEdition.CLASSIC.equals(edition) ? R.string.MurkaInterfaceClassicName : R.string.MurkaInterfaceModernName);
+                builtIn.name = getInterfaceName(edition);
                 result.add(builtIn);
             }
         }
@@ -153,7 +153,12 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         if (next.equals(pack.edition)) {
             return LocaleController.getString(next.equals(UiEdition.current()) ? R.string.MurkaInterfaceCurrent : R.string.MurkaInterfaceNext);
         }
-        return pack.author;
+        return null;
+    }
+
+    // MurkaGram: dual UI, название интерфейса по редакции (не из манифеста пакета)
+    private static String getInterfaceName(String edition) {
+        return LocaleController.getString(UiEdition.CLASSIC.equals(edition) ? R.string.MurkaInterfaceClassicName : R.string.MurkaInterfaceModernName);
     }
 
     @Override
@@ -553,7 +558,6 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         if (pack.themeText != null) {
             text.append("\n• ").append(LocaleController.formatString(R.string.MurkaDesignPackThemeColors, pack.themeKeysCount));
         }
-        text.append("\n\n").append(LocaleController.getString(R.string.MurkaDesignPackBackupNote));
 
         if (pack.verified) {
             addVerifiedRow(activity, layout); // MurkaGram: бейджик «Проверенный пакет MurkaGram»
@@ -662,7 +666,7 @@ public class MurkaDesignPacksActivity extends UniversalFragment {
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle(pack.getDisplayName());
+        builder.setTitle(dualUi ? getInterfaceName(pack.edition) : pack.getDisplayName());
         builder.setView(layout);
         if (canApply) {
             builder.setPositiveButton(LocaleController.getString(R.string.MurkaDesignPackApply), (dialog, which) -> {

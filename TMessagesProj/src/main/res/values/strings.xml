@@ -20,6 +20,9 @@
     <string name="MurkaSecurity">Security</string>
     <string name="MurkaAntiScam">Scam protection</string>
     <string name="MurkaAntiScamInfo">Warns you if a link or username looks like an official one (for example, NFT marketplaces @mrkt, @portals, @Tonnel_Network_bot) but differs by a couple of characters — scammers often do this.</string>
+    <string name="MurkaHideOnScreenRecording">Hide during screen recording</string>
+    <string name="MurkaHideOnScreenRecordingInfo">While the screen is being recorded, chat avatars, chat names and message texts are hidden under a spoiler. Works on Android 15 and newer.</string>
+    <string name="MurkaHideOnScreenRecordingUnsupported">While the screen is being recorded, chat avatars, chat names and message texts are hidden under a spoiler. Requires Android 15 or newer — not available on this device.</string>
     <string name="MurkaAntiScamTitle">This may be a scam</string>
     <string name="MurkaAntiScamText">This link looks like the official **@%1$s**, but it is **@%2$s**. Official link: @%1$s.</string>
     <string name="MurkaAntiScamOpenOfficial">Go to @%1$s</string>
@@ -118,6 +121,13 @@
     <string name="MurkaUnlimitedPins">Unlimited pinned chats</string>
     <string name="MurkaUnlimitedPinsInfo">Chats pinned beyond the Telegram limit are pinned only on this device.</string>
     <string name="MurkaDrawerStatus">Emoji status</string>
+    <string name="MurkaDialogsMenuSettings">Chat list «⋮» menu</string>
+    <string name="MurkaDialogsMenuTitle">«⋮» menu</string>
+    <string name="MurkaDialogsMenuNight">Day / night mode</string>
+    <string name="MurkaDialogsMenuBots">Wallet and bots</string>
+    <string name="MurkaDialogsMenuInfo">Turn off items you don\'t need in the «⋮» menu at the top of the chat list. Long-press and drag an item to change its position.</string>
+    <string name="MurkaIntroSubtitle">fork Telegram</string>
+    <string name="MurkaIntroTitle">MurkaGram</string>
     <string name="MurkaCustomIcon">Custom</string>
     <string name="MurkaCustomIconInfo">Android doesn\'t let apps change the launcher icon to an arbitrary picture, so a MurkaGram shortcut with your picture will be created on the home screen.</string>
     <string name="MurkaCustomIconPick">Choose picture</string>
@@ -163,8 +173,8 @@
     <string name="MurkaDesignPackMyDesign">My design</string>
     <string name="MurkaDesignPackVerified">Verified MurkaGram pack</string>
     <string name="MurkaEditionInfo">Interface edition: %1$s. Applying installs this MurkaGram build over the current one.</string>
-    <string name="MurkaInterfaceModernName">MurkaGram Modern (13.2.2)</string>
-    <string name="MurkaInterfaceClassicName">MurkaGram Classic (12.2.10)</string>
+    <string name="MurkaInterfaceModernName">MurkaGram 13.2.2 (latest)</string>
+    <string name="MurkaInterfaceClassicName">MurkaGram 12.2.10</string>
     <string name="MurkaInterfaceCurrent">Current</string>
     <string name="MurkaInterfaceNext">Selected, after restart</string>
     <string name="MurkaInterfaceSame">This interface is already selected</string>

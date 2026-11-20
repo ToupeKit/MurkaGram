@@ -1,15 +1,17 @@
 package org.telegram.messenger.pip;
 
 import android.app.Activity;
-import android.support.v4.media.session.MediaSessionCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.Nullable;
+import androidx.media3.common.Player;
+import androidx.media3.session.MediaSession;
 
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.pip.activity.IPipActivityActionListener;
 import org.telegram.messenger.pip.activity.IPipActivityAnimationListener;
 import org.telegram.messenger.pip.activity.IPipActivityHandler;
@@ -132,35 +134,14 @@ public class PipActivityController {
 
         PipUtils.applyPictureInPictureParams(activity, newSource);
 
-        final boolean oldMediaSession = oldSource != null && oldSource.needMediaSession;
-        final boolean newMediaSession = newSource != null && newSource.needMediaSession;
-        if (oldMediaSession != newMediaSession) {
-            if (mediaSessionConnector != null) {
-                mediaSessionConnector = null;
-            }
-            if (mediaSession != null) {
-                mediaSession.setActive(false);
-                mediaSession.release();
-                mediaSession = null;
-                // Log.i(PipSource.TAG, "[MEDIA] stop media session");
-            }
-
-            if (newSource != null) {
-                mediaSession = new MediaSessionCompat(activity, "pip-media-session");
-                mediaSession.setQueue(null);
-                mediaSession.setActive(true);
-
-                // Log.i(PipSource.TAG, "[MEDIA] start media session");
-            }
-        }
+        // MurkaGram: dual UI, 12.2.10 MediaSessionCompat + exoplayer2 MediaSessionConnector -> a media3 MediaSession on the player
+        updateMediaSession(newSource);
 
         if (oldSource != null) {
             oldSource.state2.onLoseMaxPriority();
         }
 
         if (newSource != null) {
-            if (mediaSessionConnector != null) {
-            }
             pipContentView.bringToFront();
             newSource.state2.onReceiveMaxPriority();
         } else if (oldSource != null) {
@@ -174,8 +155,40 @@ public class PipActivityController {
         pipContentView.invalidate();
     }
 
-    private MediaSessionCompat mediaSession;
-    Object mediaSessionConnector; // MurkaGram: dual UI, media3 has no MediaSessionConnector (exoplayer2 ext). TODO(E6): media session controls in PiP
+    // MurkaGram: dual UI. media3 has no MediaSessionConnector (exoplayer2 ext): a media3 MediaSession is built on the
+    // player of the max priority source (as the modern org.telegram.utils.pip.SystemHost does), giving PiP the
+    // play/pause/seek controls and the media notification.
+    private MediaSession mediaSession;
+
+    private void updateMediaSession(@Nullable PipSource source) {
+        final Player player = source != null && source.needMediaSession ? source.player : null;
+        if (player == null) {
+            releaseMediaSession();
+            return;
+        }
+        if (mediaSession != null && mediaSession.getPlayer() == player) {
+            return;
+        }
+        releaseMediaSession();
+        try {
+            mediaSession = new MediaSession.Builder(activity, player)
+                .setId("classic-pip-media-session")
+                .build();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void releaseMediaSession() {
+        if (mediaSession != null) {
+            try {
+                mediaSession.release();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            mediaSession = null;
+        }
+    }
 
 
 
@@ -202,8 +215,7 @@ public class PipActivityController {
     void dispatchSourceParamsChanged(PipSource source) {
         if (maxPrioritySource == source) {
             PipUtils.applyPictureInPictureParams(activity, source);
-            if (mediaSessionConnector != null) {
-            }
+            updateMediaSession(source); // MurkaGram: dual UI, 12.2.10 mediaSessionConnector.setPlayer(source.player)
         }
         pipContentView.invalidate();
     }

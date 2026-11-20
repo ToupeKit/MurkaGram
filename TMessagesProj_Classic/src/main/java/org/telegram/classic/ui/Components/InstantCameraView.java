@@ -877,7 +877,7 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
             animatorSet.removeAllListeners();
             animatorSet.cancel();
         }
-        PipRoundVideoView pipRoundVideoView = PipRoundVideoView.getInstance();
+        org.telegram.ui.Components.PipRoundVideoView pipRoundVideoView = org.telegram.ui.Components.PipRoundVideoView.getInstance(); // MurkaGram: dual UI, the core shows the shared round-video PiP
         if (pipRoundVideoView != null) {
             pipRoundVideoView.showTemporary(!open);
         }

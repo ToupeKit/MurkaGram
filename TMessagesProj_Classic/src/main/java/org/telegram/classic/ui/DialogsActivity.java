@@ -10738,8 +10738,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     break;
                 }
             }
-            if (allGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && FilesMigrationService.filesMigrationBottomSheet != null) {
-                FilesMigrationService.filesMigrationBottomSheet.migrateOldFolder();
+            if (allGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // MurkaGram: dual UI, classic migration sheet
+                org.telegram.messenger.ClassicFilesMigrationService.onPermissionsGranted();
             }
 
         }

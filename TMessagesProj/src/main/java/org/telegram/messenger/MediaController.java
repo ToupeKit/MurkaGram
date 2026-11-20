@@ -1021,7 +1021,27 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     private Sensor linearSensor;
     private Sensor gravitySensor;
     private boolean raiseToEarRecord;
-    private ChatActivity raiseChat;
+    private RaiseToEarChat raiseChat; // MurkaGram: dual UI, was ChatActivity; both the modern and the classic chat implement it
+
+    // MurkaGram: dual UI. What raise-to-ear needs from the open chat screen, so that the modern
+    // org.telegram.ui.ChatActivity and the classic org.telegram.classic.ui.ChatActivity can both register.
+    public interface RaiseToEarChat {
+        boolean playFirstUnreadVoiceMessage();
+
+        int getCurrentAccount();
+
+        long getDialogId();
+
+        MessageObject getThreadMessage();
+
+        int getClassGuid();
+
+        SendMessageChatArguments getMessageChatSendParams();
+
+        long getSendMonoForumPeerId();
+
+        MessageSuggestionParams getSendMessageSuggestionParams();
+    }
     private boolean accelerometerVertical;
     private long lastAccelerometerDetected;
     private int raisedToTop;
@@ -2473,7 +2493,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         allowStartRecord = value;
     }
 
-    public void startRaiseToEarSensors(ChatActivity chatActivity) {
+    public void startRaiseToEarSensors(RaiseToEarChat chatActivity) { // MurkaGram: dual UI, was ChatActivity
         if (chatActivity == null || accelerometerSensor == null && (gravitySensor == null || linearAcceleration == null) || proximitySensor == null) {
             return;
         }
@@ -2507,7 +2527,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         }
     }
 
-    public void stopRaiseToEarSensors(ChatActivity chatActivity, boolean fromChat, boolean stopRecording) {
+    public void stopRaiseToEarSensors(RaiseToEarChat chatActivity, boolean fromChat, boolean stopRecording) { // MurkaGram: dual UI, was ChatActivity
         if (ignoreOnPause) {
             ignoreOnPause = false;
             return;
@@ -2685,7 +2705,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             }
         }
         if (!playingNext && byVoiceEnd && !SharedConfig.enabledRaiseTo(true)) {
-            ChatActivity chat = raiseChat;
+            RaiseToEarChat chat = raiseChat; // MurkaGram: dual UI
             stopRaiseToEarSensors(raiseChat, false, false);
             raiseChat = chat;
         }

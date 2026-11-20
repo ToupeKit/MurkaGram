@@ -20,6 +20,7 @@ public class WebViewRequestProps {
     public @BotWebViewAttachedSheet.WebViewType int type;
     public int replyToMsgId;
     public long monoforumTopicId;
+    public long queryId; // MurkaGram: dual UI, guard bot web app (BotWebViewSheet.TYPE_WEB_VIEW_GUARD)
     public boolean silent;
     public TLRPC.BotApp app;
     public boolean allowWrite;

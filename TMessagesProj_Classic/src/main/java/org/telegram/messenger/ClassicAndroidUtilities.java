@@ -255,7 +255,8 @@ public final class ClassicAndroidUtilities {
             }
             if (!(
                 lastGlobalView instanceof AlertDialog.AlertDialogView ||
-                lastGlobalView instanceof PipRoundVideoView.PipFrameLayout
+                lastGlobalView instanceof PipRoundVideoView.PipFrameLayout ||
+                lastGlobalView instanceof org.telegram.ui.Components.PipRoundVideoView.PipFrameLayout // MurkaGram: dual UI, the core shows the shared round-video PiP
             )) break;
         }
         return lastGlobalView != AndroidUtilities.getRootView(fragment.getParentLayout().getView());

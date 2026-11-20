@@ -322,6 +322,9 @@ public class MessagePreviewParams {
         if (previewView != null) {
             previewView.updateLink();
         }
+        if (classicPreviewView != null) { // MurkaGram: dual UI
+            classicPreviewView.updateLink();
+        }
     }
 
     public void checkCurrentLink(MessageObject msg) {
@@ -554,6 +557,18 @@ public class MessagePreviewParams {
         this.previewView = previewView;
     }
 
+    // MurkaGram: dual UI. The classic 12.2.10 MessagePreviewView (TMessagesProj_Classic) attached by ClassicMessagePreviewParams.
+    public interface ClassicPreviewView {
+        void updateLink();
+
+        void updateAll();
+    }
+
+    private ClassicPreviewView classicPreviewView;
+    public void attachClassic(ClassicPreviewView previewView) {
+        this.classicPreviewView = previewView;
+    }
+
     public void checkEdits(ArrayList<MessageObject> replaceMessageObjects) {
         boolean replaced = false;
         if (forwardMessages != null) {
@@ -579,6 +594,9 @@ public class MessagePreviewParams {
         }
         if (replaced && previewView != null) {
             previewView.updateAll();
+        }
+        if (replaced && classicPreviewView != null) { // MurkaGram: dual UI
+            classicPreviewView.updateAll();
         }
     }
 }

@@ -3006,8 +3006,8 @@ public class CacheControlActivity extends BaseFragment implements NotificationCe
                     break;
                 }
             }
-            if (allGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && FilesMigrationService.filesMigrationBottomSheet != null) {
-                FilesMigrationService.filesMigrationBottomSheet.migrateOldFolder();
+            if (allGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                ClassicFilesMigrationService.onPermissionsGranted(); // MurkaGram: dual UI, the classic migration sheet
             }
 
         }

@@ -6364,7 +6364,7 @@ public class Theme {
     }
 
     public static void saveThemeAccents(ThemeInfo theme, boolean save, boolean remove, boolean indexOnly, boolean upload, boolean migration) {
-        if (org.telegram.messenger.UiEdition.isClassic()) return; // MurkaGram: dual UI, the classic Theme owns "themeconfig" (see UiBridge.loadRemoteThemes)
+        if (org.telegram.messenger.UiEdition.isClassic()) { FileLog.d("MurkaTheme: modern theme save skipped (classic edition)"); return; } // MurkaGram: dual UI, the classic Theme owns "themeconfig" (see UiBridge.loadRemoteThemes)
         if (save) {
             SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
             SharedPreferences.Editor editor = preferences.edit();
@@ -6442,7 +6442,7 @@ public class Theme {
     }
 
     private static void saveOtherThemes(boolean full, boolean migration) {
-        if (org.telegram.messenger.UiEdition.isClassic()) return; // MurkaGram: dual UI, the classic Theme owns "themeconfig" (see UiBridge.loadRemoteThemes)
+        if (org.telegram.messenger.UiEdition.isClassic()) { FileLog.d("MurkaTheme: modern theme save skipped (classic edition)"); return; } // MurkaGram: dual UI, the classic Theme owns "themeconfig" (see UiBridge.loadRemoteThemes)
         SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
         SharedPreferences.Editor editor = preferences.edit();
         if (full) {

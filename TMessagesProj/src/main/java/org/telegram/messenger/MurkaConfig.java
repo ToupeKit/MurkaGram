@@ -77,11 +77,22 @@ public class MurkaConfig {
     public static final String DRAWER_ITEMS_DEFAULT = "profile,status,div,newgroup,contacts,calls,saved,settings,div,invite,features"; // MurkaGram: + "status"
     public static String drawerItems;
 
+    // MurkaGram: «Меню «⋮» в списке чатов» (интерфейс 13.2.2) — все пункты в порядке показа через запятую,
+    // выключенные с префиксом "-"; null = как в 13.2.2. Старый формат (только включённые, без "-") читается так же.
+    // Ключи совпадают с ключами бокового меню 12.2.10 ("newgroup", "saved", "ghost", ...) там, где смысл тот же.
+    public static final String[] DIALOGS_MENU_ALL = {"night", "profile", "newgroup", "secret", "channel", "contacts", "calls", "saved", "bots", "settings", "murka", "invite", "features", "ghost"};
+    // Порядок по умолчанию: сначала пункты 13.2.2 в их родном порядке, затем остальные (выключены).
+    public static final String[] DIALOGS_MENU_DEFAULT_ORDER = {"night", "newgroup", "saved", "bots", "settings", "profile", "secret", "channel", "contacts", "calls", "murka", "invite", "features", "ghost"};
+    public static String dialogsMenuItems;
+
     // MurkaGram: «Предупреждение призрака» перед просмотром одноразовых/самоуничтожающихся медиа.
     public static boolean ghostWarning;
 
     // MurkaGram: «Защита от мошенников» — предупреждение о юзернеймах, похожих на официальные.
     public static boolean antiScam;
+
+    // MurkaGram: «Скрывать при записи экрана» — аватары, названия чатов и тексты под спойлером (Android 15+).
+    public static boolean hideOnScreenRecording;
 
     // MurkaGram: «Подтверждение отправки голосовых и кружков».
     public static boolean confirmVoiceSend;
@@ -142,8 +153,10 @@ public class MurkaConfig {
             emojiMode = preferences.getInt("emojiMode", EMOJI_DEFAULT); // MurkaGram
             customEmojiPath = preferences.getString("customEmojiPath", null); // MurkaGram
             drawerItems = preferences.getString("drawerItems", DRAWER_ITEMS_DEFAULT); // MurkaGram
+            dialogsMenuItems = preferences.getString("dialogsMenuItems", null); // MurkaGram
             ghostWarning = preferences.getBoolean("ghostWarning", true); // MurkaGram
             antiScam = preferences.getBoolean("antiScam", true); // MurkaGram
+            hideOnScreenRecording = preferences.getBoolean("hideOnScreenRecording", false); // MurkaGram
             // MurkaGram: пункт «status» в боковом меню — добавить в уже сохранённые списки
             if (preferences.getInt("drawerItemsVer", 0) < 1) {
                 SharedPreferences.Editor editor = preferences.edit();
@@ -220,6 +233,70 @@ public class MurkaConfig {
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.murkaDrawerItemsChanged);
     }
 
+    // MurkaGram: «Меню «⋮» в списке чатов». По умолчанию — как в 13.2.2: «Настройки» там видны только при вкладке «Звонки».
+    public static java.util.HashSet<String> getDialogsMenuItems(boolean settingsByDefault) {
+        java.util.HashSet<String> set = new java.util.HashSet<>();
+        String value = dialogsMenuItems;
+        if (value == null) {
+            set.add("night");
+            set.add("newgroup");
+            set.add("saved");
+            set.add("bots");
+            if (settingsByDefault) {
+                set.add("settings");
+            }
+            return set;
+        }
+        for (String s : value.split(",")) {
+            s = s.trim();
+            if (!s.isEmpty() && !s.startsWith("-")) {
+                set.add(s);
+            }
+        }
+        return set;
+    }
+
+    // MurkaGram: порядок всех пунктов меню «⋮» (включённых и выключенных). Неизвестные ключи отбрасываются,
+    // отсутствующие (старый формат или новые пункты) дописываются в конец в порядке DIALOGS_MENU_ALL.
+    public static java.util.ArrayList<String> getDialogsMenuOrder() {
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        java.util.List<String> all = java.util.Arrays.asList(DIALOGS_MENU_ALL);
+        String value = dialogsMenuItems;
+        if (value == null) {
+            list.addAll(java.util.Arrays.asList(DIALOGS_MENU_DEFAULT_ORDER));
+        } else {
+            for (String s : value.split(",")) {
+                s = s.trim();
+                if (s.startsWith("-")) {
+                    s = s.substring(1);
+                }
+                if (all.contains(s) && !list.contains(s)) {
+                    list.add(s);
+                }
+            }
+        }
+        for (String k : DIALOGS_MENU_ALL) {
+            if (!list.contains(k)) {
+                list.add(k);
+            }
+        }
+        return list;
+    }
+
+    public static void setDialogsMenuItems(java.util.List<String> order, java.util.Set<String> enabled) {
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        for (String k : order) {
+            list.add(enabled.contains(k) ? k : "-" + k);
+        }
+        dialogsMenuItems = android.text.TextUtils.join(",", list);
+        getPreferences().edit().putString("dialogsMenuItems", dialogsMenuItems).apply();
+    }
+
+    public static void resetDialogsMenuItems() {
+        dialogsMenuItems = null;
+        getPreferences().edit().remove("dialogsMenuItems").apply();
+    }
+
     // MurkaGram: «Предупреждение призрака»
     public static void toggleGhostWarning() {
         ghostWarning = !ghostWarning;
@@ -230,6 +307,12 @@ public class MurkaConfig {
     public static void toggleAntiScam() {
         antiScam = !antiScam;
         getPreferences().edit().putBoolean("antiScam", antiScam).apply();
+    }
+
+    // MurkaGram: «Скрывать при записи экрана»
+    public static void toggleHideOnScreenRecording() {
+        hideOnScreenRecording = !hideOnScreenRecording;
+        getPreferences().edit().putBoolean("hideOnScreenRecording", hideOnScreenRecording).apply();
     }
 
     // MurkaGram: «Исключения» мониторинга — в этих чатах удалённые сообщения и изменения не сохраняются.

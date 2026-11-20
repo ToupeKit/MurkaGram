@@ -118,7 +118,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public class BotWebViewSheet extends Dialog implements NotificationCenter.NotificationCenterDelegate, BottomSheetTabsOverlay.Sheet {
-    public final static int TYPE_WEB_VIEW_BUTTON = 0, TYPE_SIMPLE_WEB_VIEW_BUTTON = 1, TYPE_BOT_MENU_BUTTON = 2, TYPE_WEB_VIEW_BOT_APP = 3, TYPE_WEB_VIEW_BOT_MAIN = 4;
+    public final static int TYPE_WEB_VIEW_BUTTON = 0, TYPE_SIMPLE_WEB_VIEW_BUTTON = 1, TYPE_BOT_MENU_BUTTON = 2, TYPE_WEB_VIEW_BOT_APP = 3, TYPE_WEB_VIEW_BOT_MAIN = 4,
+            TYPE_WEB_VIEW_GUARD = 5; // MurkaGram: dual UI, 13.2.2 guard bot (BotGuardHelper)
 
     public final static int FLAG_FROM_INLINE_SWITCH = 1;
     public final static int FLAG_FROM_SIDE_MENU = 2;
@@ -161,7 +162,8 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             TYPE_SIMPLE_WEB_VIEW_BUTTON,
             TYPE_BOT_MENU_BUTTON,
             TYPE_WEB_VIEW_BOT_APP,
-            TYPE_WEB_VIEW_BOT_MAIN
+            TYPE_WEB_VIEW_BOT_MAIN,
+            TYPE_WEB_VIEW_GUARD // MurkaGram: dual UI
     })
     public @interface WebViewType {}
 
@@ -1626,8 +1628,41 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                     }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
                     break;
                 }
+                case TYPE_WEB_VIEW_GUARD: { // MurkaGram: dual UI, 13.2.2 guard bot web app, as in the modern BotWebViewSheet
+                    TLRPC.TL_messages_requestChatJoinWebView req = new TLRPC.TL_messages_requestChatJoinWebView();
+                    req.platform = "android";
+                    req.query_id = props.queryId;
+                    if (themeParams != null) {
+                        req.theme_params = new TLRPC.TL_dataJSON();
+                        req.theme_params.data = themeParams.toString();
+                    }
+
+                    ConnectionsManager.getInstance(currentAccount).sendRequestTyped(req, AndroidUtilities::runOnUIThread, (response2, error2) -> {
+                        if (error2 != null) {
+
+                        } else if (requestProps != null) {
+                            requestProps.applyResponse(response2);
+                            loadFromResponse();
+                        }
+                    }, ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
+                    break;
+                }
             }
         }
+        if (props.type == TYPE_WEB_VIEW_GUARD) { // MurkaGram: dual UI, the core closes guard sheets of the modern BotWebViewSheet only
+            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.guardBotDecisionResult);
+        }
+    }
+
+    // MurkaGram: dual UI, 13.2.2 BotWebViewSheet.isGuardBotTab
+    public boolean isGuardBotTab(long peerId, long queryId) {
+        if (requestProps != null && requestProps.type == TYPE_WEB_VIEW_GUARD && (requestProps.peerId == peerId || requestProps.peerId == 0)) {
+            if (requestProps.response instanceof TLRPC.TL_webViewResultUrl) {
+                final long bQueryId = ((TLRPC.TL_webViewResultUrl) requestProps.response).query_id;
+                return bQueryId == queryId;
+            }
+        }
+        return false;
     }
 
     private HashMap<BotDownloads.FileDownload, ActionBarMenuSubItem> fileItems = new HashMap<>();
@@ -2036,6 +2071,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.webViewResultSent);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.botDownloadsUpdate);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.guardBotDecisionResult); // MurkaGram: dual UI
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.didSetNewTheme);
 
         if (intoTabs && (LaunchActivity.instance == null || LaunchActivity.instance.getBottomSheetTabsOverlay() == null)) {
@@ -2114,6 +2150,11 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             updateLightStatusBar();
         } else if (id == NotificationCenter.botDownloadsUpdate) {
             updateDownloadBulletin();
+        } else if (id == NotificationCenter.guardBotDecisionResult) { // MurkaGram: dual UI, BotGuardHelper.closeGuardBotWebApp
+            final org.telegram.messenger.BotGuardHelper.GuardBotDecisionResultNotification result = (org.telegram.messenger.BotGuardHelper.GuardBotDecisionResultNotification) args[0];
+            if (result != null && isGuardBotTab(result.dialogId, result.queryId)) {
+                dismiss();
+            }
         }
     }
 

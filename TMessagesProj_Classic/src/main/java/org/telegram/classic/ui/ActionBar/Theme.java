@@ -5034,6 +5034,7 @@ public class Theme {
         if (switchToTheme == 2) {
             applyingTheme = currentNightTheme;
         }
+        FileLog.d("MurkaTheme: classic init theme=" + (applyingTheme != null ? applyingTheme.getKey() + " accent=" + applyingTheme.currentAccentId : null) + " switchToTheme=" + switchToTheme + " autoNight=" + selectedAutoNightType); // MurkaGram: dual UI, debug
         applyTheme(applyingTheme, false, false, switchToTheme == 2);
         AndroidUtilities.runOnUIThread(Theme::checkAutoNightThemeConditions);
     }
@@ -6307,6 +6308,7 @@ public class Theme {
         if (themeInfo == null) {
             return;
         }
+        FileLog.d("MurkaTheme: classic applyTheme " + themeInfo.getKey() + " accent=" + themeInfo.currentAccentId + " save=" + save + " night=" + nightTheme); // MurkaGram: dual UI, debug
         ThemeEditorView editorView = ThemeEditorView.getInstance();
         if (editorView != null) {
             editorView.destroy();
@@ -6799,6 +6801,7 @@ public class Theme {
     }
 
     public static void saveThemeAccents(ThemeInfo theme, boolean save, boolean remove, boolean indexOnly, boolean upload, boolean migration) {
+        FileLog.d("MurkaTheme: classic saveThemeAccents " + (theme != null ? theme.getKey() + " accent=" + theme.currentAccentId : null) + " save=" + save + " remove=" + remove + " indexOnly=" + indexOnly); // MurkaGram: dual UI, debug
         if (save) {
             SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
             SharedPreferences.Editor editor = preferences.edit();
@@ -7766,16 +7769,33 @@ public class Theme {
         return file;
     }
 
-    // MurkaGram: dual UI, 12.2.10 versions of the built-in themes changed in 13.2.2 live in assets/classic
-    private static final java.util.Set<String> MURKA_CLASSIC_ATTHEMES = new java.util.HashSet<>(java.util.Arrays.asList(
-            "day.attheme", "night.attheme", "arctic.attheme", "darkblue.attheme", "bluebubbles.attheme"));
+    // MurkaGram: dual UI, 12.2.10 versions of the built-in themes changed in 13.2.2 live in assets/classic.
+    // No static field here: getAssetFile() is called from the static initializer (applyTheme at startup), which runs
+    // before field initializers declared below it — a Set field was still null there, the NPE was swallowed by
+    // getThemeFileValues() and the theme loaded with no colors at all (default palette: green checks/bubbles after
+    // every restart; a theme picked in the session looked right because by then the field was set).
+    private static boolean murkaIsClassicAttheme(String assetName) {
+        if (assetName == null) {
+            return false;
+        }
+        switch (assetName) {
+            case "day.attheme":
+            case "night.attheme":
+            case "arctic.attheme":
+            case "darkblue.attheme":
+            case "bluebubbles.attheme":
+                return true;
+            default:
+                return false;
+        }
+    }
 
     private static String murkaClassicAssetPath(String assetName) {
-        return MURKA_CLASSIC_ATTHEMES.contains(assetName) ? "classic/" + assetName : assetName;
+        return murkaIsClassicAttheme(assetName) ? "classic/" + assetName : assetName;
     }
 
     private static String murkaClassicAssetFile(String assetName) {
-        return MURKA_CLASSIC_ATTHEMES.contains(assetName) ? "classic_" + assetName : assetName;
+        return murkaIsClassicAttheme(assetName) ? "classic_" + assetName : assetName;
     }
 
     public static int getPreviewColor(SparseIntArray colors, int key) {
@@ -8164,7 +8184,7 @@ public class Theme {
             }
             stringMap.put(key_wallpaperFileOffset, wallpaperFileOffset);
         } catch (Throwable e) {
-            FileLog.e(e);
+            FileLog.e("MurkaTheme: classic theme file " + (assetName != null ? assetName : file) + " not read", e); // MurkaGram: dual UI, debug
         } finally {
             try {
                 if (stream != null) {

@@ -2558,7 +2558,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                 roundVideoContainer.setTranslationY(-AndroidUtilities.roundMessageSize - 100);
                 fragmentView.invalidate();
                 if (messageObject != null && messageObject.isRoundVideo()) {
-                    if (checkTextureViewPosition || PipRoundVideoView.getInstance() != null) {
+                    if (checkTextureViewPosition || org.telegram.ui.Components.PipRoundVideoView.getInstance() != null) { // MurkaGram: dual UI, the core shows the shared round-video PiP
                         MediaController.getInstance().setCurrentVideoVisible(false);
                     }
                 }

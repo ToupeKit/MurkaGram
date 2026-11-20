@@ -49,6 +49,7 @@ import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MurkaScreenPrivacy;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -431,6 +432,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
+        if (MurkaScreenPrivacy.isHiding() && murkaDrawPrivacyCover(canvas, child)) { // MurkaGram: скрытие при записи экрана
+            return false;
+        }
         if (child == avatarImageView) {
             final boolean hasTimer = timeItem != null && timeItem.getVisibility() == VISIBLE;
             final boolean hasCommunity = communityItem != null && communityItem.getVisibility() == VISIBLE;
@@ -456,6 +460,37 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             }
         }
         return super.drawChild(canvas, child, drawingTime);
+    }
+
+    // MurkaGram: «Скрывать при записи экрана» — аватар, название и подзаголовок чата под спойлером
+    private boolean murkaDrawPrivacyCover(Canvas canvas, View child) {
+        if (child.getVisibility() != VISIBLE || child.getAlpha() <= 0f) {
+            return false;
+        }
+        if (child == avatarImageView) {
+            MurkaScreenPrivacy.drawViewCircleCover(this, canvas, child, getThemedColor(Theme.key_actionBarDefault), getThemedColor(Theme.key_actionBarDefaultTitle));
+            return true;
+        }
+        if (child instanceof SimpleTextView) {
+            SimpleTextView textView = (SimpleTextView) child;
+            if (textView.getLayout() != null) {
+                float left = textView.getTextStartX();
+                float width = Math.min(textView.getTextWidth(), child.getWidth());
+                float centerY = child.getY() + child.getHeight() / 2f;
+                float height = textView.getTextHeight();
+                MurkaScreenPrivacy.drawRectCover(this, canvas, left, centerY - height / 2f, left + width, centerY + height / 2f, textView.getTextPaint().getColor());
+            }
+            return true;
+        }
+        if (child == animatedSubtitleTextView) {
+            float left = child.getX() + child.getPaddingLeft();
+            float width = Math.min(animatedSubtitleTextView.getDrawable().getCurrentWidth(), child.getWidth());
+            float centerY = child.getY() + child.getHeight() / 2f;
+            float height = animatedSubtitleTextView.getDrawable().getTextSize() * 1.2f;
+            MurkaScreenPrivacy.drawRectCover(this, canvas, left, centerY - height / 2f, left + width, centerY + height / 2f, animatedSubtitleTextView.getTextColor());
+            return true;
+        }
+        return false;
     }
 
     public boolean ignoreTouches;

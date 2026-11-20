@@ -67,6 +67,7 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_EDITED_ICON = 19; // MurkaGram: «Заменять «изменено» иконкой»
     private static final int ID_DESIGN_PACKS = 20; // MurkaGram: «Пакеты интерфейса» (там же выбор интерфейса 13.2.2 / 12.2.10)
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
+    private static final int ID_DIALOGS_MENU = 51; // MurkaGram: «Меню «⋮» в списке чатов» (замена бокового меню в 13.2.2)
 
     private static final int REQUEST_FONT_FILE = 7701;
     private static final int REQUEST_EMOJI_FILE = 7702; // MurkaGram
@@ -98,6 +99,7 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asButton(ID_DESIGN_PACKS, LocaleController.getString(R.string.MurkaDesignPacks))); // MurkaGram: «Пакеты интерфейса»
         // MurkaGram: ui-13 TODO — 13.2.2 has no side drawer (decision deferred), «Настройки бокового меню» hidden
         // items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings)));
+        items.add(UItem.asButton(ID_DIALOGS_MENU, LocaleController.getString(R.string.MurkaDialogsMenuSettings))); // MurkaGram
         items.add(UItem.asShadow(null));
         // MurkaGram: категория «Material Design 3» (только при включённом MD3 дизайне)
         if (MurkaConfig.md3Design) {
@@ -262,6 +264,8 @@ public class MurkaDesignActivity extends UniversalFragment {
             showFontDialog();
         } else if (item.id == ID_DRAWER) { // MurkaGram
             presentFragment(new MurkaDrawerSettingsActivity());
+        } else if (item.id == ID_DIALOGS_MENU) { // MurkaGram: «Меню «⋮» в списке чатов»
+            presentFragment(new MurkaDialogsMenuActivity());
         } else if (item.id == ID_DESIGN_PACKS) { // MurkaGram: «Пакеты интерфейса»
             presentFragment(new MurkaDesignPacksActivity());
         }

@@ -41,6 +41,9 @@ import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.TextureView;
+import android.graphics.Outline;
+import android.view.ViewOutlineProvider;
+import android.widget.ImageView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -94,6 +97,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 public class IntroActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
     private final static int ICON_WIDTH_DP = 200, ICON_HEIGHT_DP = 150;
+    private final static int MURKA_ICON_SIZE_DP = 130; // MurkaGram
 
     private final Object pagerHeaderTag = new Object(),
             pagerMessageTag = new Object();
@@ -129,6 +133,23 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
 
     private boolean isOnLogout;
 
+    // MurkaGram: иконка MurkaGram поверх GL-анимации на первой странице
+    private ImageView murkaIconView;
+    private TextureView murkaTextureView;
+
+    // MurkaGram: первая страница — иконка MurkaGram (GL-логотип Telegram скрыт), при пролистывании — плавный переход к GL-анимации
+    private void murkaUpdateIntroIcon(int position, float offset) {
+        if (murkaIconView == null || murkaTextureView == null) {
+            return;
+        }
+        float progress = position == 0 ? 1f - offset : 0f;
+        murkaIconView.setAlpha(progress);
+        murkaIconView.setScaleX(0.7f + 0.3f * progress);
+        murkaIconView.setScaleY(0.7f + 0.3f * progress);
+        murkaIconView.setVisibility(progress > 0 ? View.VISIBLE : View.INVISIBLE);
+        murkaTextureView.setAlpha(1f - progress);
+    }
+
     @Override
     public boolean onFragmentCreate() {
         MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
@@ -142,7 +163,7 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
                 LocaleController.getString(R.string.Page6Title)
         };
         messages = new String[]{
-                LocaleController.getString(R.string.Page1Message),
+                LocaleController.getString(R.string.MurkaIntroSubtitle), // MurkaGram: было Page1Message
                 LocaleController.getString(R.string.Page2Message),
                 LocaleController.getString(R.string.Page3Message),
                 LocaleController.getString(R.string.Page5Message),
@@ -156,9 +177,7 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
     public View createView(Context context) {
         logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo).mutate();
         logoDrawable.setBounds(0, dp(8.666f), dp(115), dp(35));
-        SpannableStringBuilder ssb = new SpannableStringBuilder(LocaleController.getString(R.string.Page1Title));
-        ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        titles[0] = ssb;
+        titles[0] = LocaleController.getString(R.string.MurkaIntroTitle); // MurkaGram: «MurkaGram» текстом вместо логотипа-надписи Telegram
 
 
         actionBar.setAddToContainer(false);
@@ -250,6 +269,20 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
 
         TextureView textureView = new TextureView(context);
         frameLayout2.addView(textureView, LayoutHelper.createFrame(ICON_WIDTH_DP, ICON_HEIGHT_DP, Gravity.CENTER));
+        // MurkaGram: на первой странице вместо GL-логотипа Telegram — иконка приложения MurkaGram
+        murkaTextureView = textureView;
+        murkaIconView = new ImageView(context);
+        murkaIconView.setImageResource(R.mipmap.ic_launcher_murka_round);
+        murkaIconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        murkaIconView.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
+            }
+        });
+        murkaIconView.setClipToOutline(true);
+        frameLayout2.addView(murkaIconView, LayoutHelper.createFrame(MURKA_ICON_SIZE_DP, MURKA_ICON_SIZE_DP, Gravity.CENTER));
+        murkaUpdateIntroIcon(0, 0);
         textureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
@@ -302,6 +335,7 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
             @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
                 bottomPages.setPageOffset(position, positionOffset);
+                murkaUpdateIntroIcon(position, positionOffset); // MurkaGram
 
                 float width = viewPager.getMeasuredWidth();
                 if (width == 0) {

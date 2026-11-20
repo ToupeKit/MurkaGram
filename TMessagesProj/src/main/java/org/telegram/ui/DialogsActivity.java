@@ -13468,94 +13468,191 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
+        // MurkaGram: «Меню «⋮» в списке чатов» — видимость и порядок пунктов (по умолчанию как в 13.2.2)
+        final java.util.HashSet<String> murkaItems = MurkaConfig.getDialogsMenuItems(getUserConfig().showCallsTab);
+        final java.util.ArrayList<String> murkaOrder = MurkaConfig.getDialogsMenuOrder();
         final boolean isCurrentThemeDark;
         if (resourceProvider != null) {
             isCurrentThemeDark = resourceProvider.isDark();
         } else {
             isCurrentThemeDark = Theme.isCurrentThemeDark();
         }
-        io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
-                getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
-            if (switchingTheme) {
-                return;
+        for (int murkaIndex = 0; murkaIndex < murkaOrder.size(); murkaIndex++) { // MurkaGram
+            final String murkaKey = murkaOrder.get(murkaIndex);
+            if (murkaKey.equals("bots") && ApplicationLoader.applicationLoaderInstance != null) {
+                // MurkaGram: пункты сборки (SMS-задания) — как в 13.2.2, прямо перед «Кошельком и ботами»
+                ApplicationLoader.applicationLoaderInstance.addItemOptions(io);
             }
-            switchingTheme = true;
-            SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
-            String dayThemeName = preferences.getString("lastDayTheme", "Blue");
-            if (Theme.getTheme(dayThemeName) == null || Theme.getTheme(dayThemeName).isDark()) {
-                dayThemeName = "Blue";
+            if (!murkaItems.contains(murkaKey)) {
+                continue;
             }
-            String nightThemeName = preferences.getString("lastDarkTheme", "Dark Blue");
-            if (Theme.getTheme(nightThemeName) == null || !Theme.getTheme(nightThemeName).isDark()) {
-                nightThemeName = "Dark Blue";
-            }
-            Theme.ThemeInfo themeInfo = Theme.getActiveTheme();
-            if (dayThemeName.equals(nightThemeName)) {
-                if (themeInfo.isDark() || dayThemeName.equals("Dark Blue") || dayThemeName.equals("Night")) {
-                    dayThemeName = "Blue";
-                } else {
-                    nightThemeName = "Dark Blue";
-                }
-            }
-
-            boolean toDark;
-            if (toDark = dayThemeName.equals(themeInfo.getKey())) {
-                themeInfo = Theme.getTheme(nightThemeName);
-            } else {
-                themeInfo = Theme.getTheme(dayThemeName);
-            }
-            switchTheme(themeInfo, toDark);
-            Theme.turnOffAutoNight(BulletinFactory.of(this), () -> {
-                presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
-            });
-        });
-        io.addGap();
-        io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
-            Bundle args = new Bundle();
-            presentFragment(new GroupCreateActivity(args));
-        });
-        io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
-            Bundle args = new Bundle();
-            args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
-            presentFragment(new ChatActivity(args));
-        });
-        if (ApplicationLoader.applicationLoaderInstance != null) {
-            ApplicationLoader.applicationLoaderInstance.addItemOptions(io);
-        }
-        if (getMessagesController().config.walletAvailable.get()) {
-            io.add(R.drawable.ic_gram, LocaleController.getString(R.string.WalletAttachMoney), () -> {
-                presentFragment(new WalletActivity());
-            });
-        } else {
-            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
-            if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
-                for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
-                    if (attachMenuBot.show_in_side_menu) {
-                        io.addBot(attachMenuBot, () -> {
-                            if (attachMenuBot.inactive || attachMenuBot.side_menu_disclaimer_needed) {
-                                WebAppDisclaimerAlert.show(getContext(), (allowSendMessage) -> {
-                                    TLRPC.TL_messages_toggleBotInAttachMenu botRequest = new TLRPC.TL_messages_toggleBotInAttachMenu();
-                                    botRequest.bot = MessagesController.getInstance(currentAccount).getInputUser(attachMenuBot.bot_id);
-                                    botRequest.enabled = true;
-                                    botRequest.write_allowed = true;
-                                    ConnectionsManager.getInstance(currentAccount).sendRequest(botRequest, (response2, error2) -> AndroidUtilities.runOnUIThread(() -> {
-                                        attachMenuBot.inactive = attachMenuBot.side_menu_disclaimer_needed = false;
-                                        LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
-                                        MediaDataController.getInstance(currentAccount).updateAttachMenuBotsInCache();
-                                    }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
-                                }, null, null);
+            switch (murkaKey) {
+                case "night": {
+                    io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
+                            getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
+                        if (switchingTheme) {
+                            return;
+                        }
+                        switchingTheme = true;
+                        SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
+                        String dayThemeName = preferences.getString("lastDayTheme", "Blue");
+                        if (Theme.getTheme(dayThemeName) == null || Theme.getTheme(dayThemeName).isDark()) {
+                            dayThemeName = "Blue";
+                        }
+                        String nightThemeName = preferences.getString("lastDarkTheme", "Dark Blue");
+                        if (Theme.getTheme(nightThemeName) == null || !Theme.getTheme(nightThemeName).isDark()) {
+                            nightThemeName = "Dark Blue";
+                        }
+                        Theme.ThemeInfo themeInfo = Theme.getActiveTheme();
+                        if (dayThemeName.equals(nightThemeName)) {
+                            if (themeInfo.isDark() || dayThemeName.equals("Dark Blue") || dayThemeName.equals("Night")) {
+                                dayThemeName = "Blue";
                             } else {
-                                LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                                nightThemeName = "Dark Blue";
                             }
-                        }, () -> BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, null));
+                        }
+
+                        boolean toDark;
+                        if (toDark = dayThemeName.equals(themeInfo.getKey())) {
+                            themeInfo = Theme.getTheme(nightThemeName);
+                        } else {
+                            themeInfo = Theme.getTheme(dayThemeName);
+                        }
+                        switchTheme(themeInfo, toDark);
+                        Theme.turnOffAutoNight(BulletinFactory.of(this), () -> {
+                            presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
+                        });
+                    });
+                    // MurkaGram: разделитель после переключателя темы, как в 13.2.2, — если ниже есть ещё пункты
+                    boolean hasMore = false;
+                    for (int j = murkaIndex + 1; j < murkaOrder.size(); j++) {
+                        if (murkaItems.contains(murkaOrder.get(j))) {
+                            hasMore = true;
+                            break;
+                        }
                     }
+                    if (hasMore) {
+                        io.addGap();
+                    }
+                    break;
                 }
+                case "profile": // MurkaGram: пункты бокового меню MurkaGram 12.2.10
+                    io.add(R.drawable.left_status_profile, getString(R.string.MyProfile), () -> {
+                        Bundle args = new Bundle();
+                        args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        args.putBoolean("my_profile", true);
+                        presentFragment(new ProfileActivity(args, null));
+                    });
+                    break;
+                case "newgroup":
+                    io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
+                        Bundle args = new Bundle();
+                        presentFragment(new GroupCreateActivity(args));
+                    });
+                    break;
+                case "secret":
+                    io.add(R.drawable.msg_secret, getString(R.string.NewSecretChat), () -> {
+                        Bundle args = new Bundle();
+                        args.putBoolean("onlyUsers", true);
+                        args.putBoolean("destroyAfterSelect", true);
+                        args.putBoolean("createSecretChat", true);
+                        args.putBoolean("allowBots", false);
+                        args.putBoolean("allowSelf", false);
+                        presentFragment(new ContactsActivity(args));
+                    });
+                    break;
+                case "channel":
+                    io.add(R.drawable.msg_channel, getString(R.string.NewChannel), () -> {
+                        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+                        if (!BuildVars.DEBUG_VERSION && preferences.getBoolean("channel_intro", false)) {
+                            Bundle args = new Bundle();
+                            args.putInt("step", 0);
+                            presentFragment(new ChannelCreateActivity(args));
+                        } else {
+                            presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANNEL_CREATE));
+                            preferences.edit().putBoolean("channel_intro", true).commit();
+                        }
+                    });
+                    break;
+                case "contacts":
+                    io.add(R.drawable.msg_contacts, getString(R.string.Contacts), () -> {
+                        Bundle args = new Bundle();
+                        args.putBoolean("needFinishFragment", false);
+                        presentFragment(new ContactsActivity(args));
+                    });
+                    break;
+                case "calls":
+                    io.add(R.drawable.msg_calls, getString(R.string.Calls), () -> presentFragment(new CallLogActivity()));
+                    break;
+                case "saved":
+                    io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
+                        Bundle args = new Bundle();
+                        args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        presentFragment(new ChatActivity(args));
+                    });
+                    break;
+                case "bots": { // MurkaGram: «Кошелёк и боты»
+                    if (getMessagesController().config.walletAvailable.get()) {
+                        io.add(R.drawable.ic_gram, LocaleController.getString(R.string.WalletAttachMoney), () -> {
+                            presentFragment(new WalletActivity());
+                        });
+                    } else {
+                        TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
+                        if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
+                            for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
+                                if (attachMenuBot.show_in_side_menu) {
+                                    io.addBot(attachMenuBot, () -> {
+                                        if (attachMenuBot.inactive || attachMenuBot.side_menu_disclaimer_needed) {
+                                            WebAppDisclaimerAlert.show(getContext(), (allowSendMessage) -> {
+                                                TLRPC.TL_messages_toggleBotInAttachMenu botRequest = new TLRPC.TL_messages_toggleBotInAttachMenu();
+                                                botRequest.bot = MessagesController.getInstance(currentAccount).getInputUser(attachMenuBot.bot_id);
+                                                botRequest.enabled = true;
+                                                botRequest.write_allowed = true;
+                                                ConnectionsManager.getInstance(currentAccount).sendRequest(botRequest, (response2, error2) -> AndroidUtilities.runOnUIThread(() -> {
+                                                    attachMenuBot.inactive = attachMenuBot.side_menu_disclaimer_needed = false;
+                                                    LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                                                    MediaDataController.getInstance(currentAccount).updateAttachMenuBotsInCache();
+                                                }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
+                                            }, null, null);
+                                        } else {
+                                            LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                                        }
+                                    }, () -> BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, null));
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+                case "settings": // MurkaGram: было getUserConfig().showCallsTab (учтено в умолчании)
+                    io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
+                        presentFragment(new SettingsActivity());
+                    });
+                    break;
+                case "murka":
+                    io.add(R.drawable.msg_settings, getString(R.string.MurkaGramSettings), () -> presentFragment(new MurkaGramSettingsActivity()));
+                    break;
+                case "invite":
+                    io.add(R.drawable.msg_invite, getString(R.string.InviteFriends), () -> presentFragment(new InviteContactsActivity()));
+                    break;
+                case "features":
+                    io.add(R.drawable.msg_help, getString(R.string.TelegramFeatures), () -> {
+                        if (getMessagesController().isFrozen()) {
+                            AccountFrozenAlert.show(currentAccount);
+                            return;
+                        }
+                        Browser.openUrl(getParentActivity(), getString(R.string.TelegramFeaturesUrl));
+                    });
+                    break;
+                case "ghost": // MurkaGram: «Включить/Выключить режим призрака»
+                    io.add(R.drawable.msg_murka_ghost, getString(MurkaConfig.ghostMode ? R.string.MurkaDrawerGhostOff : R.string.MurkaDrawerGhostOn), () -> {
+                        MurkaConfig.toggleGhostModeAndApply();
+                        Drawable ghostIcon = ContextCompat.getDrawable(ApplicationLoader.applicationContext, R.drawable.msg_murka_ghost);
+                        BulletinFactory.of(this).createSimpleBulletin(ghostIcon != null ? ghostIcon.mutate() : null,
+                                getString(MurkaConfig.ghostMode ? R.string.MurkaGhostEnabledToast : R.string.MurkaGhostDisabledToast)).show();
+                    });
+                    break;
             }
-        }
-        if (getUserConfig().showCallsTab) {
-            io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
-                presentFragment(new SettingsActivity());
-            });
         }
 
         if (proxyMenuSubItem != null) {
