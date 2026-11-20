@@ -191,10 +191,14 @@ public class MurkaDesignPack {
                         throw new PackException(ERROR_INVALID);
                     }
                     final ZipEntry apkEntry = zip.getEntry(MurkaEdition.ENTRY_APK);
-                    if (apkEntry == null || apkEntry.isDirectory() || !MurkaEdition.ENTRY_APK.equals(apkEntry.getName())) {
+                    // MurkaGram: dual UI, both interfaces are in this build — a light edition pack (no edition.apk) is enough
+                    if (apkEntry == null && !UiEdition.hasClassicCode()) {
                         throw new PackException(ERROR_INVALID);
                     }
-                    if (apkEntry.getSize() > MurkaEdition.MAX_APK_SIZE) { // подсказка заголовка; реальные байты считаются при распаковке
+                    if (apkEntry != null && (apkEntry.isDirectory() || !MurkaEdition.ENTRY_APK.equals(apkEntry.getName()))) {
+                        throw new PackException(ERROR_INVALID);
+                    }
+                    if (apkEntry != null && apkEntry.getSize() > MurkaEdition.MAX_APK_SIZE) { // подсказка заголовка; реальные байты считаются при распаковке
                         throw new PackException(ERROR_TOO_LARGE);
                     }
                     pack.edition = (String) edition;
@@ -525,6 +529,10 @@ public class MurkaDesignPack {
         manifest.put("author", author == null ? "" : author);
         manifest.put("description", description == null ? "" : description);
         manifest.put("version", version == null ? "" : version);
+        if (isEdition()) { // MurkaGram: dual UI, облегчённая копия пакета-редакции — только manifest и превью (без edition.apk)
+            manifest.put("type", MurkaEdition.TYPE_EDITION);
+            manifest.put("edition", edition);
+        }
         final JSONObject designJson = new JSONObject();
         for (java.util.Map.Entry<String, Object> e : design.entrySet()) {
             designJson.put(e.getKey(), e.getValue());
@@ -532,8 +540,10 @@ public class MurkaDesignPack {
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(bos)) {
             putEntry(zos, ENTRY_MANIFEST, manifest.toString().getBytes(StandardCharsets.UTF_8));
-            putEntry(zos, ENTRY_DESIGN, designJson.toString().getBytes(StandardCharsets.UTF_8));
-            if (themeText != null) {
+            if (!isEdition()) { // MurkaGram: у пакета-редакции нет design.json и темы
+                putEntry(zos, ENTRY_DESIGN, designJson.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            if (themeText != null && !isEdition()) {
                 putEntry(zos, ENTRY_THEME, themeText.getBytes(StandardCharsets.ISO_8859_1));
             }
             if (preview != null && !preview.isRecycled()) {
@@ -610,9 +620,11 @@ public class MurkaDesignPack {
     }
 
     // Сохраняет пакет в список установленных (перепакованным). Не вызывать с UI-потока.
+    // MurkaGram: пакет-редакция — только в dual UI и облегчённой копией (manifest + превью, edition.apk не копируется, см. toBytes);
+    // в остальных сборках пакеты-редакции (большие) в список установленных не копируются.
     public static boolean install(MurkaDesignPack pack) {
-        if (pack == null || pack.isEdition()) {
-            return false; // MurkaGram: пакеты-редакции (большие) в список установленных не копируются
+        if (pack == null || pack.isEdition() && !UiEdition.hasClassicCode()) {
+            return false;
         }
         File tmp = null;
         try {

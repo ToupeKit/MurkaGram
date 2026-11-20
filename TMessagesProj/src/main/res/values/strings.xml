@@ -54,16 +54,8 @@
     <string name="MurkaMD3Containers">MD3 containers</string>
     <string name="MurkaMD3SeparateHeaders">Separate headers</string>
     <string name="MurkaMD3Switches">MD3 switches</string>
-    <string name="MurkaClassicCategory">Classic look 12.2.10</string>
-    <string name="MurkaClassicHeader">Classic header</string>
-    <string name="MurkaClassicLists">Classic lists</string>
-    <string name="MurkaClassicSettingsIcons">Classic settings icons</string>
-    <string name="MurkaClassicInfo">Blue headers, flat lists with shadows and gray icons in Settings, as in MurkaGram 12.2.10. Works best with a classic palette from a design pack.</string>
-    <string name="MurkaClassicHeaderRestart">Restart the app to apply the classic header.</string>
     <!-- MurkaGram: dual UI -->
     <string name="MurkaUiEdition">Interface</string>
-    <string name="MurkaUiEditionModern">13.2.2 (new)</string>
-    <string name="MurkaUiEditionClassic">12.2.10 (classic)</string>
     <string name="MurkaUiEditionRestart">Restart the app to switch the interface.</string>
     <string name="MurkaFabShapeCircle">Round button</string>
     <string name="MurkaFabShapeSquare">Square button</string>
@@ -138,7 +130,7 @@
     <string name="MurkaCustomIconDisabled">This shortcut was removed in MurkaGram settings</string>
     <string name="MurkaCustomIconUnsupported">Your launcher doesn\'t support adding shortcuts.</string>
     <string name="MurkaCustomIconError">Could not load this picture</string>
-    <string name="MurkaDesignPacks">Design packs</string>
+    <string name="MurkaDesignPacks">Interface packs</string>
     <string name="MurkaDesignPacksInfo">A regular design pack (.mgdesign) contains only data: MurkaGram design settings, theme colors and a preview picture. No code, links or wallpapers are loaded from it. An edition pack contains a full MurkaGram build of another interface edition; it can be installed only if the pack is verified by MurkaGram.</string>
     <string name="MurkaDesignPackImport">Import from file</string>
     <string name="MurkaDesignPackExport">Export current design</string>
@@ -160,7 +152,7 @@
     <string name="MurkaDesignPackContains">Contains:</string>
     <string name="MurkaDesignPackSettingsCount">Design settings: %1$d</string>
     <string name="MurkaDesignPackThemeColors">Theme colors: %1$d</string>
-    <string name="MurkaDesignPackBackupNote">Your current design will be saved, you can restore it in Design packs.</string>
+    <string name="MurkaDesignPackBackupNote">Your current design will be saved, you can restore it in Interface packs.</string>
     <string name="MurkaDesignPackRestart">Restart the app to fully apply the design.</string>
     <string name="MurkaDesignPackSaveFile">Save to file</string>
     <string name="MurkaDesignPackShare">Share</string>
@@ -171,6 +163,12 @@
     <string name="MurkaDesignPackMyDesign">My design</string>
     <string name="MurkaDesignPackVerified">Verified MurkaGram pack</string>
     <string name="MurkaEditionInfo">Interface edition: %1$s. Applying installs this MurkaGram build over the current one.</string>
+    <string name="MurkaInterfaceModernName">MurkaGram Modern (13.2.2)</string>
+    <string name="MurkaInterfaceClassicName">MurkaGram Classic (12.2.10)</string>
+    <string name="MurkaInterfaceCurrent">Current</string>
+    <string name="MurkaInterfaceNext">Selected, after restart</string>
+    <string name="MurkaInterfaceSame">This interface is already selected</string>
+    <string name="MurkaEditionInfoDual">Interface: %1$s. It switches after a restart, your chats and settings stay.</string>
     <string name="MurkaEditionUnverified">Unverified build — installation is not allowed</string>
     <string name="MurkaEditionSame">This edition is already installed</string>
     <string name="MurkaEditionBadSignature">This build does not match your MurkaGram (different package or signature)</string>

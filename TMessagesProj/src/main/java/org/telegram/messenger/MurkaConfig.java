@@ -56,7 +56,8 @@ public class MurkaConfig {
     public static boolean md3Containers;
     public static boolean md3SeparateHeaders;
     public static boolean md3Switches;
-    // MurkaGram: «Классический вид 12.2.10» (обычно включается пакетом дизайна)
+    // MurkaGram: «Классический вид 12.2.10» убран из настроек (вместо него — классический интерфейс, пакет edition):
+    // всегда false, ключи в пакетах принимаются для совместимости, но игнорируются.
     public static boolean classicHeader; // синие шапки вместо белых/стеклянных (нужен перезапуск)
     public static boolean classicLists; // плоские списки с тенями вместо карточек секций
     public static boolean classicSettingsIcons; // серые иконки без подписей в «Настройках»
@@ -131,9 +132,9 @@ public class MurkaConfig {
             md3Containers = preferences.getBoolean("md3Containers", true); // MurkaGram
             md3SeparateHeaders = preferences.getBoolean("md3SeparateHeaders", true); // MurkaGram
             md3Switches = preferences.getBoolean("md3Switches", true); // MurkaGram
-            classicHeader = preferences.getBoolean("classicHeader", false); // MurkaGram
-            classicLists = preferences.getBoolean("classicLists", false); // MurkaGram
-            classicSettingsIcons = preferences.getBoolean("classicSettingsIcons", false); // MurkaGram
+            classicHeader = false; // MurkaGram: «Классический вид 12.2.10» убран, всегда выключен
+            classicLists = false;
+            classicSettingsIcons = false;
             editedIcon = preferences.getBoolean("editedIcon", false); // MurkaGram
             fontMode = preferences.getInt("fontMode", FONT_DEFAULT);
             customFontPath = preferences.getString("customFontPath", null);
@@ -474,22 +475,6 @@ public class MurkaConfig {
         getPreferences().edit().putBoolean("md3Switches", md3Switches).commit();
     }
 
-    // MurkaGram: «Классический вид 12.2.10». commit(), т.к. следом может быть перезапуск.
-    public static void toggleClassicHeader() {
-        classicHeader = !classicHeader;
-        getPreferences().edit().putBoolean("classicHeader", classicHeader).commit();
-    }
-
-    public static void toggleClassicLists() {
-        classicLists = !classicLists;
-        getPreferences().edit().putBoolean("classicLists", classicLists).commit();
-    }
-
-    public static void toggleClassicSettingsIcons() {
-        classicSettingsIcons = !classicSettingsIcons;
-        getPreferences().edit().putBoolean("classicSettingsIcons", classicSettingsIcons).commit();
-    }
-
     // MurkaGram: «Заменять «изменено» иконкой»
     public static void toggleEditedIcon() {
         editedIcon = !editedIcon;
@@ -598,9 +583,6 @@ public class MurkaConfig {
         map.put("springAnimation", springAnimation);
         map.put("noNumberRounding", noNumberRounding);
         map.put("timeWithSeconds", timeWithSeconds);
-        map.put("classicHeader", classicHeader);
-        map.put("classicLists", classicLists);
-        map.put("classicSettingsIcons", classicSettingsIcons);
         if (UiEdition.classicAvailable()) { // MurkaGram: dual UI, the edition chosen for the next start
             map.put("uiEdition", UiEdition.next());
         }
@@ -667,9 +649,10 @@ public class MurkaConfig {
                 case "springAnimation": springAnimation = (Boolean) v; break;
                 case "noNumberRounding": noNumberRounding = (Boolean) v; break;
                 case "timeWithSeconds": timeWithSeconds = (Boolean) v; break;
-                case "classicHeader": classicHeader = (Boolean) v; break;
-                case "classicLists": classicLists = (Boolean) v; break;
-                case "classicSettingsIcons": classicSettingsIcons = (Boolean) v; break;
+                case "classicHeader": // MurkaGram: «Классический вид 12.2.10» убран — ключ принимается, но игнорируется
+                case "classicLists":
+                case "classicSettingsIcons":
+                    continue;
                 case "uiEdition": // MurkaGram: dual UI, only builds with both editions; takes effect after a restart
                     if (UiEdition.classicAvailable()) {
                         UiEdition.setForNextLaunch((String) v);

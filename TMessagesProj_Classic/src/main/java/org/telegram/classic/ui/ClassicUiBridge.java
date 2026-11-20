@@ -59,6 +59,18 @@ public final class ClassicUiBridge implements UiBridge {
         org.telegram.ui.ActionBar.Theme.createChatResources(context, false);
     }
 
+    // MurkaGram: dual UI, remote themes go to the classic Theme (shared "themeconfig" prefs, see UiBridge)
+    @Override
+    public void loadRemoteThemes(int account) {
+        Theme.loadRemoteThemes(account, false);
+        Theme.checkCurrentRemoteTheme(false);
+    }
+
+    @Override
+    public void themeUpdated(TLRPC.TL_theme theme, int account) {
+        Theme.setThemeUploadInfo(null, null, theme, account, true);
+    }
+
     // --- activity / screens
 
     @Override

@@ -9993,7 +9993,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (playProfileAnimation == 2 && avatarColor != 0) {
             color = avatarColor;
         } else {
-            color = AvatarDrawable.getProfileBackColorForId(userId != 0 || ChatObject.isChannel(chatId, currentAccount) && !currentChat.megagroup ? 5 : chatId, resourcesProvider);
+            color = getThemedColor(Theme.key_avatar_backgroundActionBarBlue); // MurkaGram: dual UI, SHARED AvatarDrawable reads the modern Theme (13.2.2 keys), use the classic Theme as 12.2.10
         }
 
         int actionBarColor = actionBarAnimationColorFrom != 0 ? actionBarAnimationColorFrom : getThemedColor(Theme.key_actionBarDefault);
@@ -10004,7 +10004,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         topView.setBackgroundColor(ColorUtils.blendARGB(actionBarColor, color, progress));
         timerDrawable.setBackgroundColor(ColorUtils.blendARGB(actionBarColor2, color, progress));
 
-        color = AvatarDrawable.getIconColorForId(userId != 0 || ChatObject.isChannel(chatId, currentAccount) && !currentChat.megagroup ? 5 : chatId, resourcesProvider);
+        color = getThemedColor(Theme.key_avatar_actionBarIconBlue); // MurkaGram: dual UI, SHARED AvatarDrawable reads the modern Theme (13.2.2 keys), use the classic Theme as 12.2.10
         int iconColor = peerColor != null ? Color.WHITE : getThemedColor(Theme.key_actionBarDefaultIcon);
         actionBar.setItemsColor(ColorUtils.blendARGB(iconColor, color, avatarAnimationProgress), false);
 
@@ -10017,7 +10017,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             nameTextView[i].setTextColor(ColorUtils.blendARGB(titleColor, color, progress));
         }
 
-        color = isOnline[0] ? getThemedColor(Theme.key_profile_status) : AvatarDrawable.getProfileTextColorForId(userId != 0 || ChatObject.isChannel(chatId, currentAccount) && !currentChat.megagroup ? 5 : chatId, resourcesProvider);
+        color = isOnline[0] ? getThemedColor(Theme.key_profile_status) : getThemedColor(Theme.key_avatar_subtitleInProfileBlue); // MurkaGram: dual UI, SHARED AvatarDrawable reads the modern Theme (13.2.2 keys), use the classic Theme as 12.2.10
         int subtitleColor = getThemedColor(isOnline[0] ? Theme.key_chat_status : Theme.key_actionBarDefaultSubtitle);
         for (int i = 0; i < 3; i++) {
             if (onlineTextView[i] == null || i == 1 || i == 2 && playProfileAnimation == 2) {
@@ -10026,8 +10026,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             onlineTextView[i].setTextColor(ColorUtils.blendARGB(i == 0 ? subtitleColor : applyPeerColor(subtitleColor, true, isOnline[0]), i == 0 ? color : applyPeerColor(color, true, isOnline[0]), progress));
         }
         extraHeight = initialAnimationExtraHeight * progress;
-        color = AvatarDrawable.getProfileColorForId(userId != 0 ? userId : chatId, resourcesProvider);
-        int color2 = AvatarDrawable.getColorForId(userId != 0 ? userId : chatId);
+        color = getThemedColor(Theme.keys_avatar_background[AvatarDrawable.getColorIndex(userId != 0 ? userId : chatId)]); // MurkaGram: dual UI, SHARED AvatarDrawable reads the modern Theme (13.2.2 keys), use the classic Theme as 12.2.10
+        int color2 = Theme.getColor(Theme.keys_avatar_background[AvatarDrawable.getColorIndex(userId != 0 ? userId : chatId)]); // MurkaGram: dual UI
         if (color != color2) {
             avatarDrawable.setColor(ColorUtils.blendARGB(color2, color, progress));
             avatarImage.invalidate();

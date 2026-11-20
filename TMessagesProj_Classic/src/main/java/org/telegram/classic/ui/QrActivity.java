@@ -865,7 +865,7 @@ public class QrActivity extends BaseFragment {
         private SparseIntArray colors;
 
         void initColors(EmojiThemes theme, boolean isDark) {
-            colors = theme.createColors(currentAccount, isDark ? 1 : 0);
+            colors = org.telegram.ui.ActionBar.ClassicEmojiThemes.createColors(theme, currentAccount, isDark ? 1 : 0); // MurkaGram: dual UI, classic Theme colors
         }
 
         @Override

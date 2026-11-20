@@ -54,16 +54,8 @@
     <string name="MurkaMD3Containers">Контейнери в стилі MD3</string>
     <string name="MurkaMD3SeparateHeaders">Відокремити заголовки</string>
     <string name="MurkaMD3Switches">Перемикачі в стилі MD3</string>
-    <string name="MurkaClassicCategory">Класичний вигляд 12.2.10</string>
-    <string name="MurkaClassicHeader">Класична шапка</string>
-    <string name="MurkaClassicLists">Класичні списки</string>
-    <string name="MurkaClassicSettingsIcons">Класичні іконки налаштувань</string>
-    <string name="MurkaClassicInfo">Сині шапки, пласкі списки з тінями та сірі іконки в «Налаштуваннях», як у MurkaGram 12.2.10. Найкраще разом із класичною палітрою з пакета дизайну.</string>
-    <string name="MurkaClassicHeaderRestart">Перезапустіть застосунок, щоб застосувати класичну шапку.</string>
     <!-- MurkaGram: dual UI -->
     <string name="MurkaUiEdition">Інтерфейс</string>
-    <string name="MurkaUiEditionModern">13.2.2 (новий)</string>
-    <string name="MurkaUiEditionClassic">12.2.10 (класичний)</string>
     <string name="MurkaUiEditionRestart">Перезапустіть застосунок, щоб змінити інтерфейс.</string>
     <string name="MurkaFabShapeCircle">Кругла кнопка</string>
     <string name="MurkaFabShapeSquare">Квадратна кнопка</string>
@@ -138,7 +130,7 @@
     <string name="MurkaCustomIconDisabled">Ярлик вимкнено в налаштуваннях MurkaGram</string>
     <string name="MurkaCustomIconUnsupported">Ваш лаунчер не підтримує створення ярликів.</string>
     <string name="MurkaCustomIconError">Не вдалося завантажити зображення</string>
-    <string name="MurkaDesignPacks">Пакети дизайну</string>
+    <string name="MurkaDesignPacks">Пакети інтерфейсу</string>
     <string name="MurkaDesignPacksInfo">Звичайний пакет дизайну (.mgdesign) містить лише дані: налаштування оформлення MurkaGram, кольори теми та зображення для попереднього перегляду. Жодний код, посилання чи шпалери з нього не завантажуються. Пакет-редакція містить повну збірку MurkaGram з іншою редакцією інтерфейсу; встановити її можна, лише якщо пакет перевірено MurkaGram.</string>
     <string name="MurkaDesignPackImport">Імпорт із файлу</string>
     <string name="MurkaDesignPackExport">Експорт поточного дизайну</string>
@@ -160,7 +152,7 @@
     <string name="MurkaDesignPackContains">Містить:</string>
     <string name="MurkaDesignPackSettingsCount">Налаштування оформлення: %1$d</string>
     <string name="MurkaDesignPackThemeColors">Кольори теми: %1$d</string>
-    <string name="MurkaDesignPackBackupNote">Поточний дизайн буде збережено — його можна повернути в розділі «Пакети дизайну».</string>
+    <string name="MurkaDesignPackBackupNote">Поточний дизайн буде збережено — його можна повернути в розділі «Пакети інтерфейсу».</string>
     <string name="MurkaDesignPackRestart">Перезапустіть застосунок, щоб дизайн застосувався повністю.</string>
     <string name="MurkaDesignPackSaveFile">Зберегти у файл</string>
     <string name="MurkaDesignPackShare">Поділитися</string>
@@ -171,6 +163,12 @@
     <string name="MurkaDesignPackMyDesign">Мій дизайн</string>
     <string name="MurkaDesignPackVerified">Перевірений пакет MurkaGram</string>
     <string name="MurkaEditionInfo">Редакція інтерфейсу: %1$s. Під час застосування ця збірка MurkaGram буде встановлена поверх поточної.</string>
+    <string name="MurkaInterfaceModernName">MurkaGram Modern (13.2.2)</string>
+    <string name="MurkaInterfaceClassicName">MurkaGram Classic (12.2.10)</string>
+    <string name="MurkaInterfaceCurrent">Поточний</string>
+    <string name="MurkaInterfaceNext">Вибрано після перезапуску</string>
+    <string name="MurkaInterfaceSame">Цей інтерфейс уже вибрано</string>
+    <string name="MurkaEditionInfoDual">Інтерфейс: %1$s. Перемикається після перезапуску, чати й налаштування збережуться.</string>
     <string name="MurkaEditionUnverified">Неперевірена збірка — встановлення заборонено</string>
     <string name="MurkaEditionSame">Ця редакція вже встановлена</string>
     <string name="MurkaEditionBadSignature">Збірка не підходить до вашого MurkaGram (інший пакет або підпис)</string>

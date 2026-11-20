@@ -1116,6 +1116,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 //                }
 //            );
 //        }
+        // MurkaGram: dual UI. The app (modern 13.2.2 manifest, targetSdk 36) runs with enableOnBackInvokedCallback, so the
+        // system no longer calls onBackPressed() and back finished the whole activity. The classic activities opt out in the
+        // classic manifest; this callback is a fallback for systems where the opt-out is not honoured (ignored otherwise).
+        if (Build.VERSION.SDK_INT >= 33 && !murkaRedirected) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::onBackPressed);
+        }
     }
 
     private void showAttachMenuBot(TLRPC.TL_attachMenuBot attachMenuBot, String startApp, boolean sidemenu) {

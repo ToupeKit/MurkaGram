@@ -2,7 +2,8 @@
 <!-- MurkaGram: dual UI. Activities of the classic 12.2.10 UI. They are not exported and have no intent filters: the system
      (launcher icons, shortcuts, share sheet, links) always talks to the modern org.telegram.ui.* activities, which hand the
      intent over to these ones when the classic edition is active (UiEdition / UiBridge.component). Attributes as the modern
-     originals in TMessagesProj/src/main/AndroidManifest.xml. -->
+     originals in TMessagesProj/src/main/AndroidManifest.xml, except enableOnBackInvokedCallback=false: the 12.2.10 UI
+     handles back through onBackPressed()/KEYCODE_BACK (12.2.10 had no predictive back), otherwise back closes the app. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
@@ -14,6 +15,7 @@
             android:hardwareAccelerated="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false" />
         <activity
             android:name="org.telegram.classic.ui.BubbleActivity"
@@ -23,6 +25,7 @@
             android:allowEmbedded="true"
             android:documentLaunchMode="always"
             android:resizeableActivity="true"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false" />
         <activity
             android:name="org.telegram.classic.ui.ShareActivity"
@@ -32,12 +35,14 @@
             android:excludeFromRecents="true"
             android:stateNotNeeded="true"
             android:theme="@style/Theme.TMessages.Transparent"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false" />
         <activity
             android:name="org.telegram.classic.ui.ExternalActionActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustPan"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false" />
         <activity
             android:name="org.telegram.classic.ui.PopupNotificationActivity"
@@ -48,6 +53,7 @@
             android:theme="@style/Theme.TMessages.PopupNotification"
             android:resizeableActivity="false"
             android:windowSoftInputMode="adjustResize|stateHidden"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false" />
     </application>
 </manifest>

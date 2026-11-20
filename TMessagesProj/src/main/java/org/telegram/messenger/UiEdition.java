@@ -17,6 +17,8 @@ public final class UiEdition {
 
     private static final String PREFS = "murka_edition";
     private static final String KEY = "edition";
+    // MurkaGram: the classic interface is hidden until the user applies the "MurkaGram Classic" edition pack
+    private static final String KEY_UNLOCKED = "classic_unlocked";
 
     private static volatile UiBridge classicBridge;
     private static volatile String current;
@@ -35,7 +37,7 @@ public final class UiEdition {
             synchronized (UiEdition.class) {
                 value = current;
                 if (value == null) {
-                    value = CLASSIC.equals(prefs().getString(KEY, MODERN)) ? CLASSIC : MODERN;
+                    value = unlocked() && CLASSIC.equals(prefs().getString(KEY, MODERN)) ? CLASSIC : MODERN;
                     current = value;
                 }
             }
@@ -45,15 +47,37 @@ public final class UiEdition {
 
     // the edition stored for the next start (differs from current() after a switch until the restart)
     public static String next() {
-        return CLASSIC.equals(prefs().getString(KEY, MODERN)) ? CLASSIC : MODERN;
+        return unlocked() && CLASSIC.equals(prefs().getString(KEY, MODERN)) ? CLASSIC : MODERN;
     }
 
-    public static boolean classicAvailable() {
+    // the classic code is bundled into this build (edition packs switch the interface without an APK)
+    public static boolean hasClassicCode() {
         return classicBridge != null;
     }
 
+    // the interface switch is shown: classic code is bundled and the classic edition pack was applied once
+    public static boolean classicAvailable() {
+        return classicBridge != null && unlocked();
+    }
+
+    private static boolean unlocked() {
+        final SharedPreferences prefs = prefs();
+        if (!prefs.contains(KEY_UNLOCKED)) {
+            // builds before the unlock: whoever already uses the classic interface keeps it
+            final boolean wasClassic = CLASSIC.equals(prefs.getString(KEY, MODERN));
+            prefs.edit().putBoolean(KEY_UNLOCKED, wasClassic).commit();
+            return wasClassic;
+        }
+        return prefs.getBoolean(KEY_UNLOCKED, false);
+    }
+
+    // called when the classic edition pack is applied
+    public static void unlockClassic() {
+        prefs().edit().putBoolean(KEY_UNLOCKED, true).commit();
+    }
+
     public static boolean isClassic() {
-        return classicBridge != null && CLASSIC.equals(current());
+        return classicBridge != null && CLASSIC.equals(current()); // current() is modern while locked
     }
 
     // called by the app module (ApplicationLoaderImpl) before any UI starts

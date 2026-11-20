@@ -2977,7 +2977,11 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         if (fragmentCount >= 1 && settings.applyTheme && settings.applyTrulyTheme) {
             if (settings.accentId != -1 && settings.theme != null) {
                 settings.theme.setCurrentAccentId(settings.accentId);
-                Theme.saveThemeAccents(settings.theme, true, false, true, false);
+                // MurkaGram: dual UI. An accent made just now (id >= 100: a theme from the "Color theme" list, a chat theme,
+                // a link) is only in memory; with indexOnly only accent_current_* was written and after a restart the id was
+                // not found -> default accent. 12.2.10 relied on loadRemoteThemes() re-saving the list, which in the dual
+                // build ran in the modern Theme (and gets "not modified" from the server). Save the list as well.
+                Theme.saveThemeAccents(settings.theme, true, false, settings.accentId < 100, false);
             }
             if (onDone == null) {
                 Theme.applyTheme(settings.theme, settings.nightTheme);

@@ -65,12 +65,7 @@ public class MurkaDesignActivity extends UniversalFragment {
     private static final int ID_MD3_HEADERS = 17;
     private static final int ID_MD3_SWITCHES = 18;
     private static final int ID_EDITED_ICON = 19; // MurkaGram: «Заменять «изменено» иконкой»
-    private static final int ID_DESIGN_PACKS = 20; // MurkaGram: «Пакеты дизайна»
-    private static final int ID_UI_EDITION = 24; // MurkaGram: dual UI, «Интерфейс: 13.2.2 / 12.2.10»
-    // MurkaGram: категория «Классический вид 12.2.10»
-    private static final int ID_CLASSIC_HEADER = 21;
-    private static final int ID_CLASSIC_LISTS = 22;
-    private static final int ID_CLASSIC_SETTINGS_ICONS = 23;
+    private static final int ID_DESIGN_PACKS = 20; // MurkaGram: «Пакеты интерфейса» (там же выбор интерфейса 13.2.2 / 12.2.10)
     private static final int ID_DRAWER = 50; // MurkaGram: «Настройки бокового меню»
 
     private static final int REQUEST_FONT_FILE = 7701;
@@ -100,10 +95,7 @@ public class MurkaDesignActivity extends UniversalFragment {
         items.add(UItem.asCheck(ID_SPRING, LocaleController.getString(R.string.MurkaSpringAnimation)).setChecked(MurkaConfig.springAnimation));
         items.add(UItem.asCheck(ID_MD3, LocaleController.getString(R.string.MurkaMD3Design)).setChecked(MurkaConfig.md3Design)); // MurkaGram
         items.add(UItem.asButton(ID_FONT, LocaleController.getString(R.string.MurkaFont), getFontModeName(MurkaConfig.fontMode)));
-        items.add(UItem.asButton(ID_DESIGN_PACKS, LocaleController.getString(R.string.MurkaDesignPacks))); // MurkaGram: «Пакеты дизайна»
-        if (org.telegram.messenger.UiEdition.classicAvailable()) { // MurkaGram: dual UI, the interface of this app (applied after a restart)
-            items.add(UItem.asButton(ID_UI_EDITION, LocaleController.getString(R.string.MurkaUiEdition), getUiEditionName(org.telegram.messenger.UiEdition.next())));
-        }
+        items.add(UItem.asButton(ID_DESIGN_PACKS, LocaleController.getString(R.string.MurkaDesignPacks))); // MurkaGram: «Пакеты интерфейса»
         // MurkaGram: ui-13 TODO — 13.2.2 has no side drawer (decision deferred), «Настройки бокового меню» hidden
         // items.add(UItem.asButton(ID_DRAWER, LocaleController.getString(R.string.MurkaDrawerSettings)));
         items.add(UItem.asShadow(null));
@@ -120,12 +112,6 @@ public class MurkaDesignActivity extends UniversalFragment {
             items.add(UItem.asCheck(ID_NO_BUBBLE_TAIL, LocaleController.getString(R.string.MurkaNoBubbleTail)).setChecked(MurkaConfig.noBubbleTail));
             items.add(UItem.asShadow(null));
         }
-        // MurkaGram: категория «Классический вид 12.2.10»
-        items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaClassicCategory)));
-        items.add(UItem.asCheck(ID_CLASSIC_HEADER, LocaleController.getString(R.string.MurkaClassicHeader)).setChecked(MurkaConfig.classicHeader));
-        items.add(UItem.asCheck(ID_CLASSIC_LISTS, LocaleController.getString(R.string.MurkaClassicLists)).setChecked(MurkaConfig.classicLists));
-        items.add(UItem.asCheck(ID_CLASSIC_SETTINGS_ICONS, LocaleController.getString(R.string.MurkaClassicSettingsIcons)).setChecked(MurkaConfig.classicSettingsIcons));
-        items.add(UItem.asShadow(LocaleController.getString(R.string.MurkaClassicInfo)));
         // MurkaGram: категория «Чаты»
         items.add(UItem.asHeader(LocaleController.getString(R.string.MurkaDesignChats)));
         if (!MurkaConfig.md3Design) { // MurkaGram: при MD3 пункт в категории «Material Design 3»
@@ -207,28 +193,6 @@ public class MurkaDesignActivity extends UniversalFragment {
             }
             updateList(); // MurkaGram: показать/скрыть категорию «Material Design 3»
             showRestartDialog(LocaleController.getString(R.string.MurkaMD3Restart));
-        } else if (item.id == ID_CLASSIC_HEADER) { // MurkaGram: «Классическая шапка» применяется после перезапуска
-            MurkaConfig.toggleClassicHeader();
-            if (view instanceof TextCheckCell) {
-                ((TextCheckCell) view).setChecked(MurkaConfig.classicHeader);
-            }
-            if (!MurkaConfig.classicHeader) { // MurkaGram: светлая тема с синей шапкой -> ключи шапки 13.2.2 (без отправки темы на сервер)
-                MurkaDesignPack.fixCurrentHeaderColors();
-            }
-            showRestartDialog(LocaleController.getString(R.string.MurkaClassicHeaderRestart));
-        } else if (item.id == ID_CLASSIC_LISTS) { // MurkaGram: «Классические списки» — сразу (декорация секций), тени — при пересоздании экранов
-            MurkaConfig.toggleClassicLists();
-            if (view instanceof TextCheckCell) {
-                ((TextCheckCell) view).setChecked(MurkaConfig.classicLists);
-            }
-            applyMd3Change();
-            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
-        } else if (item.id == ID_CLASSIC_SETTINGS_ICONS) { // MurkaGram: «Классические иконки настроек»
-            MurkaConfig.toggleClassicSettingsIcons();
-            if (view instanceof TextCheckCell) {
-                ((TextCheckCell) view).setChecked(MurkaConfig.classicSettingsIcons);
-            }
-            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
         } else if (item.id == ID_DIVIDERS) { // MurkaGram: «Тип разделителей»
             showDividersDialog();
         } else if (item.id == ID_MD3_CONTAINERS) { // MurkaGram: ui-13 — отступы/радиус задаёт декорация секций (RecyclerListView.murkaCheckMD3Version), применяется сразу без перезапуска
@@ -298,9 +262,7 @@ public class MurkaDesignActivity extends UniversalFragment {
             showFontDialog();
         } else if (item.id == ID_DRAWER) { // MurkaGram
             presentFragment(new MurkaDrawerSettingsActivity());
-        } else if (item.id == ID_UI_EDITION) { // MurkaGram: dual UI
-            showUiEditionDialog();
-        } else if (item.id == ID_DESIGN_PACKS) { // MurkaGram: «Пакеты дизайна»
+        } else if (item.id == ID_DESIGN_PACKS) { // MurkaGram: «Пакеты интерфейса»
             presentFragment(new MurkaDesignPacksActivity());
         }
     }
@@ -335,31 +297,6 @@ public class MurkaDesignActivity extends UniversalFragment {
     }
 
     // MurkaGram: «Тип разделителей»
-    // MurkaGram: dual UI, the interface edition: 13.2.2 (modern) or 12.2.10 (classic), stored for the next start
-    private static String getUiEditionName(String edition) {
-        return LocaleController.getString(org.telegram.messenger.UiEdition.CLASSIC.equals(edition) ? R.string.MurkaUiEditionClassic : R.string.MurkaUiEditionModern);
-    }
-
-    // MurkaGram: dual UI
-    private void showUiEditionDialog() {
-        if (getParentActivity() == null) {
-            return;
-        }
-        final String[] options = new String[]{
-            getUiEditionName(org.telegram.messenger.UiEdition.MODERN),
-            getUiEditionName(org.telegram.messenger.UiEdition.CLASSIC)
-        };
-        final int selected = org.telegram.messenger.UiEdition.CLASSIC.equals(org.telegram.messenger.UiEdition.next()) ? 1 : 0;
-        showDialog(AlertsCreator.createSingleChoiceDialog(getParentActivity(), options, LocaleController.getString(R.string.MurkaUiEdition), selected, (dialog, which) -> {
-            if (which == selected) {
-                return;
-            }
-            org.telegram.messenger.UiEdition.setForNextLaunch(which == 1 ? org.telegram.messenger.UiEdition.CLASSIC : org.telegram.messenger.UiEdition.MODERN);
-            updateList();
-            showRestartDialog(LocaleController.getString(R.string.MurkaUiEditionRestart));
-        }));
-    }
-
     private void showDividersDialog() {
         if (getParentActivity() == null) {
             return;

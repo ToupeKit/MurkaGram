@@ -62,6 +62,137 @@ public final class ClassicEmojiThemes {
         return new Theme.ThemeInfo(themeInfo);
     }
 
+    // MurkaGram: dual UI. EmojiThemes is SHARED, its createColors()/getPreviewColors() build the colors with the MODERN
+    // Theme (13.2.2 base themes and assets: white action bar, pinned panel, profile header in chats with a chat theme).
+    // These are the same methods (core-13 EmojiThemes) running on the classic Theme.
+    private static final int[] previewColorKeys = new int[]{
+            Theme.key_chat_inBubble,
+            Theme.key_chat_outBubble,
+            Theme.key_featuredStickers_addButton,
+            Theme.key_chat_wallpaper,
+            Theme.key_chat_wallpaper_gradient_to1,
+            Theme.key_chat_wallpaper_gradient_to2,
+            Theme.key_chat_wallpaper_gradient_to3,
+            Theme.key_chat_wallpaper_gradient_rotation
+    };
+    private static final java.util.WeakHashMap<EmojiThemes.ThemeItem, SparseIntArray> previewColorsCache = new java.util.WeakHashMap<>();
+
+    private static SparseIntArray createColorsInternal(EmojiThemes self, int currentAccount, int index, boolean ignoreMissingBase) {
+        Theme.ThemeInfo themeInfo = getThemeInfo(self, index);
+        Theme.ThemeAccent accent = null;
+        if (themeInfo == null) {
+            int settingsIndex = self.getSettingsIndex(index);
+            final ITheme iTheme = self.getITheme(index);
+            final TLRPC.TL_theme tlTheme = self.getTlTheme(index);
+            Theme.ThemeInfo baseTheme;
+            if (iTheme != null) {
+                baseTheme = Theme.getTheme(Theme.getBaseThemeKey(iTheme.getThemeSettings(settingsIndex)));
+            } else {
+                baseTheme = Theme.getTheme("Blue");
+            }
+            if (baseTheme == null) {
+                if (ignoreMissingBase) {
+                    return null;
+                }
+                baseTheme = Theme.getTheme("Blue");
+            }
+            themeInfo = new Theme.ThemeInfo(baseTheme);
+            if (iTheme != null) {
+                accent = themeInfo.createNewAccent(iTheme.getThemeId(), iTheme.getThemeSettings(settingsIndex), tlTheme, currentAccount, true);
+            }
+            if (accent != null) {
+                themeInfo.setCurrentAccentId(accent.id);
+            }
+        } else {
+            if (themeInfo.themeAccentsMap != null) {
+                accent = themeInfo.themeAccentsMap.get(self.items.get(index).accentId);
+            }
+        }
+
+        SparseIntArray currentColorsNoAccent;
+        String[] wallpaperLink = new String[1];
+        if (themeInfo.pathToFile != null) {
+            currentColorsNoAccent = Theme.getThemeFileValues(new File(themeInfo.pathToFile), null, wallpaperLink);
+        } else if (themeInfo.assetName != null) {
+            currentColorsNoAccent = Theme.getThemeFileValues(null, themeInfo.assetName, wallpaperLink);
+        } else {
+            currentColorsNoAccent = new SparseIntArray();
+        }
+        self.items.get(index).wallpaperLink = wallpaperLink[0];
+
+        SparseIntArray currentColors;
+        if (accent != null) {
+            currentColors = currentColorsNoAccent.clone();
+            accent.fillAccentColors(currentColorsNoAccent, currentColors);
+            if (self.isGiftTheme() && accent.parentTheme != null && accent.parentTheme.isLight()) {
+                accent.resetAccentColorsForMyMessagesGiftThemeLight(currentColors);
+            }
+        } else {
+            currentColors = currentColorsNoAccent;
+        }
+        return currentColors;
+    }
+
+    // MurkaGram: dual UI, core-13 EmojiThemes.createColors on the classic Theme
+    public static SparseIntArray createColors(EmojiThemes self, int currentAccount, int index) {
+        SparseIntArray currentColors = createColorsInternal(self, currentAccount, index, false);
+        SparseIntArray fallbackKeys = Theme.getFallbackKeys();
+        for (int i = 0; i < fallbackKeys.size(); i++) {
+            int colorKey = fallbackKeys.keyAt(i);
+            int fallbackKey = fallbackKeys.valueAt(i);
+            if (currentColors.indexOfKey(colorKey) < 0) {
+                int fallbackIndex = currentColors.indexOfKey(fallbackKey);
+                if (fallbackIndex >= 0) {
+                    currentColors.put(colorKey, currentColors.valueAt(fallbackIndex));
+                }
+            }
+        }
+        int[] defaultColors = Theme.getDefaultColors();
+        for (int i = 0; i < defaultColors.length; i++) {
+            if (currentColors.indexOfKey(i) < 0) {
+                currentColors.put(i, defaultColors[i]);
+            }
+        }
+        return currentColors;
+    }
+
+    // MurkaGram: dual UI, core-13 EmojiThemes.getPreviewColors on the classic Theme (own cache: the modern one is filled
+    // by the SHARED EmojiThemes with modern colors)
+    public static SparseIntArray getPreviewColors(EmojiThemes self, int currentAccount, int index) {
+        final EmojiThemes.ThemeItem item = self.items.get(index);
+        SparseIntArray array = previewColorsCache.get(item);
+        if (array != null) {
+            return array;
+        }
+        SparseIntArray currentColors = createColorsInternal(self, currentAccount, index, true);
+        if (currentColors == null) {
+            return null;
+        }
+        SparseIntArray fallbackKeys = Theme.getFallbackKeys();
+        array = new SparseIntArray();
+        previewColorsCache.put(item, array);
+        try {
+            for (int i = 0; i < previewColorKeys.length; i++) {
+                int key = previewColorKeys[i];
+                int colorIndex = currentColors.indexOfKey(key);
+                if (colorIndex >= 0) {
+                    array.put(key, currentColors.valueAt(colorIndex));
+                } else {
+                    int fallbackKey = fallbackKeys.get(key, -1);
+                    if (fallbackKey >= 0) {
+                        int fallbackIndex = currentColors.indexOfKey(fallbackKey);
+                        if (fallbackIndex >= 0) {
+                            array.put(key, currentColors.valueAt(fallbackIndex));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return array;
+    }
+
     // MurkaGram: dual UI, core-13 EmojiThemes.saveCustomTheme
     public static void saveCustomTheme(Theme.ThemeInfo themeInfo, int accentId) {
         if (themeInfo == null) {

@@ -5771,8 +5771,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     LocaleController.getInstance().loadRemoteLanguages(currentAccount);
                 }
             }
-            Theme.loadRemoteThemes(currentAccount, false);
-            Theme.checkCurrentRemoteTheme(false);
+            UiEdition.bridge().loadRemoteThemes(currentAccount); // MurkaGram: dual UI, Theme of the active edition
 
             if (config.static_maps_provider == null) {
                 config.static_maps_provider = "telegram";
@@ -21032,7 +21031,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateTheme) {
                         TL_update.TL_updateTheme update = (TL_update.TL_updateTheme) baseUpdate;
                         TLRPC.TL_theme theme = (TLRPC.TL_theme) update.theme;
-                        Theme.setThemeUploadInfo(null, null, theme, currentAccount, true);
+                        UiEdition.bridge().themeUpdated(theme, currentAccount); // MurkaGram: dual UI, Theme of the active edition
                     } else if (baseUpdate instanceof TL_update.TL_updateDialogFilter) {
                         loadRemoteFilters(true);
                     } else if (baseUpdate instanceof TL_update.TL_updateDialogFilterOrder) {

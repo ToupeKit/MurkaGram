@@ -773,7 +773,7 @@ public class EmojiThemes {
         int settingsIndex;
         public int accentId = -1;
         public SparseIntArray currentPreviewColors;
-        private String wallpaperLink;
+        String wallpaperLink; // MurkaGram: dual UI, package-private: set by ClassicEmojiThemes.createColors (classic module)
 
         public int inBubbleColor;
         public int outBubbleColor;

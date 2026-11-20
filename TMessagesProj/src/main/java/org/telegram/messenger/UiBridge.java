@@ -100,4 +100,16 @@ public interface UiBridge {
     MessageObject secretViewerMessage();
 
     void secretViewerSetOnClose(Runnable onClose);
+
+    // MurkaGram: dual UI. Both Theme classes keep the theme list/accents in the same "themeconfig" prefs; the core must
+    // talk to the Theme of the active edition, otherwise the modern one rewrites them with its stale in-memory state
+    // (saveOtherThemes -> saveThemeAccents) and the classic theme/accent is lost after a restart.
+    default void loadRemoteThemes(int account) {
+        org.telegram.ui.ActionBar.Theme.loadRemoteThemes(account, false);
+        org.telegram.ui.ActionBar.Theme.checkCurrentRemoteTheme(false);
+    }
+
+    default void themeUpdated(TLRPC.TL_theme theme, int account) {
+        org.telegram.ui.ActionBar.Theme.setThemeUploadInfo(null, null, theme, account, true);
+    }
 }

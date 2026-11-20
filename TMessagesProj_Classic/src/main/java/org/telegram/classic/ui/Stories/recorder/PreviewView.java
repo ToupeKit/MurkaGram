@@ -1986,13 +1986,13 @@ public class PreviewView extends FrameLayout {
         Drawable drawable;
         if (chatTheme.isAnyStub()) {
             Theme.ThemeInfo themeInfo = ClassicEmojiThemes.getDefaultThemeInfo(isDark);
-            SparseIntArray currentColors = chatTheme.getPreviewColors(currentAccount, isDark ? 1 : 0);
+            SparseIntArray currentColors = ClassicEmojiThemes.getPreviewColors(chatTheme, currentAccount, isDark ? 1 : 0); // MurkaGram: dual UI, classic Theme colors
             String wallpaperLink = chatTheme.getWallpaperLink(isDark ? 1 : 0);
             Theme.BackgroundDrawableSettings settings = Theme.createBackgroundDrawable(themeInfo, currentColors, wallpaperLink, prevPhase, false);
             drawable = settings.wallpaper;
             drawable = new ColorDrawable(Color.BLACK);
         } else {
-            SparseIntArray currentColors = chatTheme.getPreviewColors(currentAccount, isDark ? 1 : 0);
+            SparseIntArray currentColors = ClassicEmojiThemes.getPreviewColors(chatTheme, currentAccount, isDark ? 1 : 0); // MurkaGram: dual UI, classic Theme colors
             int backgroundColor = currentColors.get(Theme.key_chat_wallpaper, Theme.getColor(Theme.key_chat_wallpaper));
             int gradientColor1 = currentColors.get(Theme.key_chat_wallpaper_gradient_to1, Theme.getColor(Theme.key_chat_wallpaper_gradient_to1));
             int gradientColor2 = currentColors.get(Theme.key_chat_wallpaper_gradient_to2, Theme.getColor(Theme.key_chat_wallpaper_gradient_to2));

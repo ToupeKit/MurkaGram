@@ -41703,7 +41703,7 @@ public class ChatActivity extends BaseFragment implements
                 if (chatTheme == null) {
                     currentColors = new SparseIntArray();
                 } else {
-                    currentColors = chatTheme.createColors(currentAccount, isDark ? 1 : 0);
+                    currentColors = ClassicEmojiThemes.createColors(chatTheme, currentAccount, isDark ? 1 : 0); // MurkaGram: dual UI, classic Theme colors
                 }
                 if (!TextUtils.isEmpty(ChatThemeController.getWallpaperEmoticon(wallpaper))) {
                     backgroundDrawable = PreviewView.getBackgroundDrawable(backgroundDrawable, currentAccount, wallpaper, isDark);
@@ -42112,7 +42112,7 @@ public class ChatActivity extends BaseFragment implements
             Drawable drawable;
             if (chatTheme.showAsDefaultStub) {
                 Theme.ThemeInfo themeInfo = ClassicEmojiThemes.getDefaultThemeInfo(isDark);
-                SparseIntArray currentColors = chatTheme.getPreviewColors(currentAccount, isDark ? 1 : 0);
+                SparseIntArray currentColors = ClassicEmojiThemes.getPreviewColors(chatTheme, currentAccount, isDark ? 1 : 0); // MurkaGram: dual UI, classic Theme colors
                 String wallpaperLink = chatTheme.getWallpaperLink(isDark ? 1 : 0);
                 Theme.BackgroundDrawableSettings settings = Theme.createBackgroundDrawable(themeInfo, currentColors, wallpaperLink, prevPhase, false);
                 drawable = settings.wallpaper;
